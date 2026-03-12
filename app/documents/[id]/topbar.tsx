@@ -59,7 +59,7 @@ export function TopBar({ children, title = "Document", documentId, customFieldsL
     }
 
     return (
-        <div className="flex items-center justify-between w-full bg-green-500 w-[100%]">
+        <div className="flex items-center justify-between w-full">
             <div className="flex flex-col gap-2">
                 <h1 className="text-xl font-bold tracking-tight">{title}</h1>
                 {children}
@@ -68,7 +68,7 @@ export function TopBar({ children, title = "Document", documentId, customFieldsL
             <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
                     <div className="flex items-center rounded-md border p-1 mr-2 bg-secondary">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-background" disabled={!prevId} asChild={!!prevId}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!prevId} asChild={!!prevId}>
                             {prevId ? (
                                 <Link href={`/documents/${prevId}`}>
                                     <ChevronLeft className="h-4 w-4" />
@@ -90,7 +90,7 @@ export function TopBar({ children, title = "Document", documentId, customFieldsL
                     <div className="flex items-center gap-2">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="secondary" className="flex">
+                                <Button variant="secondary" className="h-8 hover:bg-accent">
                                     <ListChecks className="mr-2 h-4 w-4" />
                                     Custom Fields
                                 </Button>
@@ -124,7 +124,7 @@ export function TopBar({ children, title = "Document", documentId, customFieldsL
 
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="icon">
+                                <Button variant="secondary" size="icon" className="h-8 w-8 hover:bg-accent">
                                     <MoreVertical className="h-4 w-4" />
                                 </Button>
                             </DropdownMenuTrigger>
@@ -141,21 +141,21 @@ export function TopBar({ children, title = "Document", documentId, customFieldsL
                             </DropdownMenuContent>
                         </DropdownMenu>
 
-                        <Button variant="outline" onClick={() => router.push("/documents")}>
+                        <Button variant="secondary" onClick={() => router.push("/documents")} className="h-8 hover:bg-accent">
                             Close
                         </Button>
-                        <Button variant="outline" onClick={() => {
+                        <Button variant="secondary" onClick={() => {
                             const form = document.getElementById("document-details-form") as HTMLFormElement
                             if (form) form.reset()
-                        }}>
+                        }} className="h-8 hover:bg-accent">
                             Discard
                         </Button>
                         {nextId && (
-                            <Button variant="outline" type="submit" form="document-details-form" onClick={() => setSaveAction("next")}>
+                            <Button variant="secondary" type="submit" form="document-details-form" onClick={() => setSaveAction("next")} className="h-8 hover:bg-accent">
                                 Save & Next
                             </Button>
                         )}
-                        <Button type="submit" form="document-details-form" onClick={() => setSaveAction("save")}>
+                        <Button variant="secondary" type="submit" form="document-details-form" onClick={() => setSaveAction("save")} className="h-8 hover:bg-accent">
                             <Save className="mr-2 h-4 w-4" />
                             Save
                         </Button>

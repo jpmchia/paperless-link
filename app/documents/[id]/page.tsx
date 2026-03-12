@@ -41,7 +41,7 @@ export default async function DocumentDetailsPage({
     getGroups()
   ])
 
-  console.log("CUSTOM FIELDS LOG:", JSON.stringify(customFieldsList.filter((c:any) => c.data_type === 'select'), null, 2))
+  console.log("CUSTOM FIELDS LOG:", JSON.stringify(customFieldsList.filter((c: any) => c.data_type === 'select'), null, 2))
 
   if (!documentResp) {
     notFound()
@@ -72,34 +72,34 @@ export default async function DocumentDetailsPage({
           <ResizablePanel defaultSize={40} minSize={30}>
             <Tabs defaultValue="details" className="flex flex-col h-full w-full bg-background">
               <div className="pt-2">
-                <TabsList className="w-full justify-start h-auto rounded-none border-b bg-transparent p-0">
+                <TabsList className="w-full justify-start h-auto border-b bg-transparent p-0">
                   <TabsTrigger
                     value="details"
-                    className="relative rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                    className="relative rounded-t-md border-b-2 bg-transparent px-4 pb-2 pt-2 font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
                   >
                     Details
                   </TabsTrigger>
                   <TabsTrigger
                     value="content"
-                    className="relative rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                    className="relative rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-2 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
                   >
                     Content
                   </TabsTrigger>
                   <TabsTrigger
                     value="metadata"
-                    className="relative rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                    className="relative rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-2 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
                   >
                     Metadata
                   </TabsTrigger>
                   <TabsTrigger
                     value="history"
-                    className="relative rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                    className="relative rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-2 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
                   >
                     History
                   </TabsTrigger>
                   <TabsTrigger
                     value="permissions"
-                    className="relative rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                    className="relative rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-2 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
                   >
                     Permissions
                   </TabsTrigger>
@@ -143,12 +143,12 @@ export default async function DocumentDetailsPage({
                 </TabsContent>
 
                 <TabsContent value="history" className="m-0 h-full overflow-hidden outline-none">
-                  <HistoryTab 
-                    history={history} 
-                    documentTypes={documentTypes} 
-                    correspondents={correspondents} 
-                    storagePaths={storagePaths} 
-                    tagsList={tagsList} 
+                  <HistoryTab
+                    history={history}
+                    documentTypes={documentTypes}
+                    correspondents={correspondents}
+                    storagePaths={storagePaths}
+                    tagsList={tagsList}
                   />
                 </TabsContent>
 
