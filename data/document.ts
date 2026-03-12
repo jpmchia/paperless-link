@@ -27,51 +27,51 @@ export enum DisplayField {
 export const DEFAULT_DISPLAY_FIELDS = [
   {
     id: DisplayField.TITLE,
-    name: $localize`Title`,
+    name: 'Title',
   },
   {
     id: DisplayField.CREATED,
-    name: $localize`Created`,
+    name: 'Created',
   },
   {
     id: DisplayField.ADDED,
-    name: $localize`Added`,
+    name: 'Added',
   },
   {
     id: DisplayField.TAGS,
-    name: $localize`Tags`,
+    name: 'Tags',
   },
   {
     id: DisplayField.CORRESPONDENT,
-    name: $localize`Correspondent`,
+    name: 'Correspondent',
   },
   {
     id: DisplayField.DOCUMENT_TYPE,
-    name: $localize`Document type`,
+    name: 'Document type',
   },
   {
     id: DisplayField.STORAGE_PATH,
-    name: $localize`Storage path`,
+    name: 'Storage path',
   },
   {
     id: DisplayField.NOTES,
-    name: $localize`Notes`,
+    name: 'Notes',
   },
   {
     id: DisplayField.OWNER,
-    name: $localize`Owner`,
+    name: 'Owner',
   },
   {
     id: DisplayField.SHARED,
-    name: $localize`Shared`,
+    name: 'Shared',
   },
   {
     id: DisplayField.ASN,
-    name: $localize`ASN`,
+    name: 'ASN',
   },
   {
     id: DisplayField.PAGE_COUNT,
-    name: $localize`Pages`,
+    name: 'Pages',
   },
 ]
 
@@ -85,22 +85,22 @@ export const DEFAULT_DASHBOARD_DISPLAY_FIELDS = [
 ]
 
 export const DOCUMENT_SORT_FIELDS = [
-  { field: 'archive_serial_number', name: $localize`ASN` },
-  { field: 'correspondent__name', name: $localize`Correspondent` },
-  { field: 'title', name: $localize`Title` },
-  { field: 'document_type__name', name: $localize`Document type` },
-  { field: 'created', name: $localize`Created` },
-  { field: 'added', name: $localize`Added` },
-  { field: 'modified', name: $localize`Modified` },
-  { field: 'num_notes', name: $localize`Notes` },
-  { field: 'owner', name: $localize`Owner` },
-  { field: 'page_count', name: $localize`Pages` },
+  { field: 'archive_serial_number', name: 'ASN' },
+  { field: 'correspondent__name', name: 'Correspondent' },
+  { field: 'title', name: 'Title' },
+  { field: 'document_type__name', name: 'Document type' },
+  { field: 'created', name: 'Created' },
+  { field: 'added', name: 'Added' },
+  { field: 'modified', name: 'Modified' },
+  { field: 'num_notes', name: 'Notes' },
+  { field: 'owner', name: 'Owner' },
+  { field: 'page_count', name: 'Pages' },
 ]
 
 export const DOCUMENT_SORT_FIELDS_FULLTEXT = [
   {
     field: 'score',
-    name: $localize`:Score is a value returned by the full text search engine and specifies how well a result matches the given query:Search score`,
+    name: ':Score is a value returned by the full text search engine and specifies how well a result matches the given query:Search score',
   },
 ]
 

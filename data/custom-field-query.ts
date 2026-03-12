@@ -21,17 +21,17 @@ export enum CustomFieldQueryOperator {
 }
 
 export const CUSTOM_FIELD_QUERY_OPERATOR_LABELS = {
-  [CustomFieldQueryOperator.Exact]: $localize`Equal to`,
-  [CustomFieldQueryOperator.In]: $localize`In`,
-  [CustomFieldQueryOperator.IsNull]: $localize`Is null`,
-  [CustomFieldQueryOperator.Exists]: $localize`Exists`,
-  [CustomFieldQueryOperator.Contains]: $localize`Contains`,
-  [CustomFieldQueryOperator.IContains]: $localize`Contains (case-insensitive)`,
-  [CustomFieldQueryOperator.GreaterThan]: $localize`Greater than`,
-  [CustomFieldQueryOperator.GreaterThanOrEqual]: $localize`Greater than or equal to`,
-  [CustomFieldQueryOperator.LessThan]: $localize`Less than`,
-  [CustomFieldQueryOperator.LessThanOrEqual]: $localize`Less than or equal to`,
-  [CustomFieldQueryOperator.Range]: $localize`Range`,
+  [CustomFieldQueryOperator.Exact]: 'Equal to',
+  [CustomFieldQueryOperator.In]: 'In',
+  [CustomFieldQueryOperator.IsNull]: 'Is null',
+  [CustomFieldQueryOperator.Exists]: 'Exists',
+  [CustomFieldQueryOperator.Contains]: 'Contains',
+  [CustomFieldQueryOperator.IContains]: 'Contains (case-insensitive)',
+  [CustomFieldQueryOperator.GreaterThan]: 'Greater than',
+  [CustomFieldQueryOperator.GreaterThanOrEqual]: 'Greater than or equal to',
+  [CustomFieldQueryOperator.LessThan]: 'Less than',
+  [CustomFieldQueryOperator.LessThanOrEqual]: 'Less than or equal to',
+  [CustomFieldQueryOperator.Range]: 'Range',
 }
 
 export enum CustomFieldQueryOperatorGroups {

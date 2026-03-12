@@ -48,10 +48,10 @@ export enum ConfigOptionType {
 }
 
 export const ConfigCategory = {
-  General: $localize`General Settings`,
-  OCR: $localize`OCR Settings`,
-  Barcode: $localize`Barcode Settings`,
-  AI: $localize`AI Settings`,
+  General: 'General Settings',
+  OCR: 'OCR Settings',
+  Barcode: 'Barcode Settings',
+  AI: 'AI Settings',
 }
 
 export const LLMEmbeddingBackendConfig = {
@@ -74,11 +74,11 @@ export interface ConfigOption {
   note?: string
 }
 
-function mapToItems(enumObj: Object): Array<{ id: string; name: string }> {
-  return Object.keys(enumObj).map((key) => {
+function mapToItems(enumObj: any): Array<{ id: string; name: string }> {
+  return Object.values(enumObj).map((value: any) => {
     return {
-      id: enumObj[key],
-      name: enumObj[key],
+      id: value,
+      name: value,
     }
   })
 }
@@ -86,7 +86,7 @@ function mapToItems(enumObj: Object): Array<{ id: string; name: string }> {
 export const PaperlessConfigOptions: ConfigOption[] = [
   {
     key: 'output_type',
-    title: $localize`Output Type`,
+    title: 'Output Type',
     type: ConfigOptionType.Select,
     choices: mapToItems(OutputTypeConfig),
     config_key: 'PAPERLESS_OCR_OUTPUT_TYPE',
@@ -94,21 +94,21 @@ export const PaperlessConfigOptions: ConfigOption[] = [
   },
   {
     key: 'language',
-    title: $localize`Language`,
+    title: 'Language',
     type: ConfigOptionType.String,
     config_key: 'PAPERLESS_OCR_LANGUAGE',
     category: ConfigCategory.OCR,
   },
   {
     key: 'pages',
-    title: $localize`Pages`,
+    title: 'Pages',
     type: ConfigOptionType.Number,
     config_key: 'PAPERLESS_OCR_PAGES',
     category: ConfigCategory.OCR,
   },
   {
     key: 'mode',
-    title: $localize`Mode`,
+    title: 'Mode',
     type: ConfigOptionType.Select,
     choices: mapToItems(ModeConfig),
     config_key: 'PAPERLESS_OCR_MODE',
@@ -116,7 +116,7 @@ export const PaperlessConfigOptions: ConfigOption[] = [
   },
   {
     key: 'skip_archive_file',
-    title: $localize`Skip Archive File`,
+    title: 'Skip Archive File',
     type: ConfigOptionType.Select,
     choices: mapToItems(ArchiveFileConfig),
     config_key: 'PAPERLESS_OCR_SKIP_ARCHIVE_FILE',
@@ -124,14 +124,14 @@ export const PaperlessConfigOptions: ConfigOption[] = [
   },
   {
     key: 'image_dpi',
-    title: $localize`Image DPI`,
+    title: 'Image DPI',
     type: ConfigOptionType.Number,
     config_key: 'PAPERLESS_OCR_IMAGE_DPI',
     category: ConfigCategory.OCR,
   },
   {
     key: 'unpaper_clean',
-    title: $localize`Clean`,
+    title: 'Clean',
     type: ConfigOptionType.Select,
     choices: mapToItems(CleanConfig),
     config_key: 'PAPERLESS_OCR_CLEAN',
@@ -139,35 +139,35 @@ export const PaperlessConfigOptions: ConfigOption[] = [
   },
   {
     key: 'deskew',
-    title: $localize`Deskew`,
+    title: 'Deskew',
     type: ConfigOptionType.Boolean,
     config_key: 'PAPERLESS_OCR_DESKEW',
     category: ConfigCategory.OCR,
   },
   {
     key: 'rotate_pages',
-    title: $localize`Rotate Pages`,
+    title: 'Rotate Pages',
     type: ConfigOptionType.Boolean,
     config_key: 'PAPERLESS_OCR_ROTATE_PAGES',
     category: ConfigCategory.OCR,
   },
   {
     key: 'rotate_pages_threshold',
-    title: $localize`Rotate Pages Threshold`,
+    title: 'Rotate Pages Threshold',
     type: ConfigOptionType.Number,
     config_key: 'PAPERLESS_OCR_ROTATE_PAGES_THRESHOLD',
     category: ConfigCategory.OCR,
   },
   {
     key: 'max_image_pixels',
-    title: $localize`Max Image Pixels`,
+    title: 'Max Image Pixels',
     type: ConfigOptionType.Number,
     config_key: 'PAPERLESS_OCR_MAX_IMAGE_PIXELS',
     category: ConfigCategory.OCR,
   },
   {
     key: 'color_conversion_strategy',
-    title: $localize`Color Conversion Strategy`,
+    title: 'Color Conversion Strategy',
     type: ConfigOptionType.Select,
     choices: mapToItems(ColorConvertConfig),
     config_key: 'PAPERLESS_OCR_COLOR_CONVERSION_STRATEGY',
@@ -175,120 +175,120 @@ export const PaperlessConfigOptions: ConfigOption[] = [
   },
   {
     key: 'user_args',
-    title: $localize`OCR Arguments`,
+    title: 'OCR Arguments',
     type: ConfigOptionType.JSON,
     config_key: 'PAPERLESS_OCR_USER_ARGS',
     category: ConfigCategory.OCR,
   },
   {
     key: 'app_logo',
-    title: $localize`Application Logo`,
+    title: 'Application Logo',
     type: ConfigOptionType.File,
     config_key: 'PAPERLESS_APP_LOGO',
     category: ConfigCategory.General,
   },
   {
     key: 'app_title',
-    title: $localize`Application Title`,
+    title: 'Application Title',
     type: ConfigOptionType.String,
     config_key: 'PAPERLESS_APP_TITLE',
     category: ConfigCategory.General,
   },
   {
     key: 'barcodes_enabled',
-    title: $localize`Enable Barcodes`,
+    title: 'Enable Barcodes',
     type: ConfigOptionType.Boolean,
     config_key: 'PAPERLESS_CONSUMER_ENABLE_BARCODES',
     category: ConfigCategory.Barcode,
   },
   {
     key: 'barcode_enable_tiff_support',
-    title: $localize`Enable TIFF Support`,
+    title: 'Enable TIFF Support',
     type: ConfigOptionType.Boolean,
     config_key: 'PAPERLESS_CONSUMER_BARCODE_TIFF_SUPPORT',
     category: ConfigCategory.Barcode,
   },
   {
     key: 'barcode_string',
-    title: $localize`Barcode String`,
+    title: 'Barcode String',
     type: ConfigOptionType.String,
     config_key: 'PAPERLESS_CONSUMER_BARCODE_STRING',
     category: ConfigCategory.Barcode,
   },
   {
     key: 'barcode_retain_split_pages',
-    title: $localize`Retain Split Pages`,
+    title: 'Retain Split Pages',
     type: ConfigOptionType.Boolean,
     config_key: 'PAPERLESS_CONSUMER_BARCODE_RETAIN_SPLIT_PAGES',
     category: ConfigCategory.Barcode,
   },
   {
     key: 'barcode_enable_asn',
-    title: $localize`Enable ASN`,
+    title: 'Enable ASN',
     type: ConfigOptionType.Boolean,
     config_key: 'PAPERLESS_CONSUMER_ENABLE_ASN_BARCODE',
     category: ConfigCategory.Barcode,
   },
   {
     key: 'barcode_asn_prefix',
-    title: $localize`ASN Prefix`,
+    title: 'ASN Prefix',
     type: ConfigOptionType.String,
     config_key: 'PAPERLESS_CONSUMER_ASN_BARCODE_PREFIX',
     category: ConfigCategory.Barcode,
   },
   {
     key: 'barcode_upscale',
-    title: $localize`Upscale`,
+    title: 'Upscale',
     type: ConfigOptionType.Number,
     config_key: 'PAPERLESS_CONSUMER_BARCODE_UPSCALE',
     category: ConfigCategory.Barcode,
   },
   {
     key: 'barcode_dpi',
-    title: $localize`DPI`,
+    title: 'DPI',
     type: ConfigOptionType.Number,
     config_key: 'PAPERLESS_CONSUMER_BARCODE_DPI',
     category: ConfigCategory.Barcode,
   },
   {
     key: 'barcode_max_pages',
-    title: $localize`Max Pages`,
+    title: 'Max Pages',
     type: ConfigOptionType.Number,
     config_key: 'PAPERLESS_CONSUMER_BARCODE_MAX_PAGES',
     category: ConfigCategory.Barcode,
   },
   {
     key: 'barcode_enable_tag',
-    title: $localize`Enable Tag Detection`,
+    title: 'Enable Tag Detection',
     type: ConfigOptionType.Boolean,
     config_key: 'PAPERLESS_CONSUMER_ENABLE_TAG_BARCODE',
     category: ConfigCategory.Barcode,
   },
   {
     key: 'barcode_tag_mapping',
-    title: $localize`Tag Mapping`,
+    title: 'Tag Mapping',
     type: ConfigOptionType.JSON,
     config_key: 'PAPERLESS_CONSUMER_TAG_BARCODE_MAPPING',
     category: ConfigCategory.Barcode,
   },
   {
     key: 'barcode_tag_split',
-    title: $localize`Split on Tag Barcodes`,
+    title: 'Split on Tag Barcodes',
     type: ConfigOptionType.Boolean,
     config_key: 'PAPERLESS_CONSUMER_TAG_BARCODE_SPLIT',
     category: ConfigCategory.Barcode,
   },
   {
     key: 'ai_enabled',
-    title: $localize`AI Enabled`,
+    title: 'AI Enabled',
     type: ConfigOptionType.Boolean,
     config_key: 'PAPERLESS_AI_ENABLED',
     category: ConfigCategory.AI,
-    note: $localize`Consider privacy implications when enabling AI features, especially if using a remote model.`,
+    note: 'Consider privacy implications when enabling AI features, especially if using a remote model.',
   },
   {
     key: 'llm_embedding_backend',
-    title: $localize`LLM Embedding Backend`,
+    title: 'LLM Embedding Backend',
     type: ConfigOptionType.Select,
     choices: mapToItems(LLMEmbeddingBackendConfig),
     config_key: 'PAPERLESS_AI_LLM_EMBEDDING_BACKEND',
@@ -296,14 +296,14 @@ export const PaperlessConfigOptions: ConfigOption[] = [
   },
   {
     key: 'llm_embedding_model',
-    title: $localize`LLM Embedding Model`,
+    title: 'LLM Embedding Model',
     type: ConfigOptionType.String,
     config_key: 'PAPERLESS_AI_LLM_EMBEDDING_MODEL',
     category: ConfigCategory.AI,
   },
   {
     key: 'llm_backend',
-    title: $localize`LLM Backend`,
+    title: 'LLM Backend',
     type: ConfigOptionType.Select,
     choices: mapToItems(LLMBackendConfig),
     config_key: 'PAPERLESS_AI_LLM_BACKEND',
@@ -311,21 +311,21 @@ export const PaperlessConfigOptions: ConfigOption[] = [
   },
   {
     key: 'llm_model',
-    title: $localize`LLM Model`,
+    title: 'LLM Model',
     type: ConfigOptionType.String,
     config_key: 'PAPERLESS_AI_LLM_MODEL',
     category: ConfigCategory.AI,
   },
   {
     key: 'llm_api_key',
-    title: $localize`LLM API Key`,
+    title: 'LLM API Key',
     type: ConfigOptionType.Password,
     config_key: 'PAPERLESS_AI_LLM_API_KEY',
     category: ConfigCategory.AI,
   },
   {
     key: 'llm_endpoint',
-    title: $localize`LLM Endpoint`,
+    title: 'LLM Endpoint',
     type: ConfigOptionType.String,
     config_key: 'PAPERLESS_AI_LLM_ENDPOINT',
     category: ConfigCategory.AI,

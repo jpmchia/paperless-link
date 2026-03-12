@@ -16,43 +16,43 @@ export enum CustomFieldDataType {
 export const DATA_TYPE_LABELS = [
   {
     id: CustomFieldDataType.Boolean,
-    name: $localize`Boolean`,
+    name: 'Boolean',
   },
   {
     id: CustomFieldDataType.Date,
-    name: $localize`Date`,
+    name: 'Date',
   },
   {
     id: CustomFieldDataType.Integer,
-    name: $localize`Integer`,
+    name: 'Integer',
   },
   {
     id: CustomFieldDataType.Float,
-    name: $localize`Number`,
+    name: 'Number',
   },
   {
     id: CustomFieldDataType.Monetary,
-    name: $localize`Monetary`,
+    name: 'Monetary',
   },
   {
     id: CustomFieldDataType.String,
-    name: $localize`Text`,
+    name: 'Text',
   },
   {
     id: CustomFieldDataType.Url,
-    name: $localize`Url`,
+    name: 'Url',
   },
   {
     id: CustomFieldDataType.DocumentLink,
-    name: $localize`Document Link`,
+    name: 'Document Link',
   },
   {
     id: CustomFieldDataType.Select,
-    name: $localize`Select`,
+    name: 'Select',
   },
   {
     id: CustomFieldDataType.LongText,
-    name: $localize`Long Text`,
+    name: 'Long Text',
   },
 ]
 

@@ -38,16 +38,16 @@ export const SHARE_LINK_BUNDLE_STATUS_LABELS: Record<
   ShareLinkBundleStatus,
   string
 > = {
-  [ShareLinkBundleStatus.Pending]: $localize`Pending`,
-  [ShareLinkBundleStatus.Processing]: $localize`Processing`,
-  [ShareLinkBundleStatus.Ready]: $localize`Ready`,
-  [ShareLinkBundleStatus.Failed]: $localize`Failed`,
+  [ShareLinkBundleStatus.Pending]: 'Pending',
+  [ShareLinkBundleStatus.Processing]: 'Processing',
+  [ShareLinkBundleStatus.Ready]: 'Ready',
+  [ShareLinkBundleStatus.Failed]: 'Failed',
 }
 
 export const SHARE_LINK_BUNDLE_FILE_VERSION_LABELS: Record<
   FileVersion,
   string
 > = {
-  [FileVersion.Archive]: $localize`Archive`,
-  [FileVersion.Original]: $localize`Original`,
+  [FileVersion.Archive]: 'Archive',
+  [FileVersion.Original]: 'Original',
 }
