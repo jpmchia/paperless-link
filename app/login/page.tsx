@@ -1,0 +1,74 @@
+"use client"
+
+import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
+import { useState } from "react"
+import { toast } from "sonner"
+
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+
+export default function LoginPage() {
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(false)
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsLoading(true)
+
+    const formData = new FormData(event.currentTarget)
+    const username = formData.get("username") as string
+    const password = formData.get("password") as string
+
+    try {
+      const res = await signIn("credentials", {
+        username,
+        password,
+        redirect: true,
+        callbackUrl: "/",
+      })
+
+      if (res?.error) {
+        toast.error("Authentication Failed", {
+          description: "Invalid username or password.",
+        })
+      }
+    } catch {
+      toast.error("Error", {
+        description: "An unexpected error occurred.",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex h-screen w-full items-center justify-center p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl">Login</CardTitle>
+          <CardDescription>Enter your credentials to access Paperless.</CardDescription>
+        </CardHeader>
+        <form onSubmit={onSubmit}>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input id="username" name="username" type="text" placeholder="admin" required disabled={isLoading} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" name="password" type="password" required disabled={isLoading} />
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button className="w-full" type="submit" disabled={isLoading}>
+              {isLoading ? "Signing in..." : "Sign in"}
+            </Button>
+          </CardFooter>
+        </form>
+      </Card>
+    </div>
+  )
+}
