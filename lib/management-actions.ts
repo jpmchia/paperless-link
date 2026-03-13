@@ -140,3 +140,52 @@ export async function deleteSavedViewManagement(id: number) {
   revalidatePath("/savedviews")
   revalidatePath("/documents")
 }
+
+// ── Storage Paths ─────────────────────────────────────────────────────────────
+
+export async function createStoragePath(data: {
+  name: string
+  path?: string
+  matching_algorithm?: number
+  match?: string
+  is_insensitive?: boolean
+}) {
+  const result = await apiRequest("POST", "storage_paths/", data)
+  revalidatePath("/storage-paths")
+  return result
+}
+
+export async function updateStoragePath(id: number, data: Partial<{
+  name: string
+  path: string
+  matching_algorithm: number
+  match: string
+  is_insensitive: boolean
+}>) {
+  const result = await apiRequest("PATCH", `storage_paths/${id}/`, data)
+  revalidatePath("/storage-paths")
+  return result
+}
+
+export async function deleteStoragePath(id: number) {
+  await apiRequest("DELETE", `storage_paths/${id}/`)
+  revalidatePath("/storage-paths")
+}
+
+// ── Custom Fields ─────────────────────────────────────────────────────────────
+
+export async function createCustomField(data: {
+  name: string
+  data_type: string
+  extra_data?: { select_options?: string[] }
+}) {
+  const result = await apiRequest("POST", "custom_fields/", data)
+  revalidatePath("/custom-fields")
+  return result
+}
+
+export async function deleteCustomField(id: number) {
+  await apiRequest("DELETE", `custom_fields/${id}/`)
+  revalidatePath("/custom-fields")
+}
+

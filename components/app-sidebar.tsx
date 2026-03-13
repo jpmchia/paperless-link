@@ -12,6 +12,9 @@ import {
   LayoutList,
   ChevronDown,
   ChevronRight,
+  FileType,
+  FolderOpen,
+  FormInput,
 } from "lucide-react"
 
 import {
@@ -51,6 +54,9 @@ const navMain = [
 const navManagement = [
   { title: "Tags", url: "/tags", icon: Tags },
   { title: "Correspondents", url: "/correspondents", icon: Users },
+  { title: "Document Types", url: "/document-types", icon: FileType },
+  { title: "Storage Paths", url: "/storage-paths", icon: FolderOpen },
+  { title: "Custom Fields", url: "/custom-fields", icon: FormInput },
   { title: "Saved Views", url: "/savedviews", icon: LayoutList },
 ]
 

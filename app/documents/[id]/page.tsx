@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/app-shell"
-import { getDocument, getDocumentMetadata, getCorrespondents, getDocumentTypes, getStoragePaths, getTags, getCustomFields, getDocumentHistory, getUsers, getGroups } from "@/lib/api"
+import { getDocument, getDocumentMetadata, getCorrespondents, getDocumentTypes, getStoragePaths, getTags, getCustomFields, getDocumentHistory, getDocumentNotes, getUsers, getGroups } from "@/lib/api"
 import { notFound } from "next/navigation"
 import {
   ResizablePanelGroup,
@@ -15,6 +15,7 @@ import { DetailsForm } from "./details-form"
 import { MetadataTab } from "./metadata-tab"
 import { HistoryTab } from "./history-tab"
 import { PermissionsTab } from "./permissions-tab"
+import { NotesTab } from "./notes-tab"
 import { Label } from "@/components/ui/label"
 
 import { TopBar } from "./topbar"
@@ -28,10 +29,11 @@ export default async function DocumentDetailsPage({
   const { id } = resolvedParams
 
   // Fetch document and relational metadata concurrently
-  const [documentResp, metadata, history, correspondents, documentTypes, storagePaths, tagsList, customFieldsList, usersList, groupsList] = await Promise.all([
+  const [documentResp, metadata, history, notes, correspondents, documentTypes, storagePaths, tagsList, customFieldsList, usersList, groupsList] = await Promise.all([
     getDocument(id),
     getDocumentMetadata(id),
     getDocumentHistory(id),
+    getDocumentNotes(id),
     getCorrespondents(),
     getDocumentTypes(),
     getStoragePaths(),
@@ -40,8 +42,6 @@ export default async function DocumentDetailsPage({
     getUsers(),
     getGroups()
   ])
-
-  console.log("CUSTOM FIELDS LOG:", JSON.stringify(customFieldsList.filter((c: any) => c.data_type === 'select'), null, 2))
 
   if (!documentResp) {
     notFound()
@@ -156,20 +156,8 @@ export default async function DocumentDetailsPage({
                   <PermissionsTab document={document} usersList={usersList} groupsList={groupsList} />
                 </TabsContent>
 
-                <TabsContent value="notes" className="m-0 space-y-6 outline-none h-full overflow-y-auto px-6 py-6">
-                  <div>
-                    <h3 className="text-lg font-medium">Notes</h3>
-                    <p className="text-sm text-muted-foreground">User-defined notes appended to this document.</p>
-                  </div>
-                  <div className="flex flex-col gap-6 max-w-2xl">
-                    <div className="text-sm text-muted-foreground italic rounded-md border p-4 bg-muted/20">
-                      No notes available for this document.
-                    </div>
-                    <div className="space-y-3">
-                      <Label htmlFor="newNote">Add Note</Label>
-                      <Textarea id="newNote" placeholder="Write a note..." rows={4} />
-                    </div>
-                  </div>
+                <TabsContent value="notes" className="m-0 h-full overflow-hidden outline-none">
+                  <NotesTab documentId={document.id} initialNotes={notes} />
                 </TabsContent>
               </div>
             </Tabs>

@@ -1,0 +1,231 @@
+"use client"
+
+import * as React from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table"
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Plus, Pencil, Trash2, Search } from "lucide-react"
+import { toast } from "sonner"
+import {
+  createDocumentType, updateDocumentType, deleteDocumentType,
+} from "@/lib/management-actions"
+
+const MATCHING_ALGORITHMS = [
+  { id: 0, label: "None" },
+  { id: 1, label: "Any word" },
+  { id: 2, label: "All words" },
+  { id: 3, label: "Exact match" },
+  { id: 4, label: "Regular expression" },
+  { id: 5, label: "Fuzzy match" },
+  { id: 6, label: "Automatic" },
+]
+
+type DocumentType = {
+  id: number
+  name: string
+  matching_algorithm: number
+  match: string
+  is_insensitive: boolean
+  document_count?: number
+}
+
+const emptyItem = (): Partial<DocumentType> => ({
+  name: "",
+  matching_algorithm: 6,
+  match: "",
+  is_insensitive: false,
+})
+
+export function DocumentTypesTable({ initialItems }: { initialItems: DocumentType[] }) {
+  const [items, setItems] = React.useState<DocumentType[]>(initialItems)
+  const [search, setSearch] = React.useState("")
+  const [editing, setEditing] = React.useState<Partial<DocumentType> | null>(null)
+  const [isNew, setIsNew] = React.useState(false)
+  const [deleteId, setDeleteId] = React.useState<number | null>(null)
+  const [saving, setSaving] = React.useState(false)
+
+  const filtered = items.filter((c) =>
+    c.name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const openCreate = () => { setIsNew(true); setEditing(emptyItem()) }
+  const openEdit = (item: DocumentType) => { setIsNew(false); setEditing({ ...item }) }
+
+  const handleSave = async () => {
+    if (!editing?.name?.trim()) return
+    setSaving(true)
+    try {
+      if (isNew) {
+        const created = await createDocumentType({
+          name: editing.name,
+          matching_algorithm: editing.matching_algorithm ?? 6,
+          match: editing.match ?? "",
+          is_insensitive: editing.is_insensitive ?? false,
+        })
+        setItems((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+        toast.success(`Document type "${created.name}" created`)
+      } else {
+        const updated = await updateDocumentType(editing.id!, {
+          name: editing.name,
+          matching_algorithm: editing.matching_algorithm,
+          match: editing.match,
+          is_insensitive: editing.is_insensitive,
+        })
+        setItems((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+        toast.success(`Document type "${updated.name}" updated`)
+      }
+      setEditing(null)
+    } catch (e: any) {
+      toast.error("Failed to save", { description: e.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (deleteId == null) return
+    try {
+      await deleteDocumentType(deleteId)
+      setItems((prev) => prev.filter((c) => c.id !== deleteId))
+      toast.success("Document type deleted")
+    } catch (e: any) {
+      toast.error("Failed to delete", { description: e.message })
+    } finally {
+      setDeleteId(null)
+    }
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between gap-3">
+        <div className="relative max-w-xs flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search document types…" className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <Button onClick={openCreate} size="sm">
+          <Plus className="mr-2 h-4 w-4" />Create Document Type
+        </Button>
+      </div>
+
+      <div className="rounded-md border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Matching</TableHead>
+              <TableHead>Match pattern</TableHead>
+              <TableHead className="text-right">Docs</TableHead>
+              <TableHead className="w-20 text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground h-24">
+                  {search ? "No document types match your search." : "No document types yet."}
+                </TableCell>
+              </TableRow>
+            ) : (
+              filtered.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="font-medium">{item.name}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {MATCHING_ALGORITHMS.find((a) => a.id === item.matching_algorithm)?.label ?? "-"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm font-mono max-w-[200px] truncate">
+                    {item.match || "—"}
+                  </TableCell>
+                  <TableCell className="text-right text-muted-foreground text-sm">
+                    {item.document_count ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(item.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <p className="text-sm text-muted-foreground">{filtered.length} of {items.length} document types</p>
+
+      <Dialog open={editing !== null} onOpenChange={(o: boolean) => !o && setEditing(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{isNew ? "Create Document Type" : "Edit Document Type"}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="dt-name">Name</Label>
+              <Input id="dt-name" value={editing?.name ?? ""} onChange={(e) => setEditing((p) => ({ ...p, name: e.target.value }))} placeholder="Document type name" autoFocus />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Matching algorithm</Label>
+              <Select value={String(editing?.matching_algorithm ?? 6)} onValueChange={(v) => setEditing((p) => ({ ...p, matching_algorithm: Number(v) }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MATCHING_ALGORITHMS.map((a) => (
+                    <SelectItem key={a.id} value={String(a.id)}>{a.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {(editing?.matching_algorithm ?? 6) !== 6 && (editing?.matching_algorithm ?? 6) !== 0 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="dt-match">Match pattern</Label>
+                <Input id="dt-match" value={editing?.match ?? ""} onChange={(e) => setEditing((p) => ({ ...p, match: e.target.value }))} placeholder="Pattern to match" />
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <Switch id="dt-insensitive" checked={editing?.is_insensitive ?? false} onCheckedChange={(v) => setEditing((p) => ({ ...p, is_insensitive: v }))} />
+              <Label htmlFor="dt-insensitive">Case insensitive</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving || !editing?.name?.trim()}>
+              {saving ? "Saving…" : isNew ? "Create" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={deleteId !== null} onOpenChange={(o: boolean) => !o && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete document type?</AlertDialogTitle>
+            <AlertDialogDescription>This will remove the type from all documents. This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}

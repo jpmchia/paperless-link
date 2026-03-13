@@ -378,3 +378,14 @@ export async function getCustomFields() {
     return []
   }
 }
+
+export async function getDocumentNotes(id: string | number) {
+  try {
+    const data = await getPaperlessApi(`documents/${id}/notes/`) as any
+    return Array.isArray(data) ? data : []
+  } catch (error) {
+    console.error("Failed to fetch document notes:", error)
+    return []
+  }
+}
+
