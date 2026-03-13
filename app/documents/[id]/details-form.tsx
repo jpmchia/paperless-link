@@ -52,7 +52,7 @@ const baseSchema = z.object({
 }).catchall(z.any()) // Allow dynamic custom fields
 
 type Props = {
-  document: Document & { tags?: number[], correspondent?: number, document_type?: number, storage_path?: number, created_date?: string, custom_fields?: any[] }
+  document: Document & { tags?: number[], correspondent?: number | null, document_type?: number | null, storage_path?: number | null, created_date?: string, custom_fields?: any[] }
   correspondents: any[]
   documentTypes: any[]
   storagePaths: any[]

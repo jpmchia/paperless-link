@@ -23,8 +23,7 @@ export async function getPaperlessApi(endpoint: string, options: RequestInit = {
       ...defaultHeaders,
       ...options.headers,
     },
-    // Adding Next.js revalidation/caching configuration
-    next: { revalidate: 0 }, 
+    next: { revalidate: 0 },
   })
 
   if (!response.ok) {
@@ -37,11 +36,175 @@ export async function getPaperlessApi(endpoint: string, options: RequestInit = {
   return response.json()
 }
 
+// -----------------------------------------------------------------------
+// Filter params type — mirrors all supported Paperless-NGX query params
+// -----------------------------------------------------------------------
+export interface FilterParams {
+  // Full-text search
+  query?: string
+  titleContains?: string
+  contentContains?: string
+  titleContentContains?: string
+  moreLikeId?: number | null
+  // Taxonomy — single
+  correspondent?: number | null
+  documentType?: number | null
+  storagePath?: number | null
+  // Taxonomy — multi (any / none)
+  correspondentAny?: number[]
+  correspondentNone?: number[]
+  documentTypeAny?: number[]
+  documentTypeNone?: number[]
+  storagePathAny?: number[]
+  storagePathNone?: number[]
+  // Tags
+  tags?: number[]           // all of these must be present
+  tagsAny?: number[]        // at least one of these
+  tagsExclude?: number[]    // none of these
+  hasTag?: boolean | null   // is_tagged
+  isInInbox?: boolean | null
+  // ASN
+  asnGte?: number | null
+  asnLte?: number | null
+  asnIsNull?: boolean
+  // Dates (ISO string yyyy-mm-dd)
+  createdAfter?: string
+  createdBefore?: string
+  createdYear?: number
+  createdMonth?: number
+  createdDay?: number
+  addedAfter?: string
+  addedBefore?: string
+  // Sorting: prefix with "-" for descending, e.g. "-created"
+  ordering?: string
+  // Custom fields
+  customFieldQuery?: string
+  customFieldsContain?: string
+}
+
+export function buildDocumentQueryString(
+  page: number,
+  pageSize: number,
+  filters: FilterParams
+): string {
+  const params = new URLSearchParams()
+  params.set("page", String(page))
+  params.set("page_size", String(pageSize))
+
+  if (filters.query) params.set("query", filters.query)
+  if (filters.titleContains) params.set("title__icontains", filters.titleContains)
+  if (filters.contentContains) params.set("content__icontains", filters.contentContains)
+  if (filters.titleContentContains) params.set("title_content", filters.titleContentContains)
+  if (filters.moreLikeId) params.set("more_like_id", String(filters.moreLikeId))
+
+  if (filters.correspondent != null) params.set("correspondent__id", String(filters.correspondent))
+  if (filters.correspondentAny?.length) params.set("correspondent__id__in", filters.correspondentAny.join(","))
+  if (filters.correspondentNone?.length) params.set("correspondent__id__none", filters.correspondentNone.join(","))
+
+  if (filters.documentType != null) params.set("document_type__id", String(filters.documentType))
+  if (filters.documentTypeAny?.length) params.set("document_type__id__in", filters.documentTypeAny.join(","))
+  if (filters.documentTypeNone?.length) params.set("document_type__id__none", filters.documentTypeNone.join(","))
+
+  if (filters.storagePath != null) params.set("storage_path__id", String(filters.storagePath))
+  if (filters.storagePathAny?.length) params.set("storage_path__id__in", filters.storagePathAny.join(","))
+  if (filters.storagePathNone?.length) params.set("storage_path__id__none", filters.storagePathNone.join(","))
+
+  if (filters.tags?.length) params.set("tags__id__all", filters.tags.join(","))
+  if (filters.tagsAny?.length) params.set("tags__id__in", filters.tagsAny.join(","))
+  if (filters.tagsExclude?.length) params.set("tags__id__none", filters.tagsExclude.join(","))
+  if (filters.hasTag != null) params.set("is_tagged", String(filters.hasTag))
+  if (filters.isInInbox != null) params.set("is_in_inbox", String(filters.isInInbox))
+
+  if (filters.createdAfter) params.set("created__date__gt", filters.createdAfter)
+  if (filters.createdBefore) params.set("created__date__lt", filters.createdBefore)
+  if (filters.createdYear) params.set("created__year", String(filters.createdYear))
+  if (filters.createdMonth) params.set("created__month", String(filters.createdMonth))
+  if (filters.createdDay) params.set("created__day", String(filters.createdDay))
+  if (filters.addedAfter) params.set("added__date__gt", filters.addedAfter)
+  if (filters.addedBefore) params.set("added__date__lt", filters.addedBefore)
+
+  if (filters.asnGte != null) params.set("archive_serial_number__gte", String(filters.asnGte))
+  if (filters.asnLte != null) params.set("archive_serial_number__lte", String(filters.asnLte))
+  if (filters.asnIsNull) params.set("archive_serial_number__isnull", "true")
+
+  if (filters.ordering) params.set("ordering", filters.ordering)
+  if (filters.customFieldQuery) params.set("custom_field_query", filters.customFieldQuery)
+  if (filters.customFieldsContain) params.set("custom_fields__icontains", filters.customFieldsContain)
+
+  return params.toString()
+}
+
+// -----------------------------------------------------------------------
+// Filter rule type → FilterParams
+// Rule type IDs from NGX src/app/data/filter-rule-type.ts
+// -----------------------------------------------------------------------
+export function filterParamsFromSavedView(view: any): FilterParams {
+  const params: FilterParams = {}
+
+  if (view.sort_field) {
+    params.ordering = view.sort_reverse ? `-${view.sort_field}` : view.sort_field
+  }
+
+  for (const rule of view.filter_rules || []) {
+    const { rule_type, value } = rule
+    switch (rule_type) {
+      // Text/content
+      case 0:  params.titleContains = value; break
+      case 1:  params.contentContains = value; break
+      case 19: params.titleContentContains = value; break
+      case 20: params.query = value; break
+      case 21: params.moreLikeId = Number(value); break
+      // Correspondent
+      case 3:  params.correspondent = Number(value); break
+      case 26: { if (!params.correspondentAny) params.correspondentAny = []; params.correspondentAny.push(Number(value)); break }
+      case 27: { if (!params.correspondentNone) params.correspondentNone = []; params.correspondentNone.push(Number(value)); break }
+      // Document type
+      case 4:  params.documentType = Number(value); break
+      case 28: { if (!params.documentTypeAny) params.documentTypeAny = []; params.documentTypeAny.push(Number(value)); break }
+      case 29: { if (!params.documentTypeNone) params.documentTypeNone = []; params.documentTypeNone.push(Number(value)); break }
+      // Storage path
+      case 25: params.storagePath = Number(value); break
+      case 30: { if (!params.storagePathAny) params.storagePathAny = []; params.storagePathAny.push(Number(value)); break }
+      case 31: { if (!params.storagePathNone) params.storagePathNone = []; params.storagePathNone.push(Number(value)); break }
+      // Tags
+      case 6:  { if (!params.tags) params.tags = []; params.tags.push(Number(value)); break }
+      case 22: { if (!params.tagsAny) params.tagsAny = []; params.tagsAny.push(Number(value)); break }
+      case 17: { if (!params.tagsExclude) params.tagsExclude = []; params.tagsExclude.push(Number(value)); break }
+      case 7:  params.hasTag = value !== 'false'; break
+      case 5:  params.isInInbox = value !== 'false'; break
+      // ASN
+      case 2:  params.asnGte = Number(value); break
+      case 18: params.asnIsNull = true; break
+      case 23: params.asnGte = Number(value); break
+      case 24: params.asnLte = Number(value); break
+      // Dates — created
+      case 8:  params.createdBefore = value; break
+      case 9:  params.createdAfter = value; break
+      case 43: params.createdBefore = value; break
+      case 44: params.createdAfter = value; break
+      case 10: params.createdYear = Number(value); break
+      case 11: params.createdMonth = Number(value); break
+      case 12: params.createdDay = Number(value); break
+      // Dates — added
+      case 13: params.addedBefore = value; break
+      case 14: params.addedAfter = value; break
+      case 45: params.addedBefore = value; break
+      case 46: params.addedAfter = value; break
+      // Custom fields
+      case 36: params.customFieldsContain = value; break
+      case 42: params.customFieldQuery = value; break
+      default: break
+    }
+  }
+  return params
+}
+
+// -----------------------------------------------------------------------
 // Higher level abstractions
+// -----------------------------------------------------------------------
 export async function getDocumentStatistics() {
   try {
-    const stats = await getPaperlessApi("statistics/")
-    return stats
+    return await getPaperlessApi("statistics/")
   } catch (error) {
     console.error("Failed to fetch document statistics:", error)
     return { documents_total: 0, documents_inbox: 0 }
@@ -50,7 +213,6 @@ export async function getDocumentStatistics() {
 
 export async function getRecentDocuments(limit: number = 5) {
   try {
-    // Ordering by -added returns newest documents first
     const data = await getPaperlessApi(`documents/?ordering=-added&page_size=${limit}`) as any
     return data.results || []
   } catch (error) {
@@ -60,24 +222,46 @@ export async function getRecentDocuments(limit: number = 5) {
 }
 
 export async function getSavedViews() {
-    try {
-        const data = await getPaperlessApi('saved_views/') as any
-        return data.results || []
-    } catch (error) {
-        console.error("Failed to fetch saved views", error)
-        return []
-    }
+  try {
+    const data = await getPaperlessApi("saved_views/") as any
+    return data.results || []
+  } catch (error) {
+    console.error("Failed to fetch saved views", error)
+    return []
+  }
 }
 
-export async function getDocuments(page: number = 1, pageSize: number = 25, query: string = "") {
+export async function getSavedView(id: number | string) {
   try {
-    const queryParam = query ? `&query=${encodeURIComponent(query)}` : ""
-    const data = await getPaperlessApi(`documents/?page=${page}&page_size=${pageSize}${queryParam}`) as any
+    return await getPaperlessApi(`saved_views/${id}/`)
+  } catch (error) {
+    console.error(`Failed to fetch saved view ${id}:`, error)
+    return null
+  }
+}
+
+export async function getUiSettings() {
+  try {
+    return await getPaperlessApi("ui_settings/")
+  } catch (error) {
+    console.error("Failed to fetch UI settings:", error)
+    return {}
+  }
+}
+
+export async function getDocuments(
+  page: number = 1,
+  pageSize: number = 25,
+  filters: FilterParams = {}
+) {
+  try {
+    const qs = buildDocumentQueryString(page, pageSize, filters)
+    const data = await getPaperlessApi(`documents/?${qs}`) as any
     return {
       count: data.count,
       next: data.next,
       previous: data.previous,
-      results: data.results || []
+      results: data.results || [],
     }
   } catch (error) {
     console.error("Failed to fetch documents:", error)
@@ -85,10 +269,21 @@ export async function getDocuments(page: number = 1, pageSize: number = 25, quer
   }
 }
 
+export async function getSearchAutocomplete(term: string, limit: number = 10): Promise<string[]> {
+  try {
+    const data = await getPaperlessApi(
+      `search/autocomplete/?term=${encodeURIComponent(term)}&limit=${limit}`
+    ) as any
+    return Array.isArray(data) ? data : []
+  } catch (error) {
+    console.error("Failed to fetch autocomplete:", error)
+    return []
+  }
+}
+
 export async function getDocument(id: number | string) {
   try {
-    const data = await getPaperlessApi(`documents/${id}/?full_perms=true`)
-    return data
+    return await getPaperlessApi(`documents/${id}/?full_perms=true`)
   } catch (error) {
     console.error(`Failed to fetch document ${id}:`, error)
     return null
@@ -97,8 +292,7 @@ export async function getDocument(id: number | string) {
 
 export async function getDocumentMetadata(id: number | string) {
   try {
-    const data = await getPaperlessApi(`documents/${id}/metadata/`)
-    return data
+    return await getPaperlessApi(`documents/${id}/metadata/`)
   } catch (error) {
     console.error(`Failed to fetch metadata for document ${id}:`, error)
     return null
@@ -107,7 +301,6 @@ export async function getDocumentMetadata(id: number | string) {
 
 export async function getDocumentHistory(id: number | string) {
   try {
-    // Note: Paperless-NGX 2.0+ supports audit history
     const data = await getPaperlessApi(`documents/${id}/history/`) as any
     return data || []
   } catch (error) {
@@ -118,7 +311,7 @@ export async function getDocumentHistory(id: number | string) {
 
 export async function getUsers() {
   try {
-    const data = await getPaperlessApi('users/?page_size=100000') as any
+    const data = await getPaperlessApi("users/?page_size=100000") as any
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch users:", error)
@@ -128,7 +321,7 @@ export async function getUsers() {
 
 export async function getGroups() {
   try {
-    const data = await getPaperlessApi('groups/?page_size=100000') as any
+    const data = await getPaperlessApi("groups/?page_size=100000") as any
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch groups:", error)
@@ -138,7 +331,7 @@ export async function getGroups() {
 
 export async function getCorrespondents() {
   try {
-    const data = await getPaperlessApi('correspondents/?page_size=100000') as any
+    const data = await getPaperlessApi("correspondents/?page_size=100000") as any
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch correspondents:", error)
@@ -148,7 +341,7 @@ export async function getCorrespondents() {
 
 export async function getDocumentTypes() {
   try {
-    const data = await getPaperlessApi('document_types/?page_size=100000') as any
+    const data = await getPaperlessApi("document_types/?page_size=100000") as any
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch document types:", error)
@@ -158,7 +351,7 @@ export async function getDocumentTypes() {
 
 export async function getStoragePaths() {
   try {
-    const data = await getPaperlessApi('storage_paths/?page_size=100000') as any
+    const data = await getPaperlessApi("storage_paths/?page_size=100000") as any
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch storage paths:", error)
@@ -168,7 +361,7 @@ export async function getStoragePaths() {
 
 export async function getTags() {
   try {
-    const data = await getPaperlessApi('tags/?page_size=100000') as any
+    const data = await getPaperlessApi("tags/?page_size=100000") as any
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch tags:", error)
@@ -178,7 +371,7 @@ export async function getTags() {
 
 export async function getCustomFields() {
   try {
-    const data = await getPaperlessApi('custom_fields/?page_size=100000') as any
+    const data = await getPaperlessApi("custom_fields/?page_size=100000") as any
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch custom fields:", error)

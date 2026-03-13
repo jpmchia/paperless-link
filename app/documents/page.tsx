@@ -2,10 +2,26 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 import { redirect } from "next/navigation"
 import { AppShell } from "@/components/app-shell"
-import { getDocuments } from "@/lib/api"
+import {
+  getDocuments,
+  getSavedView,
+  getTags,
+  getCorrespondents,
+  getDocumentTypes,
+  getStoragePaths,
+  getSavedViews,
+  getCustomFields,
+  filterParamsFromSavedView,
+} from "@/lib/api"
+import type { FilterParams } from "@/lib/api"
 import { DataTable } from "./data-table"
-import { columns } from "./columns"
+import type { LookupMaps } from "./columns"
 import { TopBar } from "./topbar"
+import { FilterPanel } from "./filter-panel"
+
+function idx<T extends { id: number }>(arr: T[]): Record<number, T> {
+  return Object.fromEntries(arr.map((x) => [x.id, x])) as Record<number, T>
+}
 
 export default async function DocumentsPage({
   searchParams,
@@ -13,31 +29,84 @@ export default async function DocumentsPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const session = await getServerSession(authOptions as any)
+  if (!session) redirect("/login")
 
-  if (!session) {
-    redirect("/login")
+  const params = await searchParams
+
+  // ---- If ?view=<id> is present, load the saved view config ----
+  let activeView: any = null
+  let initialFilters: FilterParams = {}
+
+  if (params.view) {
+    activeView = await getSavedView(String(params.view))
+    if (activeView) {
+      initialFilters = filterParamsFromSavedView(activeView)
+    }
   }
 
-  const resolvedParams = await searchParams
-  const query = resolvedParams.query as string || ""
-  const currentPage = Number(resolvedParams.page) || 1
-  const pageSize = 25
+  // ---- Parse additional URL search params (overrides view defaults) ----
+  if (params.query) initialFilters.query = params.query as string
+  if (params.correspondent) initialFilters.correspondent = Number(params.correspondent)
+  if (params.document_type) initialFilters.documentType = Number(params.document_type)
+  if (params.storage_path) initialFilters.storagePath = Number(params.storage_path)
+  if (params.tags) initialFilters.tags = String(params.tags).split(",").map(Number)
+  if (params.tags_exclude) initialFilters.tagsExclude = String(params.tags_exclude).split(",").map(Number)
+  if (params.created_after) initialFilters.createdAfter = params.created_after as string
+  if (params.created_before) initialFilters.createdBefore = params.created_before as string
+  if (params.added_after) initialFilters.addedAfter = params.added_after as string
+  if (params.added_before) initialFilters.addedBefore = params.added_before as string
+  if (params.ordering) initialFilters.ordering = params.ordering as string
 
-  // Fetch paginated documents
-  const documentsData = await getDocuments(currentPage, pageSize, query)
+  const currentPage = Number(params.page) || 1
+  const pageSize = Number(params.page_size) || (activeView?.page_size ?? 25)
+
+  // ---- Parallel fetch everything ----
+  const [documentsData, tagsList, correspondentsList, typesList, pathsList, savedViewsList, customFieldsList] =
+    await Promise.all([
+      getDocuments(currentPage, pageSize, initialFilters),
+      getTags(),
+      getCorrespondents(),
+      getDocumentTypes(),
+      getStoragePaths(),
+      getSavedViews(),
+      getCustomFields(),
+    ])
+
   const pageCount = Math.ceil((documentsData.count || 0) / pageSize)
 
+  const title = activeView ? activeView.name : "Documents"
+
+  const lookup: LookupMaps = {
+    correspondents: idx(correspondentsList),
+    documentTypes: idx(typesList),
+    tags: idx(tagsList),
+    customFields: idx(customFieldsList),
+  }
+
   return (
-    <AppShell topbar={<TopBar title="Documents" />}>
-      <div className="flex flex-col space-y-4 p-4 h-full">
-        <div className="bg-card text-card-foreground">
-          <DataTable
-            columns={columns}
-            data={documentsData.results}
-            pageCount={pageCount}
-            currentPage={currentPage}
-          />
-        </div>
+    <AppShell topbar={<TopBar title={title} />}>
+      <div className="flex flex-col gap-4 p-4 h-full">
+        <FilterPanel
+          correspondents={correspondentsList}
+          documentTypes={typesList}
+          storagePaths={pathsList}
+          tags={tagsList}
+          savedViews={savedViewsList}
+          totalCount={documentsData.count || 0}
+          activeViewId={activeView?.id ?? null}
+          activeViewName={activeView?.name ?? null}
+          initialFilters={initialFilters}
+        />
+        <DataTable
+          lookup={lookup}
+          data={documentsData.results}
+          pageCount={pageCount}
+          currentPage={currentPage}
+          totalCount={documentsData.count || 0}
+          displayFields={activeView?.display_fields ?? undefined}
+          activeViewId={activeView?.id ?? null}
+          currentFilters={initialFilters}
+        />
       </div>
     </AppShell>
   )

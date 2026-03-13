@@ -9,7 +9,9 @@ import {
   Settings,
   Tags,
   Users,
-  Inbox,
+  LayoutList,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react"
 
 import {
@@ -25,48 +27,42 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar"
 import { NavUser } from "@/components/nav-user"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 
-const data = {
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: LayoutDashboard,
-    },
-    {
-      title: "Documents",
-      url: "/documents",
-      icon: Files,
-    },
-    {
-      title: "Saved Views",
-      url: "/savedviews",
-      icon: Inbox,
-    },
-  ],
-  navManagement: [
-    {
-      title: "Tags",
-      url: "/tags",
-      icon: Tags,
-    },
-    {
-      title: "Correspondents",
-      url: "/correspondents",
-      icon: Users,
-    },
-  ],
-  navSettings: [
-    {
-      title: "Settings",
-      url: "/settings",
-      icon: Settings,
-    },
-  ],
+interface SavedViewEntry {
+  id: number
+  name: string
+  show_in_sidebar: boolean
 }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
+  savedViews?: SavedViewEntry[]
+}
+
+const navMain = [
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Documents", url: "/documents", icon: Files },
+]
+
+const navManagement = [
+  { title: "Tags", url: "/tags", icon: Tags },
+  { title: "Correspondents", url: "/correspondents", icon: Users },
+  { title: "Saved Views", url: "/savedviews", icon: LayoutList },
+]
+
+const navSettings = [
+  { title: "Settings", url: "/settings", icon: Settings },
+]
+
+export function AppSidebar({ savedViews = [], ...props }: AppSidebarProps) {
   const pathname = usePathname()
+  const [viewsOpen, setViewsOpen] = React.useState(true)
+
+  const sidebarViews = savedViews.filter((v) => v.show_in_sidebar)
 
   return (
     <Sidebar variant="inset" {...props}>
@@ -93,9 +89,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupLabel>Application</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {data.navMain.map((item) => (
+              {navMain.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith(item.url)}>
+                  <SidebarMenuButton asChild isActive={pathname === item.url || (item.url !== "/dashboard" && pathname.startsWith(item.url))}>
                     <Link href={item.url}>
                       <item.icon />
                       <span>{item.title}</span>
@@ -107,12 +103,47 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* Saved Views — shown only when there are sidebar views */}
+        {sidebarViews.length > 0 && (
+          <SidebarGroup>
+            <Collapsible open={viewsOpen} onOpenChange={setViewsOpen}>
+              <CollapsibleTrigger asChild>
+                <SidebarGroupLabel className="flex items-center justify-between cursor-pointer hover:text-foreground transition-colors">
+                  <span>Saved Views</span>
+                  {viewsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                </SidebarGroupLabel>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {sidebarViews.map((view) => {
+                      const viewPath = `/view/${view.id}`
+                      const viewQs = `/documents?view=${view.id}`
+                      const isActive = pathname === viewPath || pathname.includes(`view/${view.id}`)
+                      return (
+                        <SidebarMenuItem key={view.id}>
+                          <SidebarMenuButton asChild isActive={isActive}>
+                            <Link href={viewPath}>
+                              <LayoutList className="h-4 w-4" />
+                              <span className="truncate">{view.name}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      )
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </Collapsible>
+          </SidebarGroup>
+        )}
+
         {/* Management Navigation */}
         <SidebarGroup>
           <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {data.navManagement.map((item) => (
+              {navManagement.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={pathname.startsWith(item.url)}>
                     <Link href={item.url}>
@@ -131,7 +162,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupLabel>System</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {data.navSettings.map((item) => (
+              {navSettings.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={pathname.startsWith(item.url)}>
                     <Link href={item.url}>
