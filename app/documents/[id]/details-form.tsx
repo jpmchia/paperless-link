@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useForm } from "react-hook-form"
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react"
@@ -109,6 +110,9 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
     resolver: zodResolver(baseSchema),
     defaultValues: defaultValues as any
   })
+
+  // Warn user before navigating away with unsaved changes
+  useUnsavedChanges(form.formState.isDirty)
 
   async function onSubmit(values: any) {
     setIsSaving(true)

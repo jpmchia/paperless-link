@@ -80,6 +80,7 @@ export default async function DocumentsPage({
     correspondents: idx(correspondentsList),
     documentTypes: idx(typesList),
     tags: idx(tagsList),
+    storagePaths: idx(pathsList),
     customFields: idx(customFieldsList),
   }
 

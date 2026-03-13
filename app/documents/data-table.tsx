@@ -7,7 +7,9 @@ import {
   getSortedRowModel,
   SortingState,
   ColumnResizeMode,
+  RowSelectionState,
   useReactTable,
+  ColumnDef,
 } from "@tanstack/react-table"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSetAtom } from "jotai"
@@ -55,7 +57,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Columns, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Eye, EyeOff } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import Link from "next/link"
+import { BulkActionBar } from "./bulk-action-bar"
 
 // All available display fields users can toggle
 const ALL_FIELDS: { id: string; label: string }[] = [
@@ -99,6 +103,7 @@ export function DataTable({
   const searchParams = useSearchParams()
   const setDocList = useSetAtom(documentListState)
   const [sorting, setSorting] = React.useState<SortingState>([])
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
   const [saving, setSaving] = React.useState(false)
   const [columnResizeMode] = React.useState<ColumnResizeMode>("onChange")
   const pageSize = Number(searchParams.get("page_size") || "25")
@@ -136,7 +141,34 @@ export function DataTable({
     })),
   ]
 
-  const columns = makeColumns(lookup, displayFields)
+  const columns = React.useMemo(() => {
+    const selectColumn: ColumnDef<any>[] = [{
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllPageRowsSelected()}
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+          className="translate-y-[2px]"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+          className="translate-y-[2px]"
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+      enableSorting: false,
+      enableResizing: false,
+      size: 36,
+      minSize: 36,
+      maxSize: 36,
+    }]
+    return [...selectColumn, ...makeColumns(lookup, displayFields)] as any[]
+  }, [lookup, displayFields])
 
   const table = useReactTable({
     data,
@@ -144,11 +176,14 @@ export function DataTable({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     onSortingChange: setSorting,
-    state: { sorting },
+    onRowSelectionChange: setRowSelection,
+    state: { sorting, rowSelection },
     manualPagination: true,
     pageCount,
     columnResizeMode,
     enableColumnResizing: true,
+    enableRowSelection: true,
+    getRowId: (row) => String(row.id),
     defaultColumn: {
       minSize: 60,
       size: 150,
@@ -206,6 +241,13 @@ export function DataTable({
 
   const start = (currentPage - 1) * pageSize + 1
   const end = Math.min(currentPage * pageSize, totalCount)
+
+  const selectedIds = Object.keys(rowSelection).map(Number)
+
+  const handleBulkComplete = () => {
+    setRowSelection({})
+    router.refresh()
+  }
 
   return (
     <div className="flex flex-col gap-2 min-h-0 flex-1">
@@ -371,6 +413,18 @@ export function DataTable({
         </div>
       </div>
 
+      {/* Bulk Action Bar */}
+      {selectedIds.length > 0 && (
+        <BulkActionBar
+          selectedIds={selectedIds}
+          onClearSelection={() => setRowSelection({})}
+          onComplete={handleBulkComplete}
+          tags={Object.values(lookup.tags ?? {}).map((t: any) => ({ id: t.id, name: t.name, color: t.color }))}
+          correspondents={Object.values(lookup.correspondents ?? {}).map((c: any) => ({ id: c.id, name: c.name }))}
+          documentTypes={Object.values(lookup.documentTypes ?? {}).map((dt: any) => ({ id: dt.id, name: dt.name }))}
+          storagePaths={Object.values(lookup.storagePaths ?? {}).map((sp: any) => ({ id: sp.id, name: sp.name }))}
+        />
+      )}
       {/* Table */}
       <div className="rounded-md border overflow-auto flex-1">
         <Table

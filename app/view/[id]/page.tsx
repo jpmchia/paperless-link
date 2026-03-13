@@ -60,6 +60,7 @@ export default async function SavedViewPage({
     correspondents: idx(correspondentsList),
     documentTypes: idx(typesList),
     tags: idx(tagsList),
+    storagePaths: idx(pathsList),
     customFields: idx(customFieldsList),
   }
 

@@ -15,6 +15,9 @@ import {
   FileType,
   FolderOpen,
   FormInput,
+  Trash2,
+  Activity,
+  ScrollText,
 } from "lucide-react"
 
 import {
@@ -30,6 +33,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar"
 import { NavUser } from "@/components/nav-user"
+import { ModeToggle } from "@/components/theme-toggle"
 import {
   Collapsible,
   CollapsibleContent,
@@ -61,6 +65,9 @@ const navManagement = [
 ]
 
 const navSettings = [
+  { title: "Trash", url: "/trash", icon: Trash2 },
+  { title: "Tasks", url: "/tasks", icon: Activity },
+  { title: "Logs", url: "/logs", icon: ScrollText },
   { title: "Settings", url: "/settings", icon: Settings },
 ]
 
@@ -184,7 +191,10 @@ export function AppSidebar({ savedViews = [], ...props }: AppSidebarProps) {
       </SidebarContent>
 
       <SidebarFooter>
-        <NavUser />
+        <div className="flex items-center justify-between">
+          <NavUser />
+          <ModeToggle />
+        </div>
       </SidebarFooter>
     </Sidebar>
   )

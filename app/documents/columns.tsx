@@ -23,6 +23,7 @@ export interface LookupMaps {
   correspondents: Record<number, { id: number; name: string }>
   documentTypes: Record<number, { id: number; name: string }>
   tags: Record<number, { id: number; name: string; color: string }>
+  storagePaths: Record<number, { id: number; name: string }>
   customFields: Record<number, { id: number; name: string; data_type: string; extra_data?: { select_options?: string[] } }>
 }
 
@@ -296,4 +297,4 @@ export function makeColumns(
 }
 
 // Backward-compatible default export (no lookup, default fields)
-export const columns = makeColumns({ correspondents: {}, documentTypes: {}, tags: {}, customFields: {} })
+export const columns = makeColumns({ correspondents: {}, documentTypes: {}, tags: {}, storagePaths: {}, customFields: {} })
