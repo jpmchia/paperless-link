@@ -18,6 +18,8 @@ import {
   Trash2,
   Activity,
   ScrollText,
+  GitBranch,
+  Mail,
 } from "lucide-react"
 
 import {
@@ -62,6 +64,8 @@ const navManagement = [
   { title: "Storage Paths", url: "/storage-paths", icon: FolderOpen },
   { title: "Custom Fields", url: "/custom-fields", icon: FormInput },
   { title: "Saved Views", url: "/savedviews", icon: LayoutList },
+  { title: "Workflows", url: "/workflows", icon: GitBranch },
+  { title: "Mail", url: "/mail", icon: Mail },
 ]
 
 const navSettings = [
