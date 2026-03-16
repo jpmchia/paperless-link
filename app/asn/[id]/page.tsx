@@ -1,15 +1,13 @@
 import { redirect, notFound } from "next/navigation"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/auth"
 import { getPaperlessApi } from "@/lib/api"
+import { requireRoutePermission } from "@/lib/server-permissions"
 
 export default async function ASNLookupPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
-  const session = await getServerSession(authOptions as any)
-  if (!session) redirect("/login")
+  await requireRoutePermission("/documents")
 
   const resolvedParams = await params
   const asn = resolvedParams.id

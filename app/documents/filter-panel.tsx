@@ -1,10 +1,13 @@
 "use client"
 
 import * as React from "react"
+import { CanCreate } from "@/components/permissions/can-create"
+import { HasObjectPermission } from "@/components/permissions/has-object-permission"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { useAtom } from "jotai"
 import { filterParamsAtom, activeFilterCountAtom } from "@/lib/store"
 import type { FilterParams } from "@/lib/api"
+import type { PermissionedObject } from "@/lib/permissions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -39,6 +42,7 @@ interface FilterPanelProps {
   totalCount: number
   activeViewId?: number | null
   activeViewName?: string | null
+  activeView?: PermissionedObject | null
   initialFilters?: FilterParams
   onFilterChange?: (params: FilterParams) => void
   currentUserId?: number | null
@@ -90,6 +94,7 @@ export function FilterPanel({
   totalCount,
   activeViewId,
   activeViewName,
+  activeView,
   initialFilters = {},
   onFilterChange,
   currentUserId,
@@ -314,25 +319,29 @@ export function FilterPanel({
         <div className="flex items-center gap-2 text-sm">
           <LayoutList className="h-4 w-4 text-primary" />
           <span className="font-medium text-primary">{activeViewName}</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs"
-            onClick={handleSaveView}
-            disabled={saving}
-          >
-            <Save className="mr-1 h-3 w-3" />
-            Save View
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs"
-            onClick={() => { setSaveAsName(activeViewName + " (copy)"); setSaveAsOpen(true) }}
-          >
-            <SaveAll className="mr-1 h-3 w-3" />
-            Save As…
-          </Button>
+          <HasObjectPermission action="change" object={activeView} type="savedView">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={handleSaveView}
+              disabled={saving}
+            >
+              <Save className="mr-1 h-3 w-3" />
+              Save View
+            </Button>
+          </HasObjectPermission>
+          <CanCreate type="savedView">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => { setSaveAsName(activeViewName + " (copy)"); setSaveAsOpen(true) }}
+            >
+              <SaveAll className="mr-1 h-3 w-3" />
+              Save As…
+            </Button>
+          </CanCreate>
         </div>
       )}
 
@@ -410,11 +419,13 @@ export function FilterPanel({
                   {v.name}
                 </DropdownMenuItem>
               ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => { setSaveAsName(""); setSaveAsOpen(true) }}>
-                <SaveAll className="mr-2 h-4 w-4" />
-                Save current as new view…
-              </DropdownMenuItem>
+              <CanCreate type="savedView">
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { setSaveAsName(""); setSaveAsOpen(true) }}>
+                  <SaveAll className="mr-2 h-4 w-4" />
+                  Save current as new view…
+                </DropdownMenuItem>
+              </CanCreate>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -658,26 +669,28 @@ export function FilterPanel({
       )}
 
       {/* ---- Save As dialog ---- */}
-      <Dialog open={saveAsOpen} onOpenChange={setSaveAsOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Save view as…</DialogTitle>
-          </DialogHeader>
-          <Input
-            placeholder="View name"
-            value={saveAsName}
-            onChange={(e) => setSaveAsName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSaveAs()}
-            autoFocus
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSaveAsOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveAs} disabled={saving || !saveAsName.trim()}>
-              {saving ? "Saving…" : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CanCreate type="savedView">
+        <Dialog open={saveAsOpen} onOpenChange={setSaveAsOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Save view as…</DialogTitle>
+            </DialogHeader>
+            <Input
+              placeholder="View name"
+              value={saveAsName}
+              onChange={(e) => setSaveAsName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSaveAs()}
+              autoFocus
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSaveAsOpen(false)}>Cancel</Button>
+              <Button onClick={handleSaveAs} disabled={saving || !saveAsName.trim()}>
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CanCreate>
     </div>
   )
 }

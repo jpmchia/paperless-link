@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import { CanCreate } from "@/components/permissions/can-create"
+import { CanDelete } from "@/components/permissions/can-delete"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -132,10 +134,12 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl }: ShareLinksTabPro
               ))}
             </SelectContent>
           </Select>
-          <Button size="sm" className="h-8 text-xs" onClick={handleCreate} disabled={creating}>
-            {creating ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : <Plus className="mr-1.5 h-3 w-3" />}
-            Create link
-          </Button>
+          <CanCreate type="shareLink">
+            <Button size="sm" className="h-8 text-xs" onClick={handleCreate} disabled={creating}>
+              {creating ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : <Plus className="mr-1.5 h-3 w-3" />}
+              Create link
+            </Button>
+          </CanCreate>
         </div>
       </div>
 
@@ -184,15 +188,17 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl }: ShareLinksTabPro
                     >
                       <Copy className="h-3.5 w-3.5" />
                     </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 text-destructive hover:text-destructive"
-                      title="Revoke link"
-                      onClick={() => setDeleteId(link.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <CanDelete type="shareLink">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        title="Revoke link"
+                        onClick={() => setDeleteId(link.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </CanDelete>
                   </div>
                 </div>
               </div>
@@ -201,22 +207,24 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl }: ShareLinksTabPro
         </div>
       )}
 
-      <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Revoke share link?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This link will stop working immediately. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
-              Revoke
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <CanDelete type="shareLink">
+        <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Revoke share link?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This link will stop working immediately. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
+                Revoke
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </CanDelete>
     </div>
   )
 }

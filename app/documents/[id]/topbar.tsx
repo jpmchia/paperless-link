@@ -1,6 +1,7 @@
 "use client"
 
 import { useAtom, useAtomValue } from "jotai"
+import { HasObjectPermission } from "@/components/permissions/has-object-permission"
 import { documentListState, visibleCustomFieldsAtom } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, MoreVertical, Trash2, RefreshCw, Save, ListChecks, Sparkles } from "lucide-react"
@@ -15,9 +16,28 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import type { PermissionedObject } from "@/lib/permissions"
 import { deleteDocument, reprocessDocument } from "./actions"
 
-export function TopBar({ children, title = "Document", documentId, customFieldsList }: { children: React.ReactNode, title?: React.ReactNode, documentId?: number, customFieldsList?: any[] }) {
+interface CustomFieldItem {
+    data_type: string
+    id: number
+    name: string
+}
+
+export function TopBar({
+    children,
+    title = "Document",
+    permissionedDocument,
+    documentId,
+    customFieldsList,
+}: {
+    children: React.ReactNode
+    title?: React.ReactNode
+    permissionedDocument?: PermissionedObject | null
+    documentId?: number
+    customFieldsList?: CustomFieldItem[]
+}) {
     const documentList = useAtomValue(documentListState)
     const [visibleCustomFields, setVisibleCustomFields] = useAtom(visibleCustomFieldsAtom)
     const router = useRouter()
@@ -41,7 +61,7 @@ export function TopBar({ children, title = "Document", documentId, customFieldsL
                 await deleteDocument(documentId)
                 toast.success("Document deleted")
                 router.push("/documents")
-            } catch (error) {
+            } catch {
                 toast.error("Failed to delete document")
             }
         }
@@ -53,7 +73,7 @@ export function TopBar({ children, title = "Document", documentId, customFieldsL
             await reprocessDocument(documentId)
             toast.success("Document added to reprocessing queue")
             router.push("/documents")
-        } catch (error) {
+        } catch {
             toast.error("Failed to reprocess document")
         }
     }
@@ -129,10 +149,12 @@ export function TopBar({ children, title = "Document", documentId, customFieldsL
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={handleReprocess}>
-                                    <RefreshCw className="mr-2 h-4 w-4" />
-                                    Reprocess
-                                </DropdownMenuItem>
+                                <HasObjectPermission action="change" object={permissionedDocument} type="document">
+                                    <DropdownMenuItem onClick={handleReprocess}>
+                                        <RefreshCw className="mr-2 h-4 w-4" />
+                                        Reprocess
+                                    </DropdownMenuItem>
+                                </HasObjectPermission>
                                 {documentId && (
                                     <DropdownMenuItem onClick={() => router.push(`/documents?more_like_id=${documentId}`)}>
                                         <Sparkles className="mr-2 h-4 w-4" />
@@ -140,31 +162,39 @@ export function TopBar({ children, title = "Document", documentId, customFieldsL
                                     </DropdownMenuItem>
                                 )}
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleDelete}>
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Delete
-                                </DropdownMenuItem>
+                                <HasObjectPermission action="delete" object={permissionedDocument} type="document">
+                                    <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleDelete}>
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Delete
+                                    </DropdownMenuItem>
+                                </HasObjectPermission>
                             </DropdownMenuContent>
                         </DropdownMenu>
 
                         <Button variant="secondary" onClick={() => router.push("/documents")} className="h-8 hover:bg-accent">
                             Close
                         </Button>
-                        <Button variant="secondary" onClick={() => {
-                            const form = document.getElementById("document-details-form") as HTMLFormElement
-                            if (form) form.reset()
-                        }} className="h-8 hover:bg-accent">
-                            Discard
-                        </Button>
-                        {nextId && (
-                            <Button variant="secondary" type="submit" form="document-details-form" onClick={() => setSaveAction("next")} className="h-8 hover:bg-accent">
-                                Save & Next
+                        <HasObjectPermission action="change" object={permissionedDocument} type="document">
+                            <Button variant="secondary" onClick={() => {
+                                const form = window.document.getElementById("document-details-form") as HTMLFormElement | null
+                                if (form) form.reset()
+                            }} className="h-8 hover:bg-accent">
+                                Discard
                             </Button>
-                        )}
-                        <Button variant="secondary" type="submit" form="document-details-form" onClick={() => setSaveAction("save")} className="h-8 hover:bg-accent">
-                            <Save className="mr-2 h-4 w-4" />
-                            Save
-                        </Button>
+                        </HasObjectPermission>
+                        <HasObjectPermission action="change" object={permissionedDocument} type="document">
+                            {nextId && (
+                                <Button variant="secondary" type="submit" form="document-details-form" onClick={() => setSaveAction("next")} className="h-8 hover:bg-accent">
+                                    Save & Next
+                                </Button>
+                            )}
+                        </HasObjectPermission>
+                        <HasObjectPermission action="change" object={permissionedDocument} type="document">
+                            <Button variant="secondary" type="submit" form="document-details-form" onClick={() => setSaveAction("save")} className="h-8 hover:bg-accent">
+                                <Save className="mr-2 h-4 w-4" />
+                                Save
+                            </Button>
+                        </HasObjectPermission>
                     </div>
                 </div>
             </div>

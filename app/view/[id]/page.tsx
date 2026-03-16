@@ -1,5 +1,3 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/auth"
 import { redirect } from "next/navigation"
 import { AppShell } from "@/components/app-shell"
 import {
@@ -13,6 +11,7 @@ import {
   getCustomFields,
   filterParamsFromSavedView,
 } from "@/lib/api"
+import { requireRoutePermission } from "@/lib/server-permissions"
 import type { LookupMaps } from "@/app/documents/columns"
 import { DataTable } from "@/app/documents/data-table"
 import { FilterPanel } from "@/app/documents/filter-panel"
@@ -29,8 +28,7 @@ export default async function SavedViewPage({
   params: Promise<{ id: string }>
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  const session = await getServerSession(authOptions as any)
-  if (!session) redirect("/login")
+  const permissions = await requireRoutePermission("/savedviews")
 
   const { id } = await params
   const sp = await searchParams
@@ -65,7 +63,7 @@ export default async function SavedViewPage({
   }
 
   return (
-    <AppShell topbar={<TopBar title={view.name} />}>
+    <AppShell initialPermissions={permissions} topbar={<TopBar title={view.name} />}>
       <div className="flex flex-col gap-4 p-4 h-full">
         <FilterPanel
           correspondents={correspondentsList}
@@ -76,6 +74,7 @@ export default async function SavedViewPage({
           totalCount={documentsData.count || 0}
           activeViewId={view.id}
           activeViewName={view.name}
+          activeView={view}
           initialFilters={filters}
         />
         <DataTable

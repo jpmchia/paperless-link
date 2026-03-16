@@ -102,6 +102,7 @@ export default async function DocumentsPage({
           totalCount={documentsData.count || 0}
           activeViewId={activeView?.id ?? null}
           activeViewName={activeView?.name ?? null}
+          activeView={activeView}
           initialFilters={initialFilters}
           currentUserId={currentUserId}
         />

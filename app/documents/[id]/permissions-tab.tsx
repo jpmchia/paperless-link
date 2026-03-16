@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { HasObjectPermission } from "@/components/permissions/has-object-permission"
 import { useForm } from "react-hook-form"
 import { Loader2, Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -238,6 +239,16 @@ export function PermissionsTab({ document, usersList, groupsList }: Props) {
 
   return (
     <div className="px-6 py-6 pb-20 h-full overflow-y-auto w-full outline-none">
+      <HasObjectPermission
+        action="change"
+        object={document}
+        type="document"
+        fallback={(
+          <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+            You do not have permission to manage this document&apos;s access controls.
+          </div>
+        )}
+      >
         <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 max-w-2xl">
             <div>
@@ -324,6 +335,7 @@ export function PermissionsTab({ document, usersList, groupsList }: Props) {
             </div>
         </form>
         </Form>
+      </HasObjectPermission>
     </div>
   )
 }

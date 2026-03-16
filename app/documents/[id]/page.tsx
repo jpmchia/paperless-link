@@ -1,5 +1,7 @@
 import { AppShell } from "@/components/app-shell"
 import { getDocument, getDocumentMetadata, getCorrespondents, getDocumentTypes, getStoragePaths, getTags, getCustomFields, getDocumentHistory, getDocumentNotes, getUsers, getGroups } from "@/lib/api"
+import { canAccessObject, currentUserCan } from "@/lib/permissions"
+import { requireRoutePermission } from "@/lib/server-permissions"
 import { notFound } from "next/navigation"
 import {
   ResizablePanelGroup,
@@ -36,6 +38,7 @@ export default async function DocumentDetailsPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  const permissions = await requireRoutePermission("/documents")
   const resolvedParams = await params
   const { id } = resolvedParams
 
@@ -64,10 +67,20 @@ export default async function DocumentDetailsPage({
   const doc = documentResp as any
   const versions = Array.isArray(doc.versions) ? doc.versions : []
   const duplicates = Array.isArray(doc.duplicate_documents) ? doc.duplicate_documents : []
+  const canChangeDocument = canAccessObject(permissions, "change", document, "document")
+  const canManageShareLinks =
+    currentUserCan(permissions, "create", "shareLink") ||
+    currentUserCan(permissions, "delete", "shareLink") ||
+    canChangeDocument
 
   return (
-    <AppShell topbar={
-      <TopBar title={document.title} documentId={document.id} customFieldsList={customFieldsList}>
+    <AppShell initialPermissions={permissions} topbar={
+      <TopBar
+        title={document.title}
+        permissionedDocument={document}
+        documentId={document.id}
+        customFieldsList={customFieldsList}
+      >
         <div className="flex items-center gap-2">
           <Badge variant="outline">
             ASN: {document.archive_serial_number || 'None'}
@@ -93,7 +106,9 @@ export default async function DocumentDetailsPage({
                   <TabsTrigger value="content" className={TAB_TRIGGER}>Content</TabsTrigger>
                   <TabsTrigger value="metadata" className={TAB_TRIGGER}>Metadata</TabsTrigger>
                   <TabsTrigger value="history" className={TAB_TRIGGER}>History</TabsTrigger>
-                  <TabsTrigger value="permissions" className={TAB_TRIGGER}>Permissions</TabsTrigger>
+                  {canChangeDocument && (
+                    <TabsTrigger value="permissions" className={TAB_TRIGGER}>Permissions</TabsTrigger>
+                  )}
                   <TabsTrigger value="notes" className={TAB_TRIGGER}>Notes</TabsTrigger>
                   <TabsTrigger value="versions" className={TAB_TRIGGER}>
                     Versions
@@ -101,7 +116,9 @@ export default async function DocumentDetailsPage({
                       <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px]">{versions.length}</Badge>
                     )}
                   </TabsTrigger>
-                  <TabsTrigger value="share" className={TAB_TRIGGER}>Share</TabsTrigger>
+                  {canManageShareLinks && (
+                    <TabsTrigger value="share" className={TAB_TRIGGER}>Share</TabsTrigger>
+                  )}
                   <TabsTrigger value="duplicates" className={TAB_TRIGGER}>
                     Duplicates
                     {duplicates.length > 0 && (
@@ -151,9 +168,11 @@ export default async function DocumentDetailsPage({
                   />
                 </TabsContent>
 
-                <TabsContent value="permissions" className="m-0 h-full overflow-hidden outline-none">
-                  <PermissionsTab document={document} usersList={usersList} groupsList={groupsList} />
-                </TabsContent>
+                {canChangeDocument && (
+                  <TabsContent value="permissions" className="m-0 h-full overflow-hidden outline-none">
+                    <PermissionsTab document={document} usersList={usersList} groupsList={groupsList} />
+                  </TabsContent>
+                )}
 
                 <TabsContent value="notes" className="m-0 h-full overflow-hidden outline-none">
                   <NotesTab documentId={document.id} initialNotes={notes} />
@@ -163,9 +182,11 @@ export default async function DocumentDetailsPage({
                   <VersionsTab documentId={document.id} initialVersions={versions} />
                 </TabsContent>
 
-                <TabsContent value="share" className="m-0 h-full overflow-hidden outline-none">
-                  <ShareLinksTab documentId={document.id} paperlessBaseUrl={paperlessBaseUrl} />
-                </TabsContent>
+                {canManageShareLinks && (
+                  <TabsContent value="share" className="m-0 h-full overflow-hidden outline-none">
+                    <ShareLinksTab documentId={document.id} paperlessBaseUrl={paperlessBaseUrl} />
+                  </TabsContent>
+                )}
 
                 <TabsContent value="duplicates" className="m-0 h-full overflow-hidden outline-none">
                   <DuplicatesTab duplicates={duplicates} />
