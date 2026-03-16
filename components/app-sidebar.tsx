@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useAtomValue } from "jotai"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -61,7 +62,14 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { toast } from "sonner"
+import {
+  canManageConfig,
+  type CurrentUserPermissions,
+  currentUserCan,
+  type PermissionType,
+} from "@/lib/permissions"
 import { getJson } from "@/lib/paperless-client"
+import { currentUserPermissionsAtom } from "@/lib/stores/permissions"
 import { updateUiSettings } from "@/lib/ui-settings"
 
 interface SavedViewEntry {
@@ -76,27 +84,35 @@ interface SidebarTaskSummary {
 }
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
+  initialPermissions?: CurrentUserPermissions
   savedViews?: SavedViewEntry[]
 }
 
-const navMain = [
+interface NavItem {
+  icon: React.ComponentType<{ className?: string }>
+  permissionType?: PermissionType
+  title: string
+  url: string
+}
+
+const navMain: NavItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Documents", url: "/documents", icon: Files },
 ]
 
-const navManagement = [
-  { title: "Tags", url: "/tags", icon: Tags },
-  { title: "Correspondents", url: "/correspondents", icon: Users },
-  { title: "Document Types", url: "/document-types", icon: FileType },
-  { title: "Storage Paths", url: "/storage-paths", icon: FolderOpen },
-  { title: "Custom Fields", url: "/custom-fields", icon: FormInput },
-  { title: "Saved Views", url: "/savedviews", icon: LayoutList },
-  { title: "Workflows", url: "/workflows", icon: GitBranch },
-  { title: "Mail", url: "/mail", icon: Mail },
+const navManagement: NavItem[] = [
+  { title: "Tags", url: "/tags", icon: Tags, permissionType: "tag" },
+  { title: "Correspondents", url: "/correspondents", icon: Users, permissionType: "correspondent" },
+  { title: "Document Types", url: "/document-types", icon: FileType, permissionType: "documentType" },
+  { title: "Storage Paths", url: "/storage-paths", icon: FolderOpen, permissionType: "storagePath" },
+  { title: "Custom Fields", url: "/custom-fields", icon: FormInput, permissionType: "customField" },
+  { title: "Saved Views", url: "/savedviews", icon: LayoutList, permissionType: "savedView" },
+  { title: "Workflows", url: "/workflows", icon: GitBranch, permissionType: "workflow" },
+  { title: "Mail", url: "/mail", icon: Mail, permissionType: "mailAccount" },
   { title: "Users", url: "/users", icon: Users },
 ]
 
-const navSettings = [
+const navSettings: NavItem[] = [
   { title: "Trash", url: "/trash", icon: Trash2 },
   { title: "Tasks", url: "/tasks", icon: Activity },
   { title: "Logs", url: "/logs", icon: ScrollText },
@@ -150,10 +166,20 @@ function SortableViewItem({
   )
 }
 
-export function AppSidebar({ savedViews = [], ...props }: AppSidebarProps) {
+export function AppSidebar({
+  initialPermissions,
+  savedViews = [],
+  ...props
+}: AppSidebarProps) {
   const pathname = usePathname()
+  const hydratedPermissions = useAtomValue(currentUserPermissionsAtom)
   const [viewsOpen, setViewsOpen] = React.useState(true)
   const [pendingTaskCount, setPendingTaskCount] = React.useState(0)
+
+  const currentUserPermissions =
+    hydratedPermissions.isAuthenticated || !initialPermissions
+      ? hydratedPermissions
+      : initialPermissions
 
   React.useEffect(() => {
     const fetchCount = async () => {
@@ -189,6 +215,27 @@ export function AppSidebar({ savedViews = [], ...props }: AppSidebarProps) {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
+
+  const managementItems = navManagement.filter((item) => {
+    if (item.title === "Users") {
+      return (
+        currentUserCan(currentUserPermissions, "view", "user") ||
+        currentUserCan(currentUserPermissions, "view", "group") ||
+        canManageConfig(currentUserPermissions)
+      )
+    }
+
+    if (!item.permissionType) return true
+    return currentUserCan(currentUserPermissions, "view", item.permissionType)
+  })
+
+  const systemItems = navSettings.filter((item) => {
+    if (item.title === "Settings") {
+      return canManageConfig(currentUserPermissions)
+    }
+
+    return true
+  })
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
@@ -288,30 +335,32 @@ export function AppSidebar({ savedViews = [], ...props }: AppSidebarProps) {
         )}
 
         {/* Management Navigation */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Management</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navManagement.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith(item.url)}>
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {managementItems.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Management</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {managementItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={pathname.startsWith(item.url)}>
+                      <Link href={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {/* Settings Navigation */}
         <SidebarGroup>
           <SidebarGroupLabel>System</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navSettings.map((item) => (
+              {systemItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={pathname.startsWith(item.url)}>
                     <Link href={item.url}>
