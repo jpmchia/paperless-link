@@ -56,10 +56,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Columns, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Eye, EyeOff } from "lucide-react"
+import { Columns, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Eye, EyeOff, ScanEye } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import Link from "next/link"
 import { BulkActionBar } from "./bulk-action-bar"
+import { DocumentPreviewDialog } from "./document-preview-dialog"
 
 // All available display fields users can toggle
 const ALL_FIELDS: { id: string; label: string }[] = [
@@ -109,6 +110,8 @@ export function DataTable({
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
   const [saving, setSaving] = React.useState(false)
+  const [previewDocId, setPreviewDocId] = React.useState<number | null>(null)
+  const [previewDocTitle, setPreviewDocTitle] = React.useState<string | undefined>()
   const [columnResizeMode] = React.useState<ColumnResizeMode>("onChange")
   const pageSize = Number(searchParams.get("page_size") || "25")
 
@@ -171,7 +174,29 @@ export function DataTable({
       minSize: 36,
       maxSize: 36,
     }]
-    return [...selectColumn, ...makeColumns(lookup, displayFields)] as any[]
+    const previewColumn: ColumnDef<any> = {
+      id: "preview",
+      enableSorting: false,
+      enableResizing: false,
+      size: 40,
+      minSize: 40,
+      maxSize: 40,
+      cell: ({ row }) => (
+        <button
+          type="button"
+          className="h-7 w-7 flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground opacity-0 group-hover/row:opacity-100 transition-opacity"
+          title="Quick preview"
+          onClick={(e) => {
+            e.stopPropagation()
+            setPreviewDocId(row.original.id)
+            setPreviewDocTitle(row.original.title)
+          }}
+        >
+          <ScanEye className="h-3.5 w-3.5" />
+        </button>
+      ),
+    }
+    return [...selectColumn, ...makeColumns(lookup, displayFields), previewColumn] as any[]
   }, [lookup, displayFields])
 
   const table = useReactTable({
@@ -469,7 +494,7 @@ export function DataTable({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className="cursor-pointer hover:bg-muted/50"
+                  className="cursor-pointer hover:bg-muted/50 group/row"
                   onClick={() => router.push(`/documents/${row.original.id}`)}
                 >
                   {row.getVisibleCells().map((cell) => (
@@ -493,6 +518,12 @@ export function DataTable({
           </TableBody>
         </Table>
       </div>
+
+      <DocumentPreviewDialog
+        documentId={previewDocId}
+        documentTitle={previewDocTitle}
+        onClose={() => setPreviewDocId(null)}
+      />
     </div>
   )
 }

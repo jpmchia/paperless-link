@@ -30,6 +30,8 @@ interface ProfileFormProps {
     last_name?: string
     has_usable_password?: boolean
   }
+  showProfileSection?: boolean
+  showPasswordSection?: boolean
 }
 
 const profileSchema = z.object({
@@ -49,7 +51,7 @@ const passwordSchema = z
     path: ["confirm_password"],
   })
 
-export function ProfileForm({ profile }: ProfileFormProps) {
+export function ProfileForm({ profile, showProfileSection = true, showPasswordSection = true }: ProfileFormProps) {
   const [savingProfile, setSavingProfile] = React.useState(false)
   const [savingPassword, setSavingPassword] = React.useState(false)
 
@@ -102,73 +104,77 @@ export function ProfileForm({ profile }: ProfileFormProps) {
 
   return (
     <div className="space-y-10 max-w-lg">
-      {/* Profile info */}
-      <div>
-        <h3 className="text-lg font-medium">Profile</h3>
-        <p className="text-sm text-muted-foreground">Update your display name and email address.</p>
-      </div>
-
-      <Form {...profileForm}>
-        <form onSubmit={profileForm.handleSubmit(onSaveProfile)} className="space-y-5">
-          <div className="space-y-1.5">
-            <FormLabel className="text-sm">Username</FormLabel>
-            <Input value={profile.username} disabled className="bg-muted" />
-            <p className="text-xs text-muted-foreground">Username cannot be changed here.</p>
+      {showProfileSection && (
+        <>
+          {/* Profile info */}
+          <div>
+            <h3 className="text-lg font-medium">Profile</h3>
+            <p className="text-sm text-muted-foreground">Update your display name and email address.</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={profileForm.control}
-              name="first_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>First name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="First name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={profileForm.control}
-              name="last_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Last name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Last name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+          <Form {...profileForm}>
+            <form onSubmit={profileForm.handleSubmit(onSaveProfile)} className="space-y-5">
+              <div className="space-y-1.5">
+                <FormLabel className="text-sm">Username</FormLabel>
+                <Input value={profile.username} disabled className="bg-muted" />
+                <p className="text-xs text-muted-foreground">Username cannot be changed here.</p>
+              </div>
 
-          <FormField
-            control={profileForm.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email address</FormLabel>
-                <FormControl>
-                  <Input type="email" placeholder="email@example.com" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={profileForm.control}
+                  name="first_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="First name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={profileForm.control}
+                  name="last_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Last name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-          <div className="flex justify-end">
-            <Button type="submit" disabled={savingProfile || !profileForm.formState.isDirty}>
-              {savingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save profile
-            </Button>
-          </div>
-        </form>
-      </Form>
+              <FormField
+                control={profileForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email address</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="email@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-      {profile.has_usable_password && (
+              <div className="flex justify-end">
+                <Button type="submit" disabled={savingProfile || !profileForm.formState.isDirty}>
+                  {savingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save profile
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </>
+      )}
+
+      {showPasswordSection && profile.has_usable_password && (
         <>
           <Separator />
 

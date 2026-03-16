@@ -52,6 +52,7 @@ import {
   SidebarMenuItem,
   SidebarFooter,
 } from "@/components/ui/sidebar"
+import { Badge } from "@/components/ui/badge"
 import { NavUser } from "@/components/nav-user"
 import { ModeToggle } from "@/components/theme-toggle"
 import {
@@ -85,6 +86,7 @@ const navManagement = [
   { title: "Saved Views", url: "/savedviews", icon: LayoutList },
   { title: "Workflows", url: "/workflows", icon: GitBranch },
   { title: "Mail", url: "/mail", icon: Mail },
+  { title: "Users", url: "/users", icon: Users },
 ]
 
 const navSettings = [
@@ -153,6 +155,27 @@ function SortableViewItem({
 export function AppSidebar({ savedViews = [], ...props }: AppSidebarProps) {
   const pathname = usePathname()
   const [viewsOpen, setViewsOpen] = React.useState(true)
+  const [pendingTaskCount, setPendingTaskCount] = React.useState(0)
+
+  React.useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const res = await fetch("/api/tasks")
+        if (!res.ok) return
+        const data = await res.json()
+        const tasks: any[] = Array.isArray(data) ? data : data.results ?? []
+        const count = tasks.filter(
+          (t: any) => !t.acknowledged && (t.status === "PENDING" || t.status === "STARTED")
+        ).length
+        setPendingTaskCount(count)
+      } catch {
+        // silently ignore
+      }
+    }
+    fetchCount()
+    const interval = setInterval(fetchCount, 30_000)
+    return () => clearInterval(interval)
+  }, [])
 
   const initialSidebarViews = savedViews.filter((v) => v.show_in_sidebar)
   const [orderedViews, setOrderedViews] = React.useState<SavedViewEntry[]>(initialSidebarViews)
@@ -294,6 +317,14 @@ export function AppSidebar({ savedViews = [], ...props }: AppSidebarProps) {
                     <Link href={item.url}>
                       <item.icon />
                       <span>{item.title}</span>
+                      {item.title === "Tasks" && pendingTaskCount > 0 && (
+                        <Badge
+                          variant="destructive"
+                          className="ml-auto h-5 min-w-[20px] px-1 text-[10px] leading-none"
+                        >
+                          {pendingTaskCount}
+                        </Badge>
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

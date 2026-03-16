@@ -1,10 +1,13 @@
 import { AppShell } from "@/components/app-shell"
-import { getProfile } from "@/lib/api"
+import { getProfile, getUiSettings } from "@/lib/api"
 import { notFound } from "next/navigation"
-import { ProfileForm } from "./profile-form"
+import { ProfileTabs } from "./profile-tabs"
 
 export default async function ProfilePage() {
-  const profile = await getProfile()
+  const [profile, uiSettings] = await Promise.all([
+    getProfile(),
+    getUiSettings().catch(() => null),
+  ])
 
   if (!profile) {
     notFound()
@@ -16,10 +19,10 @@ export default async function ProfilePage() {
         <div className="mb-8">
           <h1 className="text-2xl font-semibold">My Profile</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Manage your account details and password.
+            Manage your account details, password, and preferences.
           </p>
         </div>
-        <ProfileForm profile={profile as any} />
+        <ProfileTabs profile={profile as any} uiSettings={uiSettings} />
       </div>
     </AppShell>
   )
