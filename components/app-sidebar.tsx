@@ -61,11 +61,18 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { toast } from "sonner"
+import { getJson } from "@/lib/paperless-client"
+import { updateUiSettings } from "@/lib/ui-settings"
 
 interface SavedViewEntry {
   id: number
   name: string
   show_in_sidebar: boolean
+}
+
+interface SidebarTaskSummary {
+  acknowledged: boolean
+  status: string
 }
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -98,16 +105,7 @@ const navSettings = [
 
 async function persistViewOrder(orderedIds: number[]) {
   try {
-    // Fetch current settings first to avoid overwriting other keys
-    const getRes = await fetch("/api/proxy/ui_settings/", { method: "GET" })
-    if (!getRes.ok) return
-    const current = await getRes.json()
-    const merged = { ...(current.settings ?? {}), sidebar_views_sort_order: orderedIds }
-    await fetch("/api/proxy/ui_settings/", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ settings: merged }),
-    })
+    await updateUiSettings({ sidebar_views_sort_order: orderedIds })
   } catch {
     // Silently fail — order just won't be persisted
   }
@@ -160,12 +158,14 @@ export function AppSidebar({ savedViews = [], ...props }: AppSidebarProps) {
   React.useEffect(() => {
     const fetchCount = async () => {
       try {
-        const res = await fetch("/api/tasks")
-        if (!res.ok) return
-        const data = await res.json()
-        const tasks: any[] = Array.isArray(data) ? data : data.results ?? []
+        const data = await getJson<
+          SidebarTaskSummary[] | { results?: SidebarTaskSummary[] }
+        >("/api/tasks")
+        const tasks = Array.isArray(data) ? data : data.results ?? []
         const count = tasks.filter(
-          (t: any) => !t.acknowledged && (t.status === "PENDING" || t.status === "STARTED")
+          (task) =>
+            !task.acknowledged &&
+            (task.status === "PENDING" || task.status === "STARTED")
         ).length
         setPendingTaskCount(count)
       } catch {

@@ -8,6 +8,9 @@ import {
 } from "@/components/ui/table"
 import { RefreshCw, AlertTriangle, CheckCircle, Clock, Loader2, Trash2 } from "lucide-react"
 import { toast } from "sonner"
+import { useAsyncAction } from "@/hooks/use-async-action"
+import { getJson, postJson } from "@/lib/paperless-client"
+import { toErrorMessage } from "@/lib/errors"
 
 interface PaperlessTask {
   id: number
@@ -36,12 +39,14 @@ export function TasksView() {
 
   const fetchTasks = React.useCallback(async () => {
     try {
-      const res = await fetch("/api/tasks")
-      if (!res.ok) throw new Error("Failed")
-      const data = await res.json()
+      const data = await getJson<PaperlessTask[] | { results?: PaperlessTask[] }>(
+        "/api/tasks"
+      )
       setTasks(Array.isArray(data) ? data : data.results || [])
-    } catch {
-      toast.error("Failed to load tasks")
+    } catch (error) {
+      toast.error("Failed to load tasks", {
+        description: toErrorMessage(error),
+      })
     } finally {
       setLoading(false)
     }
@@ -53,16 +58,14 @@ export function TasksView() {
     return () => clearInterval(interval)
   }, [fetchTasks])
 
-  const dismissAll = async () => {
-    try {
-      const res = await fetch("/api/tasks/acknowledge", { method: "POST" })
-      if (!res.ok) throw new Error("Failed")
-      setTasks((prev) => prev.map((t) => ({ ...t, acknowledged: true })))
-      toast.success("All tasks acknowledged")
-    } catch (e: any) {
-      toast.error("Failed to dismiss", { description: e.message })
-    }
-  }
+  const { pending: dismissing, run: dismissAll } = useAsyncAction({
+    action: async () => postJson<{ ok: boolean }>("/api/tasks/acknowledge"),
+    errorMessage: "Failed to dismiss",
+    onSuccess: () => {
+      setTasks((prev) => prev.map((task) => ({ ...task, acknowledged: true })))
+    },
+    successMessage: "All tasks acknowledged",
+  })
 
   const unacknowledged = tasks.filter((t) => !t.acknowledged)
   const sortedTasks = [...tasks].sort((a, b) => new Date(b.date_created).getTime() - new Date(a.date_created).getTime())
@@ -83,7 +86,12 @@ export function TasksView() {
         </p>
         <div className="flex gap-2">
           {unacknowledged.length > 0 && (
-            <Button variant="outline" size="sm" onClick={dismissAll}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void dismissAll()}
+              disabled={dismissing}
+            >
               <Trash2 className="mr-1 h-3.5 w-3.5" />Dismiss All
             </Button>
           )}

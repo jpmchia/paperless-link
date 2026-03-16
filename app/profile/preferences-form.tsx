@@ -12,8 +12,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { toast } from "sonner"
 import { Save } from "lucide-react"
+import { useAsyncAction } from "@/hooks/use-async-action"
+import { updateUiSettings } from "@/lib/ui-settings"
 
 const DATE_LOCALE_OPTIONS = [
   { value: "", label: "Browser default" },
@@ -38,8 +39,22 @@ const DEFAULT_PAGESIZE_OPTIONS = [
   { value: "100", label: "100 documents" },
 ]
 
-export function PreferencesForm({ initialSettings }: { initialSettings: any }) {
-  const settings: any = initialSettings?.settings ?? {}
+interface PreferencesSettings {
+  date_locale?: string
+  default_page_size?: number
+  notifications_consumer_new_document?: boolean
+  notifications_document_added?: boolean
+  notifications_document_updated?: boolean
+}
+
+interface PreferencesFormProps {
+  initialSettings?: {
+    settings?: PreferencesSettings
+  } | null
+}
+
+export function PreferencesForm({ initialSettings }: PreferencesFormProps) {
+  const settings = initialSettings?.settings ?? {}
 
   const [dateLocale, setDateLocale] = React.useState<string>(settings.date_locale ?? "")
   const [defaultPageSize, setDefaultPageSize] = React.useState<string>(
@@ -54,36 +69,18 @@ export function PreferencesForm({ initialSettings }: { initialSettings: any }) {
   const [notifyDocUpdated, setNotifyDocUpdated] = React.useState<boolean>(
     settings.notifications_document_updated ?? false
   )
-  const [saving, setSaving] = React.useState(false)
-
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      // Merge new preferences with existing settings to avoid overwriting other keys
-      const getRes = await fetch("/api/proxy/ui_settings/", { method: "GET" })
-      if (!getRes.ok) throw new Error("Failed to load current settings")
-      const current = await getRes.json()
-      const merged = {
-        ...(current.settings ?? {}),
+  const { pending: saving, run: handleSave } = useAsyncAction({
+    action: async () =>
+      updateUiSettings({
         date_locale: dateLocale,
         default_page_size: Number(defaultPageSize),
         notifications_consumer_new_document: notifyNewDoc,
         notifications_document_added: notifyDocAdded,
         notifications_document_updated: notifyDocUpdated,
-      }
-      const patchRes = await fetch("/api/proxy/ui_settings/", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settings: merged }),
-      })
-      if (!patchRes.ok) throw new Error(`${patchRes.status}: ${patchRes.statusText}`)
-      toast.success("Preferences saved")
-    } catch (e: any) {
-      toast.error("Failed to save preferences", { description: e.message })
-    } finally {
-      setSaving(false)
-    }
-  }
+      }),
+    errorMessage: "Failed to save preferences",
+    successMessage: "Preferences saved",
+  })
 
   return (
     <div className="space-y-8 max-w-lg">
@@ -161,7 +158,7 @@ export function PreferencesForm({ initialSettings }: { initialSettings: any }) {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium">Document updated</p>
-            <p className="text-xs text-muted-foreground">Notify when a document's metadata is updated.</p>
+            <p className="text-xs text-muted-foreground">Notify when a document&apos;s metadata is updated.</p>
           </div>
           <Switch
             checked={notifyDocUpdated}
@@ -171,7 +168,7 @@ export function PreferencesForm({ initialSettings }: { initialSettings: any }) {
       </div>
 
       <div className="flex justify-end pt-2">
-        <Button onClick={handleSave} disabled={saving}>
+        <Button onClick={() => void handleSave()} disabled={saving}>
           <Save className="mr-2 h-4 w-4" />
           {saving ? "Saving…" : "Save preferences"}
         </Button>
