@@ -84,6 +84,8 @@ interface DataTableProps {
   activeViewId?: number | null
   currentFilters?: FilterParams
   onFilterChange?: (params: FilterParams) => void
+  usersList?: any[]
+  groupsList?: any[]
 }
 
 const PAGE_SIZES = [10, 25, 50, 100]
@@ -98,6 +100,8 @@ export function DataTable({
   activeViewId,
   currentFilters = {},
   onFilterChange,
+  usersList = [],
+  groupsList = [],
 }: DataTableProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -423,6 +427,9 @@ export function DataTable({
           correspondents={Object.values(lookup.correspondents ?? {}).map((c: any) => ({ id: c.id, name: c.name }))}
           documentTypes={Object.values(lookup.documentTypes ?? {}).map((dt: any) => ({ id: dt.id, name: dt.name }))}
           storagePaths={Object.values(lookup.storagePaths ?? {}).map((sp: any) => ({ id: sp.id, name: sp.name }))}
+          customFields={Object.values(lookup.customFields ?? {}).map((cf: any) => ({ id: cf.id, name: cf.name, data_type: cf.data_type }))}
+          usersList={usersList}
+          groupsList={groupsList}
         />
       )}
       {/* Table */}

@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Search, Filter, X, ChevronDown, Tag, User, FileType, FolderOpen, Calendar, SortAsc, LayoutList, Save, SaveAll } from "lucide-react"
+import { Search, Filter, X, ChevronDown, Tag, User, FileType, FolderOpen, Calendar, SortAsc, LayoutList, Save, SaveAll, UserCheck } from "lucide-react"
 import { toast } from "sonner"
 import { patchSavedView, createSavedView } from "./saved-view-actions"
 import { tagColourHex, tagPillStyle } from "@/lib/tag-colors"
@@ -41,6 +41,7 @@ interface FilterPanelProps {
   activeViewName?: string | null
   initialFilters?: FilterParams
   onFilterChange?: (params: FilterParams) => void
+  currentUserId?: number | null
 }
 
 const SORT_OPTIONS = [
@@ -91,6 +92,7 @@ export function FilterPanel({
   activeViewName,
   initialFilters = {},
   onFilterChange,
+  currentUserId,
 }: FilterPanelProps) {
   // Use local state as the primary state driver (not the stale Jotai atom)
   // This avoids localStorage clobbering server-derived view filters on hydration
@@ -257,6 +259,10 @@ export function FilterPanel({
   if (filters.addedAfter) chips.push({ label: `Added after: ${filters.addedAfter}`, onRemove: () => removeChip("addedAfter") })
   if (filters.addedBefore) chips.push({ label: `Added before: ${filters.addedBefore}`, onRemove: () => removeChip("addedBefore") })
   if (filters.isInInbox) chips.push({ label: `Inbox only`, onRemove: () => removeChip("isInInbox") })
+  if (filters.owner === currentUserId && currentUserId != null) chips.push({ label: `Owner: Mine`, onRemove: () => removeChip("owner") })
+  else if (filters.owner != null) chips.push({ label: `Owner: #${filters.owner}`, onRemove: () => removeChip("owner") })
+  if (filters.ownerIsNull) chips.push({ label: `Owner: None`, onRemove: () => removeChip("ownerIsNull") })
+  if (filters.sharedByUser != null) chips.push({ label: `Shared with me`, onRemove: () => removeChip("sharedByUser") })
 
   const currentSort = SORT_OPTIONS.find((o) => o.value === (filters.ordering || "-created"))
 
@@ -520,6 +526,47 @@ export function FilterPanel({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* Owner filter */}
+        {currentUserId != null && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={(filters.owner != null || filters.ownerIsNull || filters.sharedByUser != null) ? "border-primary text-primary" : ""}
+              >
+                <UserCheck className="mr-2 h-4 w-4" />
+                Owner
+                <ChevronDown className="ml-2 h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[180px]">
+              <DropdownMenuItem onClick={() => applyFilters({ ...filters, owner: undefined, ownerIsNull: undefined, sharedByUser: undefined })}>
+                <span className="text-muted-foreground">Any owner</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => applyFilters({ ...filters, owner: currentUserId, ownerIsNull: undefined, sharedByUser: undefined })}
+                className={filters.owner === currentUserId ? "bg-accent" : ""}
+              >
+                Mine
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => applyFilters({ ...filters, owner: undefined, ownerIsNull: true, sharedByUser: undefined })}
+                className={filters.ownerIsNull ? "bg-accent" : ""}
+              >
+                No owner
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => applyFilters({ ...filters, owner: undefined, ownerIsNull: undefined, sharedByUser: currentUserId })}
+                className={filters.sharedByUser != null ? "bg-accent" : ""}
+              >
+                Shared with me
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         {/* Result count + Clear */}
         <div className="ml-auto flex items-center gap-2">

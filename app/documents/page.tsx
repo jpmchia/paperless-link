@@ -11,6 +11,9 @@ import {
   getStoragePaths,
   getSavedViews,
   getCustomFields,
+  getUsers,
+  getGroups,
+  getProfile,
   filterParamsFromSavedView,
 } from "@/lib/api"
 import type { FilterParams } from "@/lib/api"
@@ -61,7 +64,7 @@ export default async function DocumentsPage({
   const pageSize = Number(params.page_size) || (activeView?.page_size ?? 25)
 
   // ---- Parallel fetch everything ----
-  const [documentsData, tagsList, correspondentsList, typesList, pathsList, savedViewsList, customFieldsList] =
+  const [documentsData, tagsList, correspondentsList, typesList, pathsList, savedViewsList, customFieldsList, usersList, groupsList, profile] =
     await Promise.all([
       getDocuments(currentPage, pageSize, initialFilters),
       getTags(),
@@ -70,7 +73,12 @@ export default async function DocumentsPage({
       getStoragePaths(),
       getSavedViews(),
       getCustomFields(),
+      getUsers(),
+      getGroups(),
+      getProfile(),
     ])
+
+  const currentUserId: number | null = (profile as any)?.id ?? null
 
   const pageCount = Math.ceil((documentsData.count || 0) / pageSize)
 
@@ -97,6 +105,7 @@ export default async function DocumentsPage({
           activeViewId={activeView?.id ?? null}
           activeViewName={activeView?.name ?? null}
           initialFilters={initialFilters}
+          currentUserId={currentUserId}
         />
         <DataTable
           lookup={lookup}
@@ -107,6 +116,8 @@ export default async function DocumentsPage({
           displayFields={activeView?.display_fields ?? undefined}
           activeViewId={activeView?.id ?? null}
           currentFilters={initialFilters}
+          usersList={usersList}
+          groupsList={groupsList}
         />
       </div>
     </AppShell>

@@ -19,6 +19,7 @@ import { NotesTab } from "./notes-tab"
 import { Label } from "@/components/ui/label"
 
 import { TopBar } from "./topbar"
+import { PdfViewer } from "./pdf-viewer"
 
 export default async function DocumentDetailsPage({
   params,
@@ -167,13 +168,10 @@ export default async function DocumentDetailsPage({
 
           {/* PDF Viewer Pane */}
           <ResizablePanel defaultSize={60} minSize={30}>
-            <div className="flex h-full w-full bg-muted/20">
-              <iframe
-                src={`/api/proxy/documents/${id}/preview/` + "#toolbar=1"}
-                className="w-full h-full border-0"
-                title={`Document ${document.title} PDF`}
-              />
-            </div>
+            <PdfViewer
+              documentId={id}
+              totalPages={(metadata as any)?.pages ?? 1}
+            />
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>

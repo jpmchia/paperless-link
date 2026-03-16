@@ -4,6 +4,23 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { KeyboardSensor } from "@dnd-kit/core"
+import { CSS } from "@dnd-kit/utilities"
+import {
   LayoutDashboard,
   Files,
   Settings,
@@ -20,6 +37,7 @@ import {
   ScrollText,
   GitBranch,
   Mail,
+  GripVertical,
 } from "lucide-react"
 
 import {
@@ -41,6 +59,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { toast } from "sonner"
 
 interface SavedViewEntry {
   id: number
@@ -75,11 +94,93 @@ const navSettings = [
   { title: "Settings", url: "/settings", icon: Settings },
 ]
 
+async function persistViewOrder(orderedIds: number[]) {
+  try {
+    // Fetch current settings first to avoid overwriting other keys
+    const getRes = await fetch("/api/proxy/ui_settings/", { method: "GET" })
+    if (!getRes.ok) return
+    const current = await getRes.json()
+    const merged = { ...(current.settings ?? {}), sidebar_views_sort_order: orderedIds }
+    await fetch("/api/proxy/ui_settings/", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ settings: merged }),
+    })
+  } catch {
+    // Silently fail — order just won't be persisted
+  }
+}
+
+function SortableViewItem({
+  view,
+  isActive,
+}: {
+  view: SavedViewEntry
+  isActive: boolean
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: view.id })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <SidebarMenuItem ref={setNodeRef} style={style}>
+      <div className="flex items-center w-full group/view-item">
+        <button
+          className="cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground opacity-0 group-hover/view-item:opacity-100 transition-opacity flex-shrink-0"
+          {...attributes}
+          {...listeners}
+          aria-label="Drag to reorder"
+          tabIndex={-1}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+        <SidebarMenuButton asChild isActive={isActive} className="flex-1 min-w-0">
+          <Link href={`/view/${view.id}`}>
+            <LayoutList className="h-4 w-4 shrink-0" />
+            <span className="truncate">{view.name}</span>
+          </Link>
+        </SidebarMenuButton>
+      </div>
+    </SidebarMenuItem>
+  )
+}
+
 export function AppSidebar({ savedViews = [], ...props }: AppSidebarProps) {
   const pathname = usePathname()
   const [viewsOpen, setViewsOpen] = React.useState(true)
 
-  const sidebarViews = savedViews.filter((v) => v.show_in_sidebar)
+  const initialSidebarViews = savedViews.filter((v) => v.show_in_sidebar)
+  const [orderedViews, setOrderedViews] = React.useState<SavedViewEntry[]>(initialSidebarViews)
+
+  // Re-sync when prop changes (e.g. after navigation)
+  React.useEffect(() => {
+    setOrderedViews(savedViews.filter((v) => v.show_in_sidebar))
+  }, [savedViews.map((v) => v.id).join(",")]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    setOrderedViews((prev) => {
+      const oldIdx = prev.findIndex((v) => v.id === active.id)
+      const newIdx = prev.findIndex((v) => v.id === over.id)
+      const next = arrayMove(prev, oldIdx, newIdx)
+      persistViewOrder(next.map((v) => v.id)).catch(() =>
+        toast.error("Failed to save view order")
+      )
+      return next
+    })
+  }
 
   return (
     <Sidebar variant="inset" {...props}>
@@ -121,7 +222,7 @@ export function AppSidebar({ savedViews = [], ...props }: AppSidebarProps) {
         </SidebarGroup>
 
         {/* Saved Views — shown only when there are sidebar views */}
-        {sidebarViews.length > 0 && (
+        {orderedViews.length > 0 && (
           <SidebarGroup>
             <Collapsible open={viewsOpen} onOpenChange={setViewsOpen}>
               <CollapsibleTrigger asChild>
@@ -132,23 +233,31 @@ export function AppSidebar({ savedViews = [], ...props }: AppSidebarProps) {
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <SidebarGroupContent>
-                  <SidebarMenu>
-                    {sidebarViews.map((view) => {
-                      const viewPath = `/view/${view.id}`
-                      const viewQs = `/documents?view=${view.id}`
-                      const isActive = pathname === viewPath || pathname.includes(`view/${view.id}`)
-                      return (
-                        <SidebarMenuItem key={view.id}>
-                          <SidebarMenuButton asChild isActive={isActive}>
-                            <Link href={viewPath}>
-                              <LayoutList className="h-4 w-4" />
-                              <span className="truncate">{view.name}</span>
-                            </Link>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      )
-                    })}
-                  </SidebarMenu>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={orderedViews.map((v) => v.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <SidebarMenu>
+                        {orderedViews.map((view) => {
+                          const isActive =
+                            pathname === `/view/${view.id}` ||
+                            pathname.includes(`view/${view.id}`)
+                          return (
+                            <SortableViewItem
+                              key={view.id}
+                              view={view}
+                              isActive={isActive}
+                            />
+                          )
+                        })}
+                      </SidebarMenu>
+                    </SortableContext>
+                  </DndContext>
                 </SidebarGroupContent>
               </CollapsibleContent>
             </Collapsible>

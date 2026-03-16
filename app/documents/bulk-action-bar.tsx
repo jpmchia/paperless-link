@@ -3,6 +3,9 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,12 +21,21 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command"
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover"
-import { Trash2, Download, Tags, User, FileType, FolderOpen, X, RotateCcw, Check } from "lucide-react"
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select"
+import {
+  Trash2, Download, Tags, User, FileType, FolderOpen, X, RotateCcw, Check,
+  ShieldCheck, FormInput, Merge, RotateCw,
+} from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { tagPillStyle } from "@/lib/tag-colors"
@@ -36,6 +48,9 @@ interface BulkActionBarProps {
   correspondents: { id: number; name: string }[]
   documentTypes: { id: number; name: string }[]
   storagePaths: { id: number; name: string }[]
+  customFields?: { id: number; name: string; data_type: string }[]
+  usersList?: { id: number; username: string }[]
+  groupsList?: { id: number; name: string }[]
 }
 
 async function bulkEdit(documentIds: number[], method: string, parameters: Record<string, any>) {
@@ -67,6 +82,74 @@ async function bulkDownload(documentIds: number[]) {
   URL.revokeObjectURL(url)
 }
 
+async function proxyPost(path: string, body: Record<string, any>) {
+  const res = await fetch(`/api/proxy/${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.text().catch(() => res.statusText)
+    throw new Error(err)
+  }
+  return res.json().catch(() => null)
+}
+
+// Multi-select combobox for users/groups
+function MultiSelectCombobox({
+  items,
+  selected,
+  onChange,
+  placeholder,
+  labelKey = "username",
+}: {
+  items: any[]
+  selected: number[]
+  onChange: (ids: number[]) => void
+  placeholder: string
+  labelKey?: string
+}) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="w-full justify-start text-xs h-8">
+          {selected.length > 0 ? `${selected.length} selected` : placeholder}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[240px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search…" />
+          <CommandList className="max-h-48">
+            <CommandEmpty>No results.</CommandEmpty>
+            <CommandGroup>
+              {items.map((item) => {
+                const isSelected = selected.includes(item.id)
+                return (
+                  <CommandItem
+                    key={item.id}
+                    value={item[labelKey] || item.name}
+                    onSelect={() =>
+                      onChange(
+                        isSelected
+                          ? selected.filter((id) => id !== item.id)
+                          : [...selected, item.id]
+                      )
+                    }
+                  >
+                    <Check className={cn("mr-2 h-3 w-3", isSelected ? "opacity-100" : "opacity-0")} />
+                    {item[labelKey] || item.name}
+                  </CommandItem>
+                )
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export function BulkActionBar({
   selectedIds,
   onClearSelection,
@@ -75,13 +158,34 @@ export function BulkActionBar({
   correspondents,
   documentTypes,
   storagePaths,
+  customFields = [],
+  usersList = [],
+  groupsList = [],
 }: BulkActionBarProps) {
   const [showDelete, setShowDelete] = React.useState(false)
+  const [showMerge, setShowMerge] = React.useState(false)
+  const [showPermissions, setShowPermissions] = React.useState(false)
+  const [showCustomFields, setShowCustomFields] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
 
   // Tag picker state
   const [tagPickerOpen, setTagPickerOpen] = React.useState(false)
   const [selectedTags, setSelectedTags] = React.useState<number[]>([])
+
+  // Permissions dialog state
+  const [permOwner, setPermOwner] = React.useState<number | null>(null)
+  const [permViewUsers, setPermViewUsers] = React.useState<number[]>([])
+  const [permViewGroups, setPermViewGroups] = React.useState<number[]>([])
+  const [permChangeUsers, setPermChangeUsers] = React.useState<number[]>([])
+  const [permChangeGroups, setPermChangeGroups] = React.useState<number[]>([])
+  const [permMerge, setPermMerge] = React.useState(false)
+
+  // Custom field dialog state
+  const [cfFieldId, setCfFieldId] = React.useState<string>("")
+  const [cfValue, setCfValue] = React.useState<string>("")
+
+  // Merge dialog state
+  const [mergeDeleteOriginals, setMergeDeleteOriginals] = React.useState(false)
 
   const count = selectedIds.length
   if (count === 0) return null
@@ -146,6 +250,78 @@ export function BulkActionBar({
   const handleRedoOcr = async () => {
     await run("redo_ocr", {}, `OCR reprocessing started on ${count} documents`)
   }
+
+  const handleRotate = async (degrees: number) => {
+    setBusy(true)
+    try {
+      await proxyPost("documents/rotate/", { documents: selectedIds, degrees })
+      toast.success(`Rotated ${count} document(s) by ${degrees}°`)
+      onComplete()
+    } catch (e: any) {
+      toast.error("Rotate failed", { description: e.message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleMerge = async () => {
+    setBusy(true)
+    try {
+      await proxyPost("documents/merge/", {
+        documents: selectedIds,
+        delete_originals: mergeDeleteOriginals,
+      })
+      toast.success(`Merging ${count} documents…`)
+      setShowMerge(false)
+      onComplete()
+    } catch (e: any) {
+      toast.error("Merge failed", { description: e.message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleSavePermissions = async () => {
+    setBusy(true)
+    try {
+      await bulkEdit(selectedIds, "set_permissions", {
+        owner: permOwner,
+        set_permissions: {
+          view: { users: permViewUsers, groups: permViewGroups },
+          change: { users: permChangeUsers, groups: permChangeGroups },
+        },
+        merge: permMerge,
+      })
+      toast.success(`Permissions updated on ${count} documents`)
+      setShowPermissions(false)
+      onComplete()
+    } catch (e: any) {
+      toast.error("Permissions update failed", { description: e.message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleSaveCustomField = async () => {
+    if (!cfFieldId) return
+    setBusy(true)
+    try {
+      await bulkEdit(selectedIds, "modify_custom_fields", {
+        custom_fields: [{ field: Number(cfFieldId), value: cfValue || null }],
+      })
+      toast.success(`Custom field updated on ${count} documents`)
+      setShowCustomFields(false)
+      setCfFieldId("")
+      setCfValue("")
+      onComplete()
+    } catch (e: any) {
+      toast.error("Custom field update failed", { description: e.message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const selectedField = customFields.find((cf) => String(cf.id) === cfFieldId)
 
   return (
     <>
@@ -260,7 +436,40 @@ export function BulkActionBar({
                 ))}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
+
+            {customFields.length > 0 && (
+              <DropdownMenuItem onClick={() => setShowCustomFields(true)} disabled={busy}>
+                <FormInput className="mr-2 h-3.5 w-3.5" />Custom Field…
+              </DropdownMenuItem>
+            )}
+
+            {usersList.length > 0 && (
+              <DropdownMenuItem onClick={() => setShowPermissions(true)} disabled={busy}>
+                <ShieldCheck className="mr-2 h-3.5 w-3.5" />Permissions…
+              </DropdownMenuItem>
+            )}
+
             <DropdownMenuSeparator />
+
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <RotateCw className="mr-2 h-3.5 w-3.5" />Rotate
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onClick={() => handleRotate(90)}>90° clockwise</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleRotate(180)}>180°</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleRotate(270)}>90° counter-clockwise</DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
+            {count >= 2 && (
+              <DropdownMenuItem onClick={() => setShowMerge(true)} disabled={busy}>
+                <Merge className="mr-2 h-3.5 w-3.5" />Merge…
+              </DropdownMenuItem>
+            )}
+
+            <DropdownMenuSeparator />
+
             <DropdownMenuItem onClick={handleDownload} disabled={busy}>
               <Download className="mr-2 h-3.5 w-3.5" />Download
             </DropdownMenuItem>
@@ -296,6 +505,153 @@ export function BulkActionBar({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Merge confirmation */}
+      <AlertDialog open={showMerge} onOpenChange={setShowMerge}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Merge {count} documents?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will combine the selected documents into one. A new document will be created with all pages merged in selection order.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex items-center gap-2 px-1 py-2">
+            <Switch
+              id="delete-originals"
+              checked={mergeDeleteOriginals}
+              onCheckedChange={setMergeDeleteOriginals}
+            />
+            <Label htmlFor="delete-originals" className="text-sm">Delete original documents after merging</Label>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleMerge} disabled={busy}>
+              Merge
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Permissions dialog */}
+      <Dialog open={showPermissions} onOpenChange={setShowPermissions}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Set permissions on {count} document(s)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Owner</Label>
+              <Select
+                value={permOwner != null ? String(permOwner) : "none"}
+                onValueChange={(v) => setPermOwner(v === "none" ? null : Number(v))}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="No owner" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none"><em className="text-muted-foreground">No owner</em></SelectItem>
+                  {usersList.map((u) => (
+                    <SelectItem key={u.id} value={String(u.id)}>{u.username}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground border-b pb-1">View Access</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Users</Label>
+                  <MultiSelectCombobox items={usersList} selected={permViewUsers} onChange={setPermViewUsers} placeholder="Select users…" labelKey="username" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Groups</Label>
+                  <MultiSelectCombobox items={groupsList} selected={permViewGroups} onChange={setPermViewGroups} placeholder="Select groups…" labelKey="name" />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground border-b pb-1">Edit Access</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Users</Label>
+                  <MultiSelectCombobox items={usersList} selected={permChangeUsers} onChange={setPermChangeUsers} placeholder="Select users…" labelKey="username" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Groups</Label>
+                  <MultiSelectCombobox items={groupsList} selected={permChangeGroups} onChange={setPermChangeGroups} placeholder="Select groups…" labelKey="name" />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Switch id="perm-merge" checked={permMerge} onCheckedChange={setPermMerge} />
+              <Label htmlFor="perm-merge" className="text-xs">Merge with existing permissions (instead of replacing)</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPermissions(false)}>Cancel</Button>
+            <Button onClick={handleSavePermissions} disabled={busy}>
+              Apply Permissions
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Custom field dialog */}
+      <Dialog open={showCustomFields} onOpenChange={setShowCustomFields}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Set custom field on {count} document(s)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Field</Label>
+              <Select value={cfFieldId} onValueChange={(v) => { setCfFieldId(v); setCfValue("") }}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Select a field…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customFields.map((cf) => (
+                    <SelectItem key={cf.id} value={String(cf.id)}>{cf.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedField && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Value</Label>
+                {selectedField.data_type === "boolean" ? (
+                  <Select value={cfValue} onValueChange={setCfValue}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Select…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">True</SelectItem>
+                      <SelectItem value="false">False</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    className="h-8 text-xs"
+                    type={selectedField.data_type === "integer" || selectedField.data_type === "float" || selectedField.data_type === "monetary" ? "number" : selectedField.data_type === "date" ? "date" : "text"}
+                    placeholder={`Enter ${selectedField.data_type} value…`}
+                    value={cfValue}
+                    onChange={(e) => setCfValue(e.target.value)}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCustomFields(false)}>Cancel</Button>
+            <Button onClick={handleSaveCustomField} disabled={busy || !cfFieldId}>
+              Apply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

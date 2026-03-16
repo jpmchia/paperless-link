@@ -80,6 +80,10 @@ export interface FilterParams {
   // Custom fields
   customFieldQuery?: string
   customFieldsContain?: string
+  // Ownership
+  owner?: number | null
+  ownerIsNull?: boolean
+  sharedByUser?: number
 }
 
 export function buildDocumentQueryString(
@@ -130,6 +134,10 @@ export function buildDocumentQueryString(
   if (filters.ordering) params.set("ordering", filters.ordering)
   if (filters.customFieldQuery) params.set("custom_field_query", filters.customFieldQuery)
   if (filters.customFieldsContain) params.set("custom_fields__icontains", filters.customFieldsContain)
+
+  if (filters.owner != null) params.set("owner__id", String(filters.owner))
+  if (filters.ownerIsNull) params.set("owner__isnull", "true")
+  if (filters.sharedByUser != null) params.set("shared_by__id", String(filters.sharedByUser))
 
   return params.toString()
 }
@@ -376,6 +384,15 @@ export async function getCustomFields() {
   } catch (error) {
     console.error("Failed to fetch custom fields:", error)
     return []
+  }
+}
+
+export async function getProfile() {
+  try {
+    return await getPaperlessApi("profile/")
+  } catch (error) {
+    console.error("Failed to fetch profile:", error)
+    return null
   }
 }
 

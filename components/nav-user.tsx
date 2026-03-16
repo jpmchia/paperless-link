@@ -2,12 +2,11 @@
 
 import {
   BadgeCheck,
-  Bell,
   ChevronsUpDown,
-  CreditCard,
   LogOut,
-  Sparkles,
+  UserRound,
 } from "lucide-react"
+import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
 
 import {
@@ -79,6 +78,15 @@ export function NavUser() {
                 </div>
               </div>
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem asChild>
+                <Link href="/profile">
+                  <UserRound />
+                  My Profile
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={() => signOut()}>
