@@ -1,9 +1,7 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/auth"
-import { redirect } from "next/navigation"
 import { AppShell } from "@/components/app-shell"
 import { TopBar } from "@/app/documents/topbar"
 import { getPaperlessApi } from "@/lib/api"
+import { requireRoutePermission } from "@/lib/server-permissions"
 import { TrashTable } from "./trash-table"
 
 async function getTrashedDocuments() {
@@ -16,13 +14,12 @@ async function getTrashedDocuments() {
 }
 
 export default async function TrashPage() {
-  const session = await getServerSession(authOptions as any)
-  if (!session) redirect("/login")
+  const permissions = await requireRoutePermission("/trash")
 
   const documents = await getTrashedDocuments()
 
   return (
-    <AppShell topbar={<TopBar title="Trash" />}>
+    <AppShell initialPermissions={permissions} topbar={<TopBar title="Trash" />}>
       <div className="p-6 flex flex-col gap-4 h-full">
         <TrashTable documents={documents} />
       </div>

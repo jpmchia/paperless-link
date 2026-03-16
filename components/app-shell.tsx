@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { getSavedViews, getUiSettings } from "@/lib/api"
 import {
   emptyPermissions,
+  type CurrentUserPermissions,
   mapPermissionBootstrapPayload,
   type PermissionBootstrapPayload,
 } from "@/lib/permissions"
@@ -17,6 +18,7 @@ import { authOptions } from "@/auth"
 
 export interface AppShellProps {
   children: React.ReactNode
+  initialPermissions?: CurrentUserPermissions
   topbar?: React.ReactNode
 }
 
@@ -30,31 +32,35 @@ interface SavedViewEntry {
   show_in_sidebar: boolean
 }
 
-export async function AppShell({ children, topbar }: AppShellProps) {
+export async function AppShell({
+  children,
+  initialPermissions,
+  topbar,
+}: AppShellProps) {
   // Fetch saved views server-side so the sidebar can show sidebar-pinned views
   let savedViews: SavedViewEntry[] = []
-  let initialPermissions = emptyPermissions
+  let resolvedPermissions = initialPermissions ?? emptyPermissions
   try {
     const session = await getServerSession(authOptions)
     if (session) {
-      const [savedViewsData, uiSettings] = await Promise.all([
-        getSavedViews(),
-        getUiSettings().catch(() => null),
-      ])
-      savedViews = savedViewsData as SavedViewEntry[]
-      initialPermissions = mapPermissionBootstrapPayload(
-        uiSettings as PermissionBootstrapPayload | null
-      )
+      savedViews = (await getSavedViews()) as SavedViewEntry[]
+
+      if (!initialPermissions) {
+        const uiSettings = await getUiSettings().catch(() => null)
+        resolvedPermissions = mapPermissionBootstrapPayload(
+          uiSettings as PermissionBootstrapPayload | null
+        )
+      }
     }
   } catch {
     // Not authenticated yet — sidebar just won't show views
   }
 
   return (
-    <PermissionsProvider initialPermissions={initialPermissions}>
+    <PermissionsProvider initialPermissions={resolvedPermissions}>
       <SidebarProvider className="h-full">
         <AppSidebar
-          initialPermissions={initialPermissions}
+          initialPermissions={resolvedPermissions}
           savedViews={savedViews}
         />
         <SidebarInset className="h-full">

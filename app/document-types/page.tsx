@@ -1,9 +1,7 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/auth"
-import { redirect } from "next/navigation"
 import { AppShell } from "@/components/app-shell"
 import { TopBar } from "@/app/documents/topbar"
 import { getPaperlessApi } from "@/lib/api"
+import { requireRoutePermission } from "@/lib/server-permissions"
 import { DocumentTypesTable } from "./document-types-table"
 
 async function getDocumentTypes() {
@@ -16,13 +14,12 @@ async function getDocumentTypes() {
 }
 
 export default async function DocumentTypesPage() {
-  const session = await getServerSession(authOptions as any)
-  if (!session) redirect("/login")
+  const permissions = await requireRoutePermission("/document-types")
 
   const documentTypes = await getDocumentTypes()
 
   return (
-    <AppShell topbar={<TopBar title="Document Types" />}>
+    <AppShell initialPermissions={permissions} topbar={<TopBar title="Document Types" />}>
       <div className="p-6 flex flex-col gap-4">
         <DocumentTypesTable initialItems={documentTypes} />
       </div>

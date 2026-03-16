@@ -1,9 +1,7 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/auth"
-import { redirect } from "next/navigation"
 import { AppShell } from "@/components/app-shell"
 import { TopBar } from "@/app/documents/topbar"
 import { getPaperlessApi } from "@/lib/api"
+import { requireRoutePermission } from "@/lib/server-permissions"
 import { StoragePathsTable } from "./storage-paths-table"
 
 async function getStoragePaths() {
@@ -16,13 +14,12 @@ async function getStoragePaths() {
 }
 
 export default async function StoragePathsPage() {
-  const session = await getServerSession(authOptions as any)
-  if (!session) redirect("/login")
+  const permissions = await requireRoutePermission("/storage-paths")
 
   const storagePaths = await getStoragePaths()
 
   return (
-    <AppShell topbar={<TopBar title="Storage Paths" />}>
+    <AppShell initialPermissions={permissions} topbar={<TopBar title="Storage Paths" />}>
       <div className="p-6 flex flex-col gap-4">
         <StoragePathsTable initialItems={storagePaths} />
       </div>

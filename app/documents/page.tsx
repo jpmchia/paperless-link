@@ -1,6 +1,3 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/auth"
-import { redirect } from "next/navigation"
 import { AppShell } from "@/components/app-shell"
 import {
   getDocuments,
@@ -17,6 +14,7 @@ import {
   filterParamsFromSavedView,
 } from "@/lib/api"
 import type { FilterParams } from "@/lib/api"
+import { requireRoutePermission } from "@/lib/server-permissions"
 import { DataTable } from "./data-table"
 import type { LookupMaps } from "./columns"
 import { TopBar } from "./topbar"
@@ -31,8 +29,7 @@ export default async function DocumentsPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  const session = await getServerSession(authOptions as any)
-  if (!session) redirect("/login")
+  const permissions = await requireRoutePermission("/documents")
 
   const params = await searchParams
 
@@ -94,7 +91,7 @@ export default async function DocumentsPage({
   }
 
   return (
-    <AppShell topbar={<TopBar title={title} />}>
+    <AppShell initialPermissions={permissions} topbar={<TopBar title={title} />}>
       <div className="flex flex-col gap-4 p-4 h-full">
         <FilterPanel
           correspondents={correspondentsList}

@@ -1,9 +1,7 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/auth"
-import { redirect } from "next/navigation"
 import { AppShell } from "@/components/app-shell"
 import { TopBar } from "@/app/documents/topbar"
 import { getPaperlessApi, getUiSettings } from "@/lib/api"
+import { requireRoutePermission } from "@/lib/server-permissions"
 import { MailTable } from "./mail-table"
 
 async function getMailAccounts() {
@@ -34,8 +32,7 @@ async function getProcessedMail() {
 }
 
 export default async function MailPage() {
-  const session = await getServerSession(authOptions as any)
-  if (!session) redirect("/login")
+  const permissions = await requireRoutePermission("/mail")
 
   const [accounts, rules, processedMail, uiSettings] = await Promise.all([
     getMailAccounts(),
@@ -48,7 +45,7 @@ export default async function MailPage() {
   const outlookOAuthUrl = (uiSettings as any)?.outlook_oauth_url ?? null
 
   return (
-    <AppShell topbar={<TopBar title="Mail Configuration" />}>
+    <AppShell initialPermissions={permissions} topbar={<TopBar title="Mail Configuration" />}>
       <div className="p-6 flex flex-col gap-6">
         <MailTable
           accounts={accounts}
