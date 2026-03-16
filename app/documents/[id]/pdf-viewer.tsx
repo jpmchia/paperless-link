@@ -1,7 +1,10 @@
 "use client"
 
 import * as React from "react"
+import { useAtomValue } from "jotai"
+import { activeVersionIdAtom } from "@/lib/store"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,10 +34,12 @@ const NUMERIC_ZOOM_STEPS = [50, 75, 100, 125, 150, 200]
 export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
   const [zoom, setZoom] = React.useState("page-width")
   const [page, setPage] = React.useState(1)
+  const activeVersionId = useAtomValue(activeVersionIdAtom)
 
-  // key forces iframe reload when page or zoom changes
-  const iframeKey = `${page}-${zoom}`
-  const iframeSrc = `/api/proxy/documents/${documentId}/preview/#page=${page}&zoom=${zoom}&toolbar=0`
+  const versionSuffix = activeVersionId != null ? `?version=${activeVersionId}` : ""
+  // key forces iframe reload when page, zoom, or version changes
+  const iframeKey = `${page}-${zoom}-${activeVersionId ?? "latest"}`
+  const iframeSrc = `/api/proxy/documents/${documentId}/preview/${versionSuffix}#page=${page}&zoom=${zoom}&toolbar=0`
 
   const zoomIn = () => {
     const currentNum = parseInt(zoom)
@@ -139,6 +144,12 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
 
         <div className="flex-1" />
 
+        {activeVersionId != null && (
+          <Badge variant="outline" className="h-6 text-xs px-2 text-amber-600 border-amber-400">
+            Version preview
+          </Badge>
+        )}
+
         {/* Open in native viewer */}
         <Button
           variant="ghost"
@@ -148,7 +159,7 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
           asChild
         >
           <a
-            href={`/api/proxy/documents/${documentId}/preview/`}
+            href={`/api/proxy/documents/${documentId}/preview/${versionSuffix}`}
             target="_blank"
             rel="noopener noreferrer"
           >

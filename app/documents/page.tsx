@@ -59,6 +59,7 @@ export default async function DocumentsPage({
   if (params.added_after) initialFilters.addedAfter = params.added_after as string
   if (params.added_before) initialFilters.addedBefore = params.added_before as string
   if (params.ordering) initialFilters.ordering = params.ordering as string
+  if (params.more_like_id) initialFilters.moreLikeId = Number(params.more_like_id)
 
   const currentPage = Number(params.page) || 1
   const pageSize = Number(params.page_size) || (activeView?.page_size ?? 25)

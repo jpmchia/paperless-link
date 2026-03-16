@@ -10,10 +10,11 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Trash2, Mail, Shield } from "lucide-react"
+import { Trash2, Mail, Shield, History, ChromeIcon } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import Link from "next/link"
 
 interface MailAccount {
   id: number
@@ -39,6 +40,25 @@ interface MailRule {
   assign_correspondent_from?: number
 }
 
+interface ProcessedMailEntry {
+  id: number
+  received: string
+  subject?: string
+  status?: number
+  rule?: number | null
+  rule_name?: string | null
+  document?: number | null
+  error?: string | null
+}
+
+interface MailTableProps {
+  accounts: MailAccount[]
+  rules: MailRule[]
+  processedMail?: ProcessedMailEntry[]
+  gmailOAuthUrl?: string | null
+  outlookOAuthUrl?: string | null
+}
+
 async function apiAction(method: string, path: string) {
   const res = await fetch(`/api/proxy/${path}`, { method })
   if (!res.ok) throw new Error(`API call failed: ${res.statusText}`)
@@ -50,7 +70,13 @@ const SECURITY_LABELS: Record<number, string> = {
   3: "STARTTLS",
 }
 
-export function MailTable({ accounts, rules }: { accounts: MailAccount[]; rules: MailRule[] }) {
+const STATUS_LABELS: Record<number, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  0: { label: "Processed", variant: "secondary" },
+  1: { label: "Error", variant: "destructive" },
+  2: { label: "No match", variant: "outline" },
+}
+
+export function MailTable({ accounts, rules, processedMail = [], gmailOAuthUrl, outlookOAuthUrl }: MailTableProps) {
   const router = useRouter()
   const [accountList, setAccountList] = React.useState(accounts)
   const [ruleList, setRuleList] = React.useState(rules)
@@ -58,6 +84,9 @@ export function MailTable({ accounts, rules }: { accounts: MailAccount[]; rules:
 
   const accountMap: Record<number, string> = {}
   accountList.forEach((a) => { accountMap[a.id] = a.name })
+
+  const ruleMap: Record<number, string> = {}
+  ruleList.forEach((r) => { ruleMap[r.id] = r.name })
 
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -89,9 +118,35 @@ export function MailTable({ accounts, rules }: { accounts: MailAccount[]; rules:
           <TabsTrigger value="rules" className="gap-1.5">
             <Shield className="h-3.5 w-3.5" />Rules ({ruleList.length})
           </TabsTrigger>
+          <TabsTrigger value="processed" className="gap-1.5">
+            <History className="h-3.5 w-3.5" />Processed ({processedMail.length})
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="accounts" className="mt-4">
+        <TabsContent value="accounts" className="mt-4 space-y-4">
+          {/* OAuth connect buttons */}
+          {(gmailOAuthUrl || outlookOAuthUrl) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-muted-foreground">Connect via OAuth:</span>
+              {gmailOAuthUrl && (
+                <Button size="sm" variant="outline" className="h-8 gap-1.5" asChild>
+                  <a href={gmailOAuthUrl}>
+                    <ChromeIcon className="h-3.5 w-3.5" />
+                    Connect Gmail
+                  </a>
+                </Button>
+              )}
+              {outlookOAuthUrl && (
+                <Button size="sm" variant="outline" className="h-8 gap-1.5" asChild>
+                  <a href={outlookOAuthUrl}>
+                    <Mail className="h-3.5 w-3.5" />
+                    Connect Outlook
+                  </a>
+                </Button>
+              )}
+            </div>
+          )}
+
           <div className="rounded-md border overflow-hidden">
             <Table>
               <TableHeader>
@@ -173,6 +228,67 @@ export function MailTable({ accounts, rules }: { accounts: MailAccount[]; rules:
                       </TableCell>
                     </TableRow>
                   ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="processed" className="mt-4">
+          <div className="rounded-md border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Received</TableHead>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Rule</TableHead>
+                  <TableHead className="w-28">Status</TableHead>
+                  <TableHead className="w-28 text-right">Document</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {processedMail.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground h-24">
+                      No processed mail records yet.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  processedMail.map((entry) => {
+                    const status = STATUS_LABELS[entry.status ?? 0] ?? { label: "Unknown", variant: "outline" as const }
+                    return (
+                      <TableRow key={entry.id}>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(entry.received).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate text-sm">
+                          {entry.subject || <em className="text-muted-foreground">No subject</em>}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs">
+                          {entry.rule_name ?? (entry.rule != null ? ruleMap[entry.rule] ?? `#${entry.rule}` : "—")}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={status.variant} className="text-xs">
+                            {status.label}
+                          </Badge>
+                          {entry.error && (
+                            <p className="text-[10px] text-destructive mt-0.5 truncate max-w-[160px]" title={entry.error}>
+                              {entry.error}
+                            </p>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {entry.document != null ? (
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" asChild>
+                              <Link href={`/documents/${entry.document}`}>View doc</Link>
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
                 )}
               </TableBody>
             </Table>

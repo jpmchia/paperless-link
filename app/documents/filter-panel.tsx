@@ -100,6 +100,9 @@ export function FilterPanel({
   const [, setAtomFilters] = useAtom(filterParamsAtom)
   const [filterCount] = useAtom(activeFilterCountAtom)
   const [searchValue, setSearchValue] = React.useState(initialFilters.query || "")
+  const [suggestions, setSuggestions] = React.useState<string[]>([])
+  const [suggestionsOpen, setSuggestionsOpen] = React.useState(false)
+  const autocompleteTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const [tagMode, setTagMode] = React.useState<TagFilterMode>("all")
   const [saveAsOpen, setSaveAsOpen] = React.useState(false)
   const [saveAsName, setSaveAsName] = React.useState("")
@@ -146,8 +149,41 @@ export function FilterPanel({
     router.push(`/documents?view=${view.id}`)
   }
 
+  const fetchSuggestions = React.useCallback(async (term: string) => {
+    if (!term.trim() || term.length < 2) {
+      setSuggestions([])
+      setSuggestionsOpen(false)
+      return
+    }
+    try {
+      const res = await fetch(`/api/proxy/search/autocomplete/?term=${encodeURIComponent(term)}&limit=10`)
+      if (res.ok) {
+        const data = await res.json()
+        const list = Array.isArray(data) ? data : []
+        setSuggestions(list)
+        setSuggestionsOpen(list.length > 0)
+      }
+    } catch {
+      // autocomplete errors are non-critical
+    }
+  }, [])
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setSearchValue(val)
+    if (autocompleteTimer.current) clearTimeout(autocompleteTimer.current)
+    autocompleteTimer.current = setTimeout(() => fetchSuggestions(val), 300)
+  }
+
+  const handleSuggestionSelect = (suggestion: string) => {
+    setSearchValue(suggestion)
+    setSuggestionsOpen(false)
+    applyFilters({ ...filters, query: suggestion })
+  }
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    setSuggestionsOpen(false)
     applyFilters({ ...filters, query: searchValue || undefined })
   }
 
@@ -259,6 +295,7 @@ export function FilterPanel({
   if (filters.addedAfter) chips.push({ label: `Added after: ${filters.addedAfter}`, onRemove: () => removeChip("addedAfter") })
   if (filters.addedBefore) chips.push({ label: `Added before: ${filters.addedBefore}`, onRemove: () => removeChip("addedBefore") })
   if (filters.isInInbox) chips.push({ label: `Inbox only`, onRemove: () => removeChip("isInInbox") })
+  if (filters.moreLikeId) chips.push({ label: `Similar to doc #${filters.moreLikeId}`, onRemove: () => removeChip("moreLikeId") })
   if (filters.owner === currentUserId && currentUserId != null) chips.push({ label: `Owner: Mine`, onRemove: () => removeChip("owner") })
   else if (filters.owner != null) chips.push({ label: `Owner: #${filters.owner}`, onRemove: () => removeChip("owner") })
   if (filters.ownerIsNull) chips.push({ label: `Owner: None`, onRemove: () => removeChip("ownerIsNull") })
@@ -301,17 +338,36 @@ export function FilterPanel({
 
       {/* ---- Top row: search + filter controls ---- */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Full text search */}
+        {/* Full text search with autocomplete */}
         <form onSubmit={handleSearchSubmit} className="flex-1 min-w-[200px] max-w-sm flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10 pointer-events-none" />
             <Input
               type="search"
               placeholder="Search documents…"
               className="pl-8"
               value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
+              onChange={handleSearchChange}
+              onFocus={() => suggestions.length > 0 && setSuggestionsOpen(true)}
+              onKeyDown={(e) => { if (e.key === "Escape") setSuggestionsOpen(false) }}
+              onBlur={() => setTimeout(() => setSuggestionsOpen(false), 150)}
+              autoComplete="off"
             />
+            {suggestionsOpen && suggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border rounded-md shadow-md py-1">
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent cursor-pointer flex items-center gap-2"
+                    onMouseDown={(e) => { e.preventDefault(); handleSuggestionSelect(s) }}
+                  >
+                    <Search className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <Button type="submit" size="sm" variant="secondary">Search</Button>
         </form>

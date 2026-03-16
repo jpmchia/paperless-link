@@ -6,7 +6,6 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
@@ -16,10 +15,21 @@ import { MetadataTab } from "./metadata-tab"
 import { HistoryTab } from "./history-tab"
 import { PermissionsTab } from "./permissions-tab"
 import { NotesTab } from "./notes-tab"
-import { Label } from "@/components/ui/label"
-
+import { VersionsTab } from "./versions-tab"
+import { ShareLinksTab } from "./share-links-tab"
+import { DuplicatesTab } from "./duplicates-tab"
 import { TopBar } from "./topbar"
 import { PdfViewer } from "./pdf-viewer"
+
+const TAB_TRIGGER =
+  "relative rounded-none border-b-2 border-b-transparent bg-transparent px-3 pb-2 pt-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none whitespace-nowrap"
+
+// Derive the Paperless public base URL from the server-side env var
+function getPaperlessBaseUrl(): string {
+  const raw = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
+  // Strip trailing /api/ or /api or trailing slash
+  return raw.replace(/\/api\/?$/, "").replace(/\/$/, "")
+}
 
 export default async function DocumentDetailsPage({
   params,
@@ -28,6 +38,8 @@ export default async function DocumentDetailsPage({
 }) {
   const resolvedParams = await params
   const { id } = resolvedParams
+
+  const paperlessBaseUrl = getPaperlessBaseUrl()
 
   // Fetch document and relational metadata concurrently
   const [documentResp, metadata, history, notes, correspondents, documentTypes, storagePaths, tagsList, customFieldsList, usersList, groupsList] = await Promise.all([
@@ -49,6 +61,9 @@ export default async function DocumentDetailsPage({
   }
 
   const document = documentResp as Document
+  const doc = documentResp as any
+  const versions = Array.isArray(doc.versions) ? doc.versions : []
+  const duplicates = Array.isArray(doc.duplicate_documents) ? doc.duplicate_documents : []
 
   return (
     <AppShell topbar={
@@ -72,43 +87,26 @@ export default async function DocumentDetailsPage({
           {/* Metadata Editor Pane */}
           <ResizablePanel defaultSize={40} minSize={30}>
             <Tabs defaultValue="details" className="flex flex-col h-full w-full bg-background">
-              <div className="pt-2">
-                <TabsList className="w-full justify-start h-auto border-b bg-transparent p-0">
-                  <TabsTrigger
-                    value="details"
-                    className="relative rounded-t-md border-b-2 bg-transparent px-4 pb-2 pt-2 font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-                  >
-                    Details
+              <div className="pt-2 overflow-x-auto">
+                <TabsList className="w-max min-w-full justify-start h-auto border-b bg-transparent p-0 flex-nowrap">
+                  <TabsTrigger value="details" className={TAB_TRIGGER}>Details</TabsTrigger>
+                  <TabsTrigger value="content" className={TAB_TRIGGER}>Content</TabsTrigger>
+                  <TabsTrigger value="metadata" className={TAB_TRIGGER}>Metadata</TabsTrigger>
+                  <TabsTrigger value="history" className={TAB_TRIGGER}>History</TabsTrigger>
+                  <TabsTrigger value="permissions" className={TAB_TRIGGER}>Permissions</TabsTrigger>
+                  <TabsTrigger value="notes" className={TAB_TRIGGER}>Notes</TabsTrigger>
+                  <TabsTrigger value="versions" className={TAB_TRIGGER}>
+                    Versions
+                    {versions.length > 0 && (
+                      <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px]">{versions.length}</Badge>
+                    )}
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="content"
-                    className="relative rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-2 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-                  >
-                    Content
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="metadata"
-                    className="relative rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-2 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-                  >
-                    Metadata
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="history"
-                    className="relative rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-2 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-                  >
-                    History
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="permissions"
-                    className="relative rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-2 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-                  >
-                    Permissions
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="notes"
-                    className="relative rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-                  >
-                    Notes
+                  <TabsTrigger value="share" className={TAB_TRIGGER}>Share</TabsTrigger>
+                  <TabsTrigger value="duplicates" className={TAB_TRIGGER}>
+                    Duplicates
+                    {duplicates.length > 0 && (
+                      <Badge variant="destructive" className="ml-1.5 h-4 px-1 text-[10px]">{duplicates.length}</Badge>
+                    )}
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -159,6 +157,18 @@ export default async function DocumentDetailsPage({
 
                 <TabsContent value="notes" className="m-0 h-full overflow-hidden outline-none">
                   <NotesTab documentId={document.id} initialNotes={notes} />
+                </TabsContent>
+
+                <TabsContent value="versions" className="m-0 h-full overflow-hidden outline-none">
+                  <VersionsTab documentId={document.id} initialVersions={versions} />
+                </TabsContent>
+
+                <TabsContent value="share" className="m-0 h-full overflow-hidden outline-none">
+                  <ShareLinksTab documentId={document.id} paperlessBaseUrl={paperlessBaseUrl} />
+                </TabsContent>
+
+                <TabsContent value="duplicates" className="m-0 h-full overflow-hidden outline-none">
+                  <DuplicatesTab duplicates={duplicates} />
                 </TabsContent>
               </div>
             </Tabs>

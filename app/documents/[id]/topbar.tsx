@@ -3,7 +3,7 @@
 import { useAtom, useAtomValue } from "jotai"
 import { documentListState, visibleCustomFieldsAtom } from "@/lib/store"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, MoreVertical, Trash2, RefreshCw, Save, ListChecks } from "lucide-react"
+import { ChevronLeft, ChevronRight, MoreVertical, Trash2, RefreshCw, Save, ListChecks, Sparkles } from "lucide-react"
 import Link from "next/link"
 import {
     DropdownMenu,
@@ -133,6 +133,12 @@ export function TopBar({ children, title = "Document", documentId, customFieldsL
                                     <RefreshCw className="mr-2 h-4 w-4" />
                                     Reprocess
                                 </DropdownMenuItem>
+                                {documentId && (
+                                    <DropdownMenuItem onClick={() => router.push(`/documents?more_like_id=${documentId}`)}>
+                                        <Sparkles className="mr-2 h-4 w-4" />
+                                        More like this
+                                    </DropdownMenuItem>
+                                )}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleDelete}>
                                     <Trash2 className="mr-2 h-4 w-4" />
