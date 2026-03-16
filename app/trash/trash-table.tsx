@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { usePermission } from "@/hooks/use-permissions"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -39,6 +40,9 @@ export function TrashTable({ documents }: { documents: TrashDoc[] }) {
   const [selected, setSelected] = React.useState<Set<number>>(new Set())
   const [action, setAction] = React.useState<"restore" | "delete" | null>(null)
   const [busy, setBusy] = React.useState(false)
+  const canRestore = usePermission("change", "document")
+  const canDelete = usePermission("delete", "document")
+  const canSelect = canRestore || canDelete
 
   const toggleAll = () => {
     if (selected.size === documents.length) {
@@ -70,8 +74,10 @@ export function TrashTable({ documents }: { documents: TrashDoc[] }) {
       )
       setSelected(new Set())
       router.refresh()
-    } catch (e: any) {
-      toast.error("Action failed", { description: e.message })
+    } catch (error) {
+      toast.error("Action failed", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setBusy(false)
       setAction(null)
@@ -87,25 +93,29 @@ export function TrashTable({ documents }: { documents: TrashDoc[] }) {
             ? "Trash is empty"
             : `${documents.length} document(s) in trash`}
         </p>
-        {selected.size > 0 && (
+        {selected.size > 0 && canSelect && (
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{selected.size} selected</span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setAction("restore")}
-              disabled={busy}
-            >
-              <Undo2 className="mr-1 h-3.5 w-3.5" />Restore
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => setAction("delete")}
-              disabled={busy}
-            >
-              <Trash2 className="mr-1 h-3.5 w-3.5" />Delete Permanently
-            </Button>
+            {canRestore && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setAction("restore")}
+                disabled={busy}
+              >
+                <Undo2 className="mr-1 h-3.5 w-3.5" />Restore
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setAction("delete")}
+                disabled={busy}
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" />Delete Permanently
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -116,13 +126,15 @@ export function TrashTable({ documents }: { documents: TrashDoc[] }) {
           <Table className="text-xs">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={selected.size === documents.length && documents.length > 0}
-                    onCheckedChange={toggleAll}
-                    aria-label="Select all"
-                  />
-                </TableHead>
+                {canSelect && (
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={selected.size === documents.length && documents.length > 0}
+                      onCheckedChange={toggleAll}
+                      aria-label="Select all"
+                    />
+                  </TableHead>
+                )}
                 <TableHead>Title</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead>Deleted</TableHead>
@@ -131,12 +143,14 @@ export function TrashTable({ documents }: { documents: TrashDoc[] }) {
             <TableBody>
               {documents.map((doc) => (
                 <TableRow key={doc.id}>
-                  <TableCell>
-                    <Checkbox
-                      checked={selected.has(doc.id)}
-                      onCheckedChange={() => toggle(doc.id)}
-                    />
-                  </TableCell>
+                  {canSelect && (
+                    <TableCell>
+                      <Checkbox
+                        checked={selected.has(doc.id)}
+                        onCheckedChange={() => toggle(doc.id)}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="font-medium">{doc.title}</TableCell>
                   <TableCell className="text-muted-foreground">
                     {doc.created ? new Date(doc.created).toLocaleDateString() : "—"}
@@ -166,12 +180,14 @@ export function TrashTable({ documents }: { documents: TrashDoc[] }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className={action === "delete" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
-              onClick={handleAction}
-            >
-              {action === "restore" ? "Restore" : "Delete Permanently"}
-            </AlertDialogAction>
+            {((action === "restore" && canRestore) || (action === "delete" && canDelete)) && (
+              <AlertDialogAction
+                className={action === "delete" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+                onClick={handleAction}
+              >
+                {action === "restore" ? "Restore" : "Delete Permanently"}
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

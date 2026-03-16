@@ -1,6 +1,11 @@
 "use client"
 
 import * as React from "react"
+import { CanCreate } from "@/components/permissions/can-create"
+import { CanChange } from "@/components/permissions/can-change"
+import { CanDelete } from "@/components/permissions/can-delete"
+import { PermissionGate } from "@/components/permissions/permission-gate"
+import { usePermissions } from "@/hooks/use-permissions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -77,6 +82,7 @@ export function CorrespondentsTable({
 }: {
   initialCorrespondents: Correspondent[]
 }) {
+  const { can } = usePermissions()
   const [items, setItems] = React.useState<Correspondent[]>(initialCorrespondents)
   const [search, setSearch] = React.useState("")
   const [editing, setEditing] = React.useState<Partial<Correspondent> | null>(null)
@@ -122,8 +128,10 @@ export function CorrespondentsTable({
         toast.success(`Correspondent "${updated.name}" updated`)
       }
       setEditing(null)
-    } catch (e: any) {
-      toast.error("Failed to save", { description: e.message })
+    } catch (error) {
+      toast.error("Failed to save", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setSaving(false)
     }
@@ -135,8 +143,10 @@ export function CorrespondentsTable({
       await deleteCorrespondent(deleteId)
       setItems((prev) => prev.filter((c) => c.id !== deleteId))
       toast.success("Correspondent deleted")
-    } catch (e: any) {
-      toast.error("Failed to delete", { description: e.message })
+    } catch (error) {
+      toast.error("Failed to delete", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setDeleteId(null)
     }
@@ -154,10 +164,12 @@ export function CorrespondentsTable({
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button onClick={openCreate} size="sm">
-          <Plus className="mr-2 h-4 w-4" />
-          Create Correspondent
-        </Button>
+        <CanCreate type="correspondent">
+          <Button onClick={openCreate} size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Create Correspondent
+          </Button>
+        </CanCreate>
       </div>
 
       <div className="rounded-md border overflow-hidden">
@@ -199,17 +211,21 @@ export function CorrespondentsTable({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => setDeleteId(item.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <CanChange type="correspondent">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </CanChange>
+                      <CanDelete type="correspondent">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteId(item.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </CanDelete>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -224,8 +240,9 @@ export function CorrespondentsTable({
       </p>
 
       {/* Edit / Create Dialog */}
-      <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="max-w-md">
+      <PermissionGate allowed={editing !== null && can(isNew ? "create" : "change", "correspondent")}>
+        <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
+          <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{isNew ? "Create Correspondent" : "Edit Correspondent"}</DialogTitle>
           </DialogHeader>
@@ -284,29 +301,32 @@ export function CorrespondentsTable({
               {saving ? "Saving…" : isNew ? "Create" : "Save"}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      </PermissionGate>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete correspondent?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove the correspondent from all documents. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDelete}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <CanDelete type="correspondent">
+        <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete correspondent?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will remove the correspondent from all documents. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={handleDelete}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </CanDelete>
     </>
   )
 }

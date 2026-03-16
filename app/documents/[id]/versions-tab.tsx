@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useAtom } from "jotai"
+import { HasObjectPermission } from "@/components/permissions/has-object-permission"
 import { activeVersionIdAtom } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Eye, Trash2, Pencil, Check, X, Upload, History } from "lucide-react"
 import { toast } from "sonner"
+import type { PermissionedObject } from "@/lib/permissions"
 
 interface DocumentVersion {
   id: number
@@ -25,9 +27,10 @@ interface DocumentVersion {
 interface VersionsTabProps {
   documentId: number
   initialVersions: DocumentVersion[]
+  permissionedDocument?: PermissionedObject | null
 }
 
-export function VersionsTab({ documentId, initialVersions }: VersionsTabProps) {
+export function VersionsTab({ documentId, initialVersions, permissionedDocument }: VersionsTabProps) {
   const [versions, setVersions] = React.useState<DocumentVersion[]>(initialVersions)
   const [activeVersionId, setActiveVersionId] = useAtom(activeVersionIdAtom)
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
@@ -58,8 +61,10 @@ export function VersionsTab({ documentId, initialVersions }: VersionsTabProps) {
       )
       setEditId(null)
       toast.success("Version label updated")
-    } catch (e: any) {
-      toast.error("Failed to update label", { description: e.message })
+    } catch (error) {
+      toast.error("Failed to update label", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     }
   }
 
@@ -73,8 +78,10 @@ export function VersionsTab({ documentId, initialVersions }: VersionsTabProps) {
       setVersions((prev) => prev.filter((v) => v.id !== deleteId))
       if (activeVersionId === deleteId) setActiveVersionId(null)
       toast.success("Version deleted")
-    } catch (e: any) {
-      toast.error("Failed to delete version", { description: e.message })
+    } catch (error) {
+      toast.error("Failed to delete version", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setDeleteId(null)
     }
@@ -99,8 +106,10 @@ export function VersionsTab({ documentId, initialVersions }: VersionsTabProps) {
         if (Array.isArray(doc.versions)) setVersions(doc.versions)
       }
       toast.success("New version uploaded")
-    } catch (e: any) {
-      toast.error("Upload failed", { description: e.message })
+    } catch (error) {
+      toast.error("Upload failed", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
@@ -112,10 +121,12 @@ export function VersionsTab({ documentId, initialVersions }: VersionsTabProps) {
       <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground py-16">
         <History className="h-10 w-10 opacity-30" />
         <p className="text-sm">No versions available for this document.</p>
-        <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-          <Upload className="mr-2 h-3.5 w-3.5" />
-          Upload new version
-        </Button>
+        <HasObjectPermission action="change" object={permissionedDocument} type="document">
+          <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+            <Upload className="mr-2 h-3.5 w-3.5" />
+            Upload new version
+          </Button>
+        </HasObjectPermission>
         <input ref={fileInputRef} type="file" className="hidden" accept="application/pdf,image/*" onChange={handleUpload} />
       </div>
     )
@@ -131,10 +142,12 @@ export function VersionsTab({ documentId, initialVersions }: VersionsTabProps) {
               <X className="mr-1 h-3 w-3" />View latest
             </Button>
           )}
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-            <Upload className="mr-1 h-3 w-3" />
-            {uploading ? "Uploading…" : "Upload version"}
-          </Button>
+          <HasObjectPermission action="change" object={permissionedDocument} type="document">
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+              <Upload className="mr-1 h-3 w-3" />
+              {uploading ? "Uploading…" : "Upload version"}
+            </Button>
+          </HasObjectPermission>
         </div>
         <input ref={fileInputRef} type="file" className="hidden" accept="application/pdf,image/*" onChange={handleUpload} />
       </div>
@@ -198,28 +211,32 @@ export function VersionsTab({ documentId, initialVersions }: VersionsTabProps) {
                   >
                     <Eye className="h-3 w-3" />
                   </Button>
-                  {!isEditing && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6"
-                      title="Rename version label"
-                      onClick={() => handleRenameStart(v)}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                  )}
-                  {!v.is_root && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6 text-destructive hover:text-destructive"
-                      title="Delete this version"
-                      onClick={() => setDeleteId(v.id)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  )}
+                  <HasObjectPermission action="change" object={permissionedDocument} type="document">
+                    {!isEditing && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        title="Rename version label"
+                        onClick={() => handleRenameStart(v)}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </HasObjectPermission>
+                  <HasObjectPermission action="delete" object={permissionedDocument} type="document">
+                    {!v.is_root && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 text-destructive hover:text-destructive"
+                        title="Delete this version"
+                        onClick={() => setDeleteId(v.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </HasObjectPermission>
                 </div>
               </div>
             </div>
@@ -227,22 +244,24 @@ export function VersionsTab({ documentId, initialVersions }: VersionsTabProps) {
         })}
       </div>
 
-      <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete version?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This version will be permanently removed. The document's other versions remain intact.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <HasObjectPermission action="delete" object={permissionedDocument} type="document">
+        <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete version?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This version will be permanently removed. The document&apos;s other versions remain intact.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </HasObjectPermission>
     </div>
   )
 }

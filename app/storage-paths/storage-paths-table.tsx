@@ -1,6 +1,11 @@
 "use client"
 
 import * as React from "react"
+import { CanCreate } from "@/components/permissions/can-create"
+import { CanChange } from "@/components/permissions/can-change"
+import { CanDelete } from "@/components/permissions/can-delete"
+import { PermissionGate } from "@/components/permissions/permission-gate"
+import { usePermissions } from "@/hooks/use-permissions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -54,6 +59,7 @@ const emptyItem = (): Partial<StoragePath> => ({
 })
 
 export function StoragePathsTable({ initialItems }: { initialItems: StoragePath[] }) {
+  const { can } = usePermissions()
   const [items, setItems] = React.useState<StoragePath[]>(initialItems)
   const [search, setSearch] = React.useState("")
   const [editing, setEditing] = React.useState<Partial<StoragePath> | null>(null)
@@ -136,9 +142,11 @@ export function StoragePathsTable({ initialItems }: { initialItems: StoragePath[
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search storage paths…" className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <Button onClick={openCreate} size="sm">
-          <Plus className="mr-2 h-4 w-4" />Create Storage Path
-        </Button>
+        <CanCreate type="storagePath">
+          <Button onClick={openCreate} size="sm">
+            <Plus className="mr-2 h-4 w-4" />Create Storage Path
+          </Button>
+        </CanCreate>
       </div>
 
       <div className="rounded-md border overflow-hidden">
@@ -178,12 +186,16 @@ export function StoragePathsTable({ initialItems }: { initialItems: StoragePath[
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(item.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <CanChange type="storagePath">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </CanChange>
+                      <CanDelete type="storagePath">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(item.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </CanDelete>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -195,8 +207,9 @@ export function StoragePathsTable({ initialItems }: { initialItems: StoragePath[
 
       <p className="text-sm text-muted-foreground">{filtered.length} of {items.length} storage paths</p>
 
-      <Dialog open={editing !== null} onOpenChange={(o: boolean) => !o && setEditing(null)}>
-        <DialogContent className="max-w-md">
+      <PermissionGate allowed={editing !== null && can(isNew ? "create" : "change", "storagePath")}>
+        <Dialog open={editing !== null} onOpenChange={(o: boolean) => !o && setEditing(null)}>
+          <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{isNew ? "Create Storage Path" : "Edit Storage Path"}</DialogTitle>
           </DialogHeader>
@@ -240,27 +253,30 @@ export function StoragePathsTable({ initialItems }: { initialItems: StoragePath[
               {saving ? "Saving…" : isNew ? "Create" : "Save"}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      </PermissionGate>
 
-      <AlertDialog open={deleteId !== null} onOpenChange={(o: boolean) => !o && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete storage path?</AlertDialogTitle>
-            <AlertDialogDescription>This will remove the storage path from all documents. This cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => void handleDelete()}
-              disabled={deleting}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <CanDelete type="storagePath">
+        <AlertDialog open={deleteId !== null} onOpenChange={(o: boolean) => !o && setDeleteId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete storage path?</AlertDialogTitle>
+              <AlertDialogDescription>This will remove the storage path from all documents. This cannot be undone.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => void handleDelete()}
+                disabled={deleting}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </CanDelete>
     </>
   )
 }

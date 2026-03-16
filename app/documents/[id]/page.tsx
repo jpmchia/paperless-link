@@ -179,7 +179,7 @@ export default async function DocumentDetailsPage({
                 </TabsContent>
 
                 <TabsContent value="versions" className="m-0 h-full overflow-hidden outline-none">
-                  <VersionsTab documentId={document.id} initialVersions={versions} />
+                  <VersionsTab documentId={document.id} initialVersions={versions} permissionedDocument={document} />
                 </TabsContent>
 
                 {canManageShareLinks && (

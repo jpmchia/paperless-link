@@ -35,4 +35,15 @@ describe("route permissions", () => {
       isRouteAllowed(currentUser, routePermissionRequirements["/settings"])
     ).toBe(false)
   })
+
+  it("applies document-view permission to the dashboard route", () => {
+    const currentUser = mapPermissionBootstrapPayload({
+      permissions: ["view_document"],
+      user: { id: 1 },
+    })
+
+    expect(
+      isRouteAllowed(currentUser, routePermissionRequirements["/dashboard"])
+    ).toBe(true)
+  })
 })

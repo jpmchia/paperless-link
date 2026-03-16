@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { CanChange } from "@/components/permissions/can-change"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -85,16 +86,18 @@ export function TasksView() {
           {tasks.length} task(s){unacknowledged.length > 0 && ` · ${unacknowledged.length} unacknowledged`}
         </p>
         <div className="flex gap-2">
-          {unacknowledged.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void dismissAll()}
-              disabled={dismissing}
-            >
-              <Trash2 className="mr-1 h-3.5 w-3.5" />Dismiss All
-            </Button>
-          )}
+          <CanChange type="paperlessTask">
+            {unacknowledged.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void dismissAll()}
+                disabled={dismissing}
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" />Dismiss All
+              </Button>
+            )}
+          </CanChange>
           <Button variant="outline" size="sm" onClick={fetchTasks}>
             <RefreshCw className="mr-1 h-3.5 w-3.5" />Refresh
           </Button>

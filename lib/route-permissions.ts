@@ -17,6 +17,7 @@ export interface RoutePermissionRequirement {
 }
 
 export type RoutePermissionKey =
+  | "/dashboard"
   | "/correspondents"
   | "/custom-fields"
   | "/document-types"
@@ -36,6 +37,9 @@ export const routePermissionRequirements: Record<
   RoutePermissionKey,
   RoutePermissionRequirement
 > = {
+  "/dashboard": {
+    anyOf: [{ action: "view", type: "document" }],
+  },
   "/correspondents": {
     anyOf: [{ action: "view", type: "correspondent" }],
   },

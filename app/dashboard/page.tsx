@@ -1,19 +1,13 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/auth"
-import { redirect } from "next/navigation"
 import { AppShell } from "@/components/app-shell"
 import { getDocumentStatistics, getRecentDocuments, getSavedViews, getCorrespondents, getDocumentTypes } from "@/lib/api"
+import { requireRoutePermission } from "@/lib/server-permissions"
 import { FileText, Inbox, Tags, Users, Folder, Clock } from "lucide-react"
 import { TopBar } from "./topbar"
 import { UploadWidget } from "./upload-widget"
 import Link from "next/link"
 
 export default async function DashboardPage() {
-  const session = await getServerSession(authOptions as any)
-
-  if (!session) {
-    redirect("/login")
-  }
+  const permissions = await requireRoutePermission("/dashboard")
 
   const [stats, recentDocuments, savedViews, correspondents, documentTypes] = await Promise.all([
     getDocumentStatistics(),
@@ -39,25 +33,19 @@ export default async function DashboardPage() {
   ]
 
   return (
-    <AppShell topbar={<TopBar title="Dashboard" />}>
+    <AppShell initialPermissions={permissions} topbar={<TopBar title="Dashboard" />}>
       <div className="flex flex-col gap-6 p-4 h-full overflow-y-auto">
         {/* Welcome Banner */}
         <div className="rounded-xl border bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold">
-              Welcome back, {(session as any).user?.name ?? "User"}
+              Welcome back
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
               {(stats as any).documents_total || 0} documents managed
               {(stats as any).documents_inbox > 0 ? ` · ${(stats as any).documents_inbox} in inbox` : ""}
             </p>
           </div>
-          {(session as any).accessToken && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 bg-green-500/10 px-2 py-1 rounded-full">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-              Connected
-            </span>
-          )}
         </div>
 
         {/* Stats Grid */}

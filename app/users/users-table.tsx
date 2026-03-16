@@ -1,6 +1,10 @@
 "use client"
 
 import * as React from "react"
+import { CanCreate } from "@/components/permissions/can-create"
+import { CanChange } from "@/components/permissions/can-change"
+import { CanDelete } from "@/components/permissions/can-delete"
+import { usePermissions } from "@/hooks/use-permissions"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -38,7 +42,11 @@ interface PaperlessGroup {
   users?: number[]
 }
 
-async function apiAction(method: string, path: string, body?: any) {
+async function apiAction(
+  method: string,
+  path: string,
+  body?: Record<string, unknown>
+) {
   const res = await fetch(`/api/proxy/${path}`, {
     method,
     headers: body ? { "Content-Type": "application/json" } : {},
@@ -78,7 +86,7 @@ function UserDialog({
     e.preventDefault()
     setSaving(true)
     try {
-      const body: any = {
+      const body: Record<string, unknown> = {
         username,
         email,
         first_name: firstName,
@@ -94,8 +102,10 @@ function UserDialog({
         : await apiAction("PATCH", `users/${user!.id}/`, body)
       onSave(result)
       toast.success(isNew ? "User created" : "User updated")
-    } catch (e: any) {
-      toast.error("Failed to save user", { description: e.message })
+    } catch (error) {
+      toast.error("Failed to save user", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setSaving(false)
     }
@@ -233,8 +243,10 @@ function GroupDialog({
         : await apiAction("PATCH", `groups/${group!.id}/`, { name })
       onSave(result)
       toast.success(isNew ? "Group created" : "Group updated")
-    } catch (e: any) {
-      toast.error("Failed to save group", { description: e.message })
+    } catch (error) {
+      toast.error("Failed to save group", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setSaving(false)
     }
@@ -283,6 +295,7 @@ export function UsersTable({
   const [deleteTarget, setDeleteTarget] = React.useState<{ type: "user" | "group"; id: number; name: string } | null>(null)
   const [editUser, setEditUser] = React.useState<PaperlessUser | null | "new">(null)
   const [editGroup, setEditGroup] = React.useState<PaperlessGroup | null | "new">(null)
+  const { can } = usePermissions()
 
   const groupMap: Record<number, string> = {}
   groups.forEach((g) => { groupMap[g.id] = g.name })
@@ -297,8 +310,10 @@ export function UsersTable({
         setGroups((prev) => prev.filter((g) => g.id !== deleteTarget.id))
       }
       toast.success(`${deleteTarget.type === "user" ? "User" : "Group"} deleted`)
-    } catch (e: any) {
-      toast.error("Failed to delete", { description: e.message })
+    } catch (error) {
+      toast.error("Failed to delete", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setDeleteTarget(null)
     }
@@ -319,9 +334,11 @@ export function UsersTable({
         {/* ── Users tab ── */}
         <TabsContent value="users" className="mt-4 space-y-3">
           <div className="flex justify-end">
-            <Button size="sm" onClick={() => setEditUser("new")}>
-              <UserPlus className="mr-2 h-3.5 w-3.5" />New User
-            </Button>
+            <CanCreate type="user">
+              <Button size="sm" onClick={() => setEditUser("new")}>
+                <UserPlus className="mr-2 h-3.5 w-3.5" />New User
+              </Button>
+            </CanCreate>
           </div>
           <div className="rounded-md border overflow-hidden">
             <Table>
@@ -376,22 +393,26 @@ export function UsersTable({
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => setEditUser(u)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => setDeleteTarget({ type: "user", id: u.id, name: u.username })}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          <CanChange type="user">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => setEditUser(u)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          </CanChange>
+                          <CanDelete type="user">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => setDeleteTarget({ type: "user", id: u.id, name: u.username })}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </CanDelete>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -405,9 +426,11 @@ export function UsersTable({
         {/* ── Groups tab ── */}
         <TabsContent value="groups" className="mt-4 space-y-3">
           <div className="flex justify-end">
-            <Button size="sm" onClick={() => setEditGroup("new")}>
-              <Shield className="mr-2 h-3.5 w-3.5" />New Group
-            </Button>
+            <CanCreate type="group">
+              <Button size="sm" onClick={() => setEditGroup("new")}>
+                <Shield className="mr-2 h-3.5 w-3.5" />New Group
+              </Button>
+            </CanCreate>
           </div>
           <div className="rounded-md border overflow-hidden">
             <Table>
@@ -446,22 +469,26 @@ export function UsersTable({
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => setEditGroup(g)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
-                              onClick={() => setDeleteTarget({ type: "group", id: g.id, name: g.name })}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            <CanChange type="group">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => setEditGroup(g)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            </CanChange>
+                            <CanDelete type="group">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => setDeleteTarget({ type: "group", id: g.id, name: g.name })}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </CanDelete>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -475,7 +502,7 @@ export function UsersTable({
       </Tabs>
 
       {/* User edit/create dialog */}
-      {editUser !== null && (
+      {editUser !== null && can(editUser === "new" ? "create" : "change", "user") && (
         <UserDialog
           user={editUser === "new" ? null : editUser}
           groups={groups}
@@ -491,7 +518,7 @@ export function UsersTable({
       )}
 
       {/* Group edit/create dialog */}
-      {editGroup !== null && (
+      {editGroup !== null && can(editGroup === "new" ? "create" : "change", "group") && (
         <GroupDialog
           group={editGroup === "new" ? null : editGroup}
           onClose={() => setEditGroup(null)}
@@ -506,10 +533,16 @@ export function UsersTable({
       )}
 
       {/* Delete confirmation */}
-      <AlertDialog open={deleteTarget !== null} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+      <AlertDialog
+        open={Boolean(
+          deleteTarget &&
+          can("delete", deleteTarget.type === "user" ? "user" : "group")
+        )}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {deleteTarget?.type === "user" ? "user" : "group"} "{deleteTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogTitle>Delete {deleteTarget?.type === "user" ? "user" : "group"} &quot;{deleteTarget?.name}&quot;?</AlertDialogTitle>
             <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

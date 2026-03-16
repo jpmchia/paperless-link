@@ -1,6 +1,11 @@
 "use client"
 
 import * as React from "react"
+import { CanCreate } from "@/components/permissions/can-create"
+import { CanChange } from "@/components/permissions/can-change"
+import { CanDelete } from "@/components/permissions/can-delete"
+import { PermissionGate } from "@/components/permissions/permission-gate"
+import { usePermissions } from "@/hooks/use-permissions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -75,6 +80,7 @@ const emptyTag = (): Partial<Tag> => ({
 })
 
 export function TagsTable({ initialTags }: { initialTags: Tag[] }) {
+  const { can } = usePermissions()
   const [tags, setTags] = React.useState<Tag[]>(initialTags)
   const [search, setSearch] = React.useState("")
   const [editTag, setEditTag] = React.useState<Partial<Tag> | null>(null)
@@ -171,10 +177,12 @@ export function TagsTable({ initialTags }: { initialTags: Tag[] }) {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button onClick={openCreate} size="sm">
-          <Plus className="mr-2 h-4 w-4" />
-          Create Tag
-        </Button>
+        <CanCreate type="tag">
+          <Button onClick={openCreate} size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Create Tag
+          </Button>
+        </CanCreate>
       </div>
 
       {/* Table */}
@@ -228,17 +236,21 @@ export function TagsTable({ initialTags }: { initialTags: Tag[] }) {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(tag)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => setDeleteId(tag.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <CanChange type="tag">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(tag)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </CanChange>
+                      <CanDelete type="tag">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteId(tag.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </CanDelete>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -253,8 +265,9 @@ export function TagsTable({ initialTags }: { initialTags: Tag[] }) {
       </p>
 
       {/* Edit / Create Dialog */}
-      <Dialog open={editTag !== null} onOpenChange={(o: boolean) => !o && setEditTag(null)}>
-        <DialogContent className="max-w-md">
+      <PermissionGate allowed={editTag !== null && can(isNew ? "create" : "change", "tag")}>
+        <Dialog open={editTag !== null} onOpenChange={(o: boolean) => !o && setEditTag(null)}>
+          <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{isNew ? "Create Tag" : "Edit Tag"}</DialogTitle>
           </DialogHeader>
@@ -355,30 +368,33 @@ export function TagsTable({ initialTags }: { initialTags: Tag[] }) {
               {saving ? "Saving…" : isNew ? "Create" : "Save"}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      </PermissionGate>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={deleteId !== null} onOpenChange={(o: boolean) => !o && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete tag?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove the tag from all documents. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => void handleDelete()}
-              disabled={deleting}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <CanDelete type="tag">
+        <AlertDialog open={deleteId !== null} onOpenChange={(o: boolean) => !o && setDeleteId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete tag?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will remove the tag from all documents. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => void handleDelete()}
+                disabled={deleting}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </CanDelete>
     </>
   )
 }
