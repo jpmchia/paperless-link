@@ -28,13 +28,15 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { HasObjectPermission } from "@/components/permissions/has-object-permission"
 import { Trash2, Search, GripVertical } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { toErrorMessage } from "@/lib/errors"
 import { deleteJson, patchJson } from "@/lib/paperless-client"
+import type { PermissionedObject } from "@/lib/permissions"
 
-interface Workflow {
+interface Workflow extends PermissionedObject {
   id: number
   name: string
   order: number
@@ -82,11 +84,13 @@ function SortableRow({
       <TableCell className="font-medium">{wf.name}</TableCell>
       <TableCell className="text-center text-muted-foreground text-xs">{wf.order}</TableCell>
       <TableCell className="text-center">
-        <Switch
-          checked={wf.enabled}
-          onCheckedChange={() => onToggle(wf)}
-          className="mx-auto"
-        />
+        <HasObjectPermission action="change" object={wf} type="workflow">
+          <Switch
+            checked={wf.enabled}
+            onCheckedChange={() => onToggle(wf)}
+            className="mx-auto"
+          />
+        </HasObjectPermission>
       </TableCell>
       <TableCell>
         <Badge variant="secondary" className="text-xs">
@@ -99,9 +103,11 @@ function SortableRow({
         </Badge>
       </TableCell>
       <TableCell className="text-right">
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => onDelete(wf.id)}>
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        <HasObjectPermission action="delete" object={wf} type="workflow">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => onDelete(wf.id)}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </HasObjectPermission>
       </TableCell>
     </TableRow>
   )

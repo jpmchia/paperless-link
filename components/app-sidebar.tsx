@@ -64,13 +64,13 @@ import {
 import { toast } from "sonner"
 import {
   canManageConfig,
-  type CurrentUserPermissions,
   currentUserCan,
   type PermissionType,
 } from "@/lib/permissions"
 import { getJson } from "@/lib/paperless-client"
 import { currentUserPermissionsAtom } from "@/lib/stores/permissions"
 import { updateUiSettings } from "@/lib/ui-settings"
+import type { CurrentUserPermissions } from "@/lib/permissions"
 
 interface SavedViewEntry {
   id: number

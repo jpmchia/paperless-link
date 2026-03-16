@@ -40,6 +40,7 @@ export interface ObjectPermissionAssignment {
 export interface PermissionedObject {
   owner?: number | null
   permissions?: Partial<Record<PermissionAction, ObjectPermissionAssignment>>
+  user_can_change?: boolean
 }
 
 export interface CurrentUserPermissions {
@@ -153,6 +154,7 @@ export function hasObjectPermission(
 ) {
   if (!currentUser?.isAuthenticated || !object) return false
   if (currentUser.isSuperuser) return true
+  if (action === "change" && object.user_can_change) return true
 
   const assignment = object.permissions?.[action]
   if (!assignment) return isOwner(currentUser, object)
@@ -168,4 +170,24 @@ export function hasObjectPermission(
 
 export function canManageConfig(currentUser: CurrentUserPermissions | null) {
   return Boolean(currentUser?.isSuperuser || currentUser?.isStaff)
+}
+
+export function canAccessObject(
+  currentUser: CurrentUserPermissions | null,
+  action: Extract<PermissionAction, "view" | "change" | "delete">,
+  object: PermissionedObject | null | undefined,
+  fallbackType?: PermissionType
+) {
+  const hasExplicitObjectPermissions =
+    Boolean(object?.permissions) ||
+    typeof object?.owner === "number" ||
+    Boolean(object?.user_can_change)
+
+  if (hasExplicitObjectPermissions) {
+    return hasObjectPermission(currentUser, action, object)
+  }
+
+  return fallbackType
+    ? currentUserCan(currentUser, action, fallbackType)
+    : false
 }

@@ -41,8 +41,11 @@ import {
 } from "@/components/ui/select"
 import { Plus, Pencil, Trash2, Search, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
+import { CanCreate } from "@/components/permissions/can-create"
+import { HasObjectPermission } from "@/components/permissions/has-object-permission"
 import { useAsyncAction } from "@/hooks/use-async-action"
 import { toErrorMessage } from "@/lib/errors"
+import type { PermissionedObject } from "@/lib/permissions"
 import {
   updateSavedViewMeta,
   deleteSavedViewManagement,
@@ -54,6 +57,9 @@ const PAGE_SIZES = [10, 25, 50, 100, 250]
 type SavedView = {
   id: number
   name: string
+  owner?: number | null
+  permissions?: PermissionedObject["permissions"]
+  user_can_change?: boolean
   show_on_dashboard: boolean
   show_in_sidebar: boolean
   sort_field: string
@@ -205,10 +211,12 @@ export function SavedViewsTable({ initialViews }: { initialViews: SavedView[] })
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button onClick={openCreate} size="sm">
-          <Plus className="mr-2 h-4 w-4" />
-          Create View
-        </Button>
+        <CanCreate type="savedView">
+          <Button onClick={openCreate} size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Create View
+          </Button>
+        </CanCreate>
       </div>
 
       <div className="rounded-md border overflow-hidden">
@@ -243,18 +251,22 @@ export function SavedViewsTable({ initialViews }: { initialViews: SavedView[] })
                     </Link>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Switch
-                      checked={view.show_on_dashboard}
-                      onCheckedChange={() => handleToggle(view, "show_on_dashboard")}
-                      className="mx-auto"
-                    />
+                    <HasObjectPermission action="change" object={view} type="savedView">
+                      <Switch
+                        checked={view.show_on_dashboard}
+                        onCheckedChange={() => handleToggle(view, "show_on_dashboard")}
+                        className="mx-auto"
+                      />
+                    </HasObjectPermission>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Switch
-                      checked={view.show_in_sidebar}
-                      onCheckedChange={() => handleToggle(view, "show_in_sidebar")}
-                      className="mx-auto"
-                    />
+                    <HasObjectPermission action="change" object={view} type="savedView">
+                      <Switch
+                        checked={view.show_in_sidebar}
+                        onCheckedChange={() => handleToggle(view, "show_in_sidebar")}
+                        className="mx-auto"
+                      />
+                    </HasObjectPermission>
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="font-mono text-xs">
@@ -267,17 +279,21 @@ export function SavedViewsTable({ initialViews }: { initialViews: SavedView[] })
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(view)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => setDeleteId(view.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <HasObjectPermission action="change" object={view} type="savedView">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(view)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </HasObjectPermission>
+                      <HasObjectPermission action="delete" object={view} type="savedView">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteId(view.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </HasObjectPermission>
                     </div>
                   </TableCell>
                 </TableRow>

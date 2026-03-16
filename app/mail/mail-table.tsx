@@ -10,14 +10,16 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { HasObjectPermission } from "@/components/permissions/has-object-permission"
 import { Trash2, Mail, Shield, History, ChromeIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { useAsyncAction } from "@/hooks/use-async-action"
 import { deleteJson } from "@/lib/paperless-client"
+import type { PermissionedObject } from "@/lib/permissions"
 
-interface MailAccount {
+interface MailAccount extends PermissionedObject {
   id: number
   name: string
   imap_server?: string
@@ -28,7 +30,7 @@ interface MailAccount {
   character_set?: string
 }
 
-interface MailRule {
+interface MailRule extends PermissionedObject {
   id: number
   name: string
   account: number
@@ -183,9 +185,11 @@ export function MailTable({ accounts, rules, processedMail = [], gmailOAuthUrl, 
                       </TableCell>
                       <TableCell className="text-muted-foreground">{acct.username || "—"}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ type: "account", id: acct.id })}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <HasObjectPermission action="delete" object={acct} type="mailAccount">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ type: "account", id: acct.id })}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </HasObjectPermission>
                       </TableCell>
                     </TableRow>
                   ))
@@ -226,9 +230,11 @@ export function MailTable({ accounts, rules, processedMail = [], gmailOAuthUrl, 
                       <TableCell className="text-muted-foreground">{rule.filter_subject || "—"}</TableCell>
                       <TableCell className="text-center text-muted-foreground">{rule.order ?? "—"}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ type: "rule", id: rule.id })}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <HasObjectPermission action="delete" object={rule} type="mailRule">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ type: "rule", id: rule.id })}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </HasObjectPermission>
                       </TableCell>
                     </TableRow>
                   ))
