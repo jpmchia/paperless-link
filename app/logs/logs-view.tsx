@@ -4,6 +4,8 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { toErrorMessage } from "@/lib/errors"
+import { getJson } from "@/lib/paperless-client"
 
 export function LogsView() {
   const [logs, setLogs] = React.useState<string[]>([])
@@ -12,12 +14,12 @@ export function LogsView() {
 
   const fetchLogs = React.useCallback(async () => {
     try {
-      const res = await fetch("/api/logs")
-      if (!res.ok) throw new Error("Failed to fetch logs")
-      const data = await res.json()
+      const data = await getJson<string[]>("/api/logs")
       setLogs(Array.isArray(data) ? data : [])
-    } catch {
-      toast.error("Failed to load logs")
+    } catch (error) {
+      toast.error("Failed to load logs", {
+        description: toErrorMessage(error),
+      })
     } finally {
       setLoading(false)
     }

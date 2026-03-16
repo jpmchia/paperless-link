@@ -20,6 +20,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Plus, Trash2, Search, X } from "lucide-react"
 import { toast } from "sonner"
+import { useAsyncAction } from "@/hooks/use-async-action"
 import {
   createCustomField, deleteCustomField,
 } from "@/lib/management-actions"
@@ -49,7 +50,6 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
   const [search, setSearch] = React.useState("")
   const [creating, setCreating] = React.useState(false)
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
-  const [saving, setSaving] = React.useState(false)
 
   // Create form state
   const [newName, setNewName] = React.useState("")
@@ -60,6 +60,39 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
   const filtered = items.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase())
   )
+
+  const { pending: saving, run: createField } = useAsyncAction({
+    action: async () => {
+      if (!newName.trim()) {
+        throw new Error("Custom field name is required")
+      }
+
+      const data: {
+        data_type: string
+        extra_data?: { select_options?: string[] }
+        name: string
+      } = {
+        name: newName,
+        data_type: newType,
+      }
+      if (newType === "select" && selectOptions.length > 0) {
+        data.extra_data = { select_options: selectOptions }
+      }
+      const created = await createCustomField(data)
+      setItems((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+      setCreating(false)
+      toast.success(`Custom field "${created.name}" created`)
+    },
+    errorMessage: "Failed to create",
+  })
+
+  const { pending: deleting, run: removeField } = useAsyncAction({
+    action: async (id: number) => {
+      await deleteCustomField(id)
+      return id
+    },
+    errorMessage: "Failed to delete",
+  })
 
   const openCreate = () => {
     setNewName("")
@@ -82,35 +115,21 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
   }
 
   const handleCreate = async () => {
-    if (!newName.trim()) return
-    setSaving(true)
     try {
-      const data: any = {
-        name: newName,
-        data_type: newType,
-      }
-      if (newType === "select" && selectOptions.length > 0) {
-        data.extra_data = { select_options: selectOptions }
-      }
-      const created = await createCustomField(data)
-      setItems((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
-      toast.success(`Custom field "${created.name}" created`)
-      setCreating(false)
-    } catch (e: any) {
-      toast.error("Failed to create", { description: e.message })
-    } finally {
-      setSaving(false)
+      await createField()
+    } catch {
+      // Error toast is handled by useAsyncAction.
     }
   }
 
   const handleDelete = async () => {
     if (deleteId == null) return
     try {
-      await deleteCustomField(deleteId)
-      setItems((prev) => prev.filter((c) => c.id !== deleteId))
+      const id = await removeField(deleteId)
+      setItems((prev) => prev.filter((item) => item.id !== id))
       toast.success("Custom field deleted")
-    } catch (e: any) {
-      toast.error("Failed to delete", { description: e.message })
+    } catch {
+      // Error toast is handled by useAsyncAction.
     } finally {
       setDeleteId(null)
     }
@@ -238,7 +257,10 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreating(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={saving || !newName.trim() || (newType === "select" && selectOptions.length === 0)}>
+            <Button
+              onClick={() => void handleCreate()}
+              disabled={saving || !newName.trim() || (newType === "select" && selectOptions.length === 0)}
+            >
               {saving ? "Creating…" : "Create"}
             </Button>
           </DialogFooter>
@@ -256,7 +278,11 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => void handleDelete()}
+              disabled={deleting}
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

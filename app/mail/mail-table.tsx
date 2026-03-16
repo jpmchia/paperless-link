@@ -12,9 +12,10 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Trash2, Mail, Shield, History, ChromeIcon } from "lucide-react"
 import { toast } from "sonner"
-import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
+import { useAsyncAction } from "@/hooks/use-async-action"
+import { deleteJson } from "@/lib/paperless-client"
 
 interface MailAccount {
   id: number
@@ -59,11 +60,6 @@ interface MailTableProps {
   outlookOAuthUrl?: string | null
 }
 
-async function apiAction(method: string, path: string) {
-  const res = await fetch(`/api/proxy/${path}`, { method })
-  if (!res.ok) throw new Error(`API call failed: ${res.statusText}`)
-}
-
 const SECURITY_LABELS: Record<number, string> = {
   1: "None",
   2: "SSL",
@@ -77,7 +73,6 @@ const STATUS_LABELS: Record<number, { label: string; variant: "default" | "secon
 }
 
 export function MailTable({ accounts, rules, processedMail = [], gmailOAuthUrl, outlookOAuthUrl }: MailTableProps) {
-  const router = useRouter()
   const [accountList, setAccountList] = React.useState(accounts)
   const [ruleList, setRuleList] = React.useState(rules)
   const [deleteTarget, setDeleteTarget] = React.useState<{ type: "account" | "rule"; id: number } | null>(null)
@@ -88,21 +83,30 @@ export function MailTable({ accounts, rules, processedMail = [], gmailOAuthUrl, 
   const ruleMap: Record<number, string> = {}
   ruleList.forEach((r) => { ruleMap[r.id] = r.name })
 
+  const { pending: deleting, run: deleteMailResource } = useAsyncAction({
+    action: async (target: { type: "account" | "rule"; id: number }) => {
+      const path =
+        target.type === "account"
+          ? `/api/proxy/mail_accounts/${target.id}/`
+          : `/api/proxy/mail_rules/${target.id}/`
+      await deleteJson<void>(path)
+      return target
+    },
+    errorMessage: "Failed to delete",
+  })
+
   const handleDelete = async () => {
     if (!deleteTarget) return
     try {
-      const path = deleteTarget.type === "account"
-        ? `mail_accounts/${deleteTarget.id}/`
-        : `mail_rules/${deleteTarget.id}/`
-      await apiAction("DELETE", path)
-      if (deleteTarget.type === "account") {
-        setAccountList((prev) => prev.filter((a) => a.id !== deleteTarget.id))
+      const deleted = await deleteMailResource(deleteTarget)
+      if (deleted.type === "account") {
+        setAccountList((prev) => prev.filter((account) => account.id !== deleted.id))
       } else {
-        setRuleList((prev) => prev.filter((r) => r.id !== deleteTarget.id))
+        setRuleList((prev) => prev.filter((rule) => rule.id !== deleted.id))
       }
-      toast.success(`${deleteTarget.type === "account" ? "Account" : "Rule"} deleted`)
-    } catch (e: any) {
-      toast.error("Failed to delete", { description: e.message })
+      toast.success(`${deleted.type === "account" ? "Account" : "Rule"} deleted`)
+    } catch {
+      // Error toast is handled by useAsyncAction.
     } finally {
       setDeleteTarget(null)
     }
@@ -304,7 +308,11 @@ export function MailTable({ accounts, rules, processedMail = [], gmailOAuthUrl, 
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => void handleDelete()}
+              disabled={deleting}
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

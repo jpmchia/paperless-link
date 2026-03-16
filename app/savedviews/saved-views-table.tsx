@@ -41,6 +41,8 @@ import {
 } from "@/components/ui/select"
 import { Plus, Pencil, Trash2, Search, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
+import { useAsyncAction } from "@/hooks/use-async-action"
+import { toErrorMessage } from "@/lib/errors"
 import {
   updateSavedViewMeta,
   deleteSavedViewManagement,
@@ -56,7 +58,7 @@ type SavedView = {
   show_in_sidebar: boolean
   sort_field: string
   sort_reverse: boolean
-  filter_rules: any[]
+  filter_rules: unknown[]
   page_size: number | null
   display_mode: string | null
   display_fields: string[] | null
@@ -86,11 +88,64 @@ export function SavedViewsTable({ initialViews }: { initialViews: SavedView[] })
   const [editing, setEditing] = React.useState<Partial<SavedView> | null>(null)
   const [isNew, setIsNew] = React.useState(false)
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
-  const [saving, setSaving] = React.useState(false)
 
   const filtered = views.filter((v) =>
     v.name.toLowerCase().includes(search.toLowerCase())
   )
+
+  const { pending: saving, run: saveView } = useAsyncAction({
+    action: async () => {
+      if (!editing?.name?.trim()) {
+        throw new Error("View name is required")
+      }
+
+      if (isNew) {
+        const created = await createSavedView({
+          name: editing.name,
+          filter_rules: [],
+          sort_field: editing.sort_field ?? "created",
+          sort_reverse: editing.sort_reverse ?? true,
+          page_size: editing.page_size ?? undefined,
+        })
+
+        if (editing.show_on_dashboard || editing.show_in_sidebar) {
+          await updateSavedViewMeta(created.id, {
+            show_on_dashboard: editing.show_on_dashboard,
+            show_in_sidebar: editing.show_in_sidebar,
+          })
+        }
+
+        setViews((prev) => [
+          ...prev,
+          { ...created, ...editing, id: created.id } as SavedView,
+        ])
+        toast.success(`View "${created.name}" created`)
+        return
+      }
+
+      await updateSavedViewMeta(editing.id!, {
+        name: editing.name,
+        show_on_dashboard: editing.show_on_dashboard,
+        show_in_sidebar: editing.show_in_sidebar,
+        page_size: editing.page_size ?? undefined,
+      })
+      setViews((prev) =>
+        prev.map((view) =>
+          view.id === editing.id ? ({ ...view, ...editing } as SavedView) : view
+        )
+      )
+      toast.success(`View "${editing.name}" updated`)
+    },
+    errorMessage: "Failed to save",
+  })
+
+  const { pending: deleting, run: deleteView } = useAsyncAction({
+    action: async (id: number) => {
+      await deleteSavedViewManagement(id)
+      return id
+    },
+    errorMessage: "Failed to delete",
+  })
 
   const openCreate = () => {
     setIsNew(true)
@@ -103,54 +158,22 @@ export function SavedViewsTable({ initialViews }: { initialViews: SavedView[] })
   }
 
   const handleSave = async () => {
-    if (!editing?.name?.trim()) return
-    setSaving(true)
     try {
-      if (isNew) {
-        const created = await createSavedView({
-          name: editing.name,
-          filter_rules: [],
-          sort_field: editing.sort_field ?? "created",
-          sort_reverse: editing.sort_reverse ?? true,
-          page_size: editing.page_size ?? undefined,
-        })
-        // updateSavedViewMeta to set show_on_dashboard/show_in_sidebar
-        if (editing.show_on_dashboard || editing.show_in_sidebar) {
-          await updateSavedViewMeta(created.id, {
-            show_on_dashboard: editing.show_on_dashboard,
-            show_in_sidebar: editing.show_in_sidebar,
-          })
-        }
-        setViews((prev) => [...prev, { ...created, ...editing, id: created.id }])
-        toast.success(`View "${created.name}" created`)
-      } else {
-        await updateSavedViewMeta(editing.id!, {
-          name: editing.name,
-          show_on_dashboard: editing.show_on_dashboard,
-          show_in_sidebar: editing.show_in_sidebar,
-          page_size: editing.page_size ?? undefined,
-        })
-        setViews((prev) =>
-          prev.map((v) => (v.id === editing.id ? { ...v, ...editing } as SavedView : v))
-        )
-        toast.success(`View "${editing.name}" updated`)
-      }
+      await saveView()
       setEditing(null)
-    } catch (e: any) {
-      toast.error("Failed to save", { description: e.message })
-    } finally {
-      setSaving(false)
+    } catch {
+      // Error toast is handled by useAsyncAction.
     }
   }
 
   const handleDelete = async () => {
     if (deleteId == null) return
     try {
-      await deleteSavedViewManagement(deleteId)
-      setViews((prev) => prev.filter((v) => v.id !== deleteId))
+      const id = await deleteView(deleteId)
+      setViews((prev) => prev.filter((view) => view.id !== id))
       toast.success("Saved view deleted")
-    } catch (e: any) {
-      toast.error("Failed to delete", { description: e.message })
+    } catch {
+      // Error toast is handled by useAsyncAction.
     } finally {
       setDeleteId(null)
     }
@@ -161,10 +184,12 @@ export function SavedViewsTable({ initialViews }: { initialViews: SavedView[] })
     setViews((prev) => prev.map((v) => (v.id === view.id ? updated : v)))
     try {
       await updateSavedViewMeta(view.id, { [field]: updated[field] })
-    } catch (e: any) {
+    } catch (error) {
       // Rollback on error
       setViews((prev) => prev.map((v) => (v.id === view.id ? view : v)))
-      toast.error("Failed to update view", { description: e.message })
+      toast.error("Failed to update view", {
+        description: toErrorMessage(error),
+      })
     }
   }
 
@@ -364,7 +389,7 @@ export function SavedViewsTable({ initialViews }: { initialViews: SavedView[] })
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving || !editing?.name?.trim()}>
+            <Button onClick={() => void handleSave()} disabled={saving || !editing?.name?.trim()}>
               {saving ? "Saving…" : isNew ? "Create" : "Save"}
             </Button>
           </DialogFooter>
@@ -384,7 +409,8 @@ export function SavedViewsTable({ initialViews }: { initialViews: SavedView[] })
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDelete}
+              onClick={() => void handleDelete()}
+              disabled={deleting}
             >
               Delete
             </AlertDialogAction>

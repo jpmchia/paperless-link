@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -41,6 +40,7 @@ import {
 } from "@/components/ui/select"
 import { Plus, Pencil, Trash2, Search } from "lucide-react"
 import { toast } from "sonner"
+import { useAsyncAction } from "@/hooks/use-async-action"
 import { createTag, updateTag, deleteTag } from "@/lib/management-actions"
 import { tagColourHex, tagPillStyle, TAG_COLOUR_OPTIONS } from "@/lib/tag-colors"
 
@@ -80,11 +80,51 @@ export function TagsTable({ initialTags }: { initialTags: Tag[] }) {
   const [editTag, setEditTag] = React.useState<Partial<Tag> | null>(null)
   const [isNew, setIsNew] = React.useState(false)
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
-  const [saving, setSaving] = React.useState(false)
 
   const filtered = tags.filter((t) =>
     t.name.toLowerCase().includes(search.toLowerCase())
   )
+
+  const { pending: saving, run: saveTag } = useAsyncAction({
+    action: async () => {
+      if (!editTag?.name?.trim()) {
+        throw new Error("Tag name is required")
+      }
+
+      if (isNew) {
+        const created = await createTag({
+          name: editTag.name,
+          color: editTag.color ?? TAG_COLOUR_OPTIONS[0].hex,
+          matching_algorithm: editTag.matching_algorithm ?? 6,
+          match: editTag.match ?? "",
+          is_insensitive: editTag.is_insensitive ?? false,
+          is_inbox_tag: editTag.is_inbox_tag ?? false,
+        })
+        setTags((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+        toast.success(`Tag "${created.name}" created`)
+        return
+      }
+
+      const updated = await updateTag(editTag.id!, {
+        name: editTag.name,
+        color: editTag.color,
+        matching_algorithm: editTag.matching_algorithm,
+        match: editTag.match,
+        is_insensitive: editTag.is_insensitive,
+      })
+      setTags((prev) => prev.map((tag) => (tag.id === updated.id ? updated : tag)))
+      toast.success(`Tag "${updated.name}" updated`)
+    },
+    errorMessage: "Failed to save tag",
+  })
+
+  const { pending: deleting, run: removeTag } = useAsyncAction({
+    action: async (id: number) => {
+      await deleteTag(id)
+      return id
+    },
+    errorMessage: "Failed to delete tag",
+  })
 
   const openCreate = () => {
     setIsNew(true)
@@ -97,47 +137,22 @@ export function TagsTable({ initialTags }: { initialTags: Tag[] }) {
   }
 
   const handleSave = async () => {
-    if (!editTag?.name?.trim()) return
-    setSaving(true)
     try {
-      if (isNew) {
-        const created = await createTag({
-          name: editTag.name,
-          color: editTag.color ?? TAG_COLOUR_OPTIONS[0].hex,
-          matching_algorithm: editTag.matching_algorithm ?? 6,
-          match: editTag.match ?? "",
-          is_insensitive: editTag.is_insensitive ?? false,
-          is_inbox_tag: editTag.is_inbox_tag ?? false,
-        })
-        setTags((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
-        toast.success(`Tag "${created.name}" created`)
-      } else {
-        const updated = await updateTag(editTag.id!, {
-          name: editTag.name,
-          color: editTag.color,
-          matching_algorithm: editTag.matching_algorithm,
-          match: editTag.match,
-          is_insensitive: editTag.is_insensitive,
-        })
-        setTags((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
-        toast.success(`Tag "${updated.name}" updated`)
-      }
+      await saveTag()
       setEditTag(null)
-    } catch (e: any) {
-      toast.error("Failed to save tag", { description: e.message })
-    } finally {
-      setSaving(false)
+    } catch {
+      // Error toast is handled by useAsyncAction.
     }
   }
 
   const handleDelete = async () => {
     if (deleteId == null) return
     try {
-      await deleteTag(deleteId)
-      setTags((prev) => prev.filter((t) => t.id !== deleteId))
+      const id = await removeTag(deleteId)
+      setTags((prev) => prev.filter((tag) => tag.id !== id))
       toast.success("Tag deleted")
-    } catch (e: any) {
-      toast.error("Failed to delete tag", { description: e.message })
+    } catch {
+      // Error toast is handled by useAsyncAction.
     } finally {
       setDeleteId(null)
     }
@@ -336,7 +351,7 @@ export function TagsTable({ initialTags }: { initialTags: Tag[] }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditTag(null)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving || !editTag?.name?.trim()}>
+            <Button onClick={() => void handleSave()} disabled={saving || !editTag?.name?.trim()}>
               {saving ? "Saving…" : isNew ? "Create" : "Save"}
             </Button>
           </DialogFooter>
@@ -356,7 +371,8 @@ export function TagsTable({ initialTags }: { initialTags: Tag[] }) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDelete}
+              onClick={() => void handleDelete()}
+              disabled={deleting}
             >
               Delete
             </AlertDialogAction>

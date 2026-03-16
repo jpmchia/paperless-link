@@ -31,26 +31,16 @@ import {
 import { Trash2, Search, GripVertical } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
-import { useRouter } from "next/navigation"
+import { toErrorMessage } from "@/lib/errors"
+import { deleteJson, patchJson } from "@/lib/paperless-client"
 
 interface Workflow {
   id: number
   name: string
   order: number
   enabled: boolean
-  triggers?: any[]
-  actions?: any[]
-}
-
-async function apiAction(method: string, path: string, body?: any) {
-  const res = await fetch(`/api/proxy/${path}`, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : {},
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  if (!res.ok) throw new Error(`API call failed: ${res.statusText}`)
-  if (method === "DELETE") return
-  return res.json()
+  triggers?: unknown[]
+  actions?: unknown[]
 }
 
 function SortableRow({
@@ -118,7 +108,6 @@ function SortableRow({
 }
 
 export function WorkflowsTable({ initialItems }: { initialItems: Workflow[] }) {
-  const router = useRouter()
   const [items, setItems] = React.useState<Workflow[]>(
     [...initialItems].sort((a, b) => a.order - b.order)
   )
@@ -137,24 +126,28 @@ export function WorkflowsTable({ initialItems }: { initialItems: Workflow[] }) {
 
   const toggleEnabled = async (wf: Workflow) => {
     try {
-      await apiAction("PATCH", `workflows/${wf.id}/`, { enabled: !wf.enabled })
+      await patchJson<Workflow>(`/api/proxy/workflows/${wf.id}/`, {
+        enabled: !wf.enabled,
+      })
       setItems((prev) =>
         prev.map((w) => (w.id === wf.id ? { ...w, enabled: !w.enabled } : w))
       )
       toast.success(`Workflow "${wf.name}" ${wf.enabled ? "disabled" : "enabled"}`)
-    } catch (e: any) {
-      toast.error("Failed to update workflow", { description: e.message })
+    } catch (error) {
+      toast.error("Failed to update workflow", {
+        description: toErrorMessage(error),
+      })
     }
   }
 
   const handleDelete = async () => {
     if (deleteId == null) return
     try {
-      await apiAction("DELETE", `workflows/${deleteId}/`)
+      await deleteJson<void>(`/api/proxy/workflows/${deleteId}/`)
       setItems((prev) => prev.filter((w) => w.id !== deleteId))
       toast.success("Workflow deleted")
-    } catch (e: any) {
-      toast.error("Failed to delete", { description: e.message })
+    } catch (error) {
+      toast.error("Failed to delete", { description: toErrorMessage(error) })
     } finally {
       setDeleteId(null)
     }
@@ -176,11 +169,17 @@ export function WorkflowsTable({ initialItems }: { initialItems: Workflow[] }) {
     const changed = updated.filter((w, i) => w.order !== items[i]?.order)
     try {
       await Promise.all(
-        changed.map((w) => apiAction("PATCH", `workflows/${w.id}/`, { order: w.order }))
+        changed.map((workflow) =>
+          patchJson<Workflow>(`/api/proxy/workflows/${workflow.id}/`, {
+            order: workflow.order,
+          })
+        )
       )
       toast.success("Workflow order saved")
-    } catch (e: any) {
-      toast.error("Failed to save order", { description: e.message })
+    } catch (error) {
+      toast.error("Failed to save order", {
+        description: toErrorMessage(error),
+      })
     }
   }
 

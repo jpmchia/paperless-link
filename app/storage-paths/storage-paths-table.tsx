@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Plus, Pencil, Trash2, Search } from "lucide-react"
 import { toast } from "sonner"
+import { useAsyncAction } from "@/hooks/use-async-action"
 import {
   createStoragePath, updateStoragePath, deleteStoragePath,
 } from "@/lib/management-actions"
@@ -58,19 +59,17 @@ export function StoragePathsTable({ initialItems }: { initialItems: StoragePath[
   const [editing, setEditing] = React.useState<Partial<StoragePath> | null>(null)
   const [isNew, setIsNew] = React.useState(false)
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
-  const [saving, setSaving] = React.useState(false)
 
   const filtered = items.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase()) || c.path.toLowerCase().includes(search.toLowerCase())
   )
 
-  const openCreate = () => { setIsNew(true); setEditing(emptyItem()) }
-  const openEdit = (item: StoragePath) => { setIsNew(false); setEditing({ ...item }) }
+  const { pending: saving, run: saveStoragePath } = useAsyncAction({
+    action: async () => {
+      if (!editing?.name?.trim()) {
+        throw new Error("Storage path name is required")
+      }
 
-  const handleSave = async () => {
-    if (!editing?.name?.trim()) return
-    setSaving(true)
-    try {
       if (isNew) {
         const created = await createStoragePath({
           name: editing.name,
@@ -81,33 +80,50 @@ export function StoragePathsTable({ initialItems }: { initialItems: StoragePath[
         })
         setItems((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
         toast.success(`Storage path "${created.name}" created`)
-      } else {
-        const updated = await updateStoragePath(editing.id!, {
-          name: editing.name,
-          path: editing.path,
-          matching_algorithm: editing.matching_algorithm,
-          match: editing.match,
-          is_insensitive: editing.is_insensitive,
-        })
-        setItems((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
-        toast.success(`Storage path "${updated.name}" updated`)
+        return
       }
+
+      const updated = await updateStoragePath(editing.id!, {
+        name: editing.name,
+        path: editing.path,
+        matching_algorithm: editing.matching_algorithm,
+        match: editing.match,
+        is_insensitive: editing.is_insensitive,
+      })
+      setItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      toast.success(`Storage path "${updated.name}" updated`)
+    },
+    errorMessage: "Failed to save",
+  })
+
+  const { pending: deleting, run: removeStoragePath } = useAsyncAction({
+    action: async (id: number) => {
+      await deleteStoragePath(id)
+      return id
+    },
+    errorMessage: "Failed to delete",
+  })
+
+  const openCreate = () => { setIsNew(true); setEditing(emptyItem()) }
+  const openEdit = (item: StoragePath) => { setIsNew(false); setEditing({ ...item }) }
+
+  const handleSave = async () => {
+    try {
+      await saveStoragePath()
       setEditing(null)
-    } catch (e: any) {
-      toast.error("Failed to save", { description: e.message })
-    } finally {
-      setSaving(false)
+    } catch {
+      // Error toast is handled by useAsyncAction.
     }
   }
 
   const handleDelete = async () => {
     if (deleteId == null) return
     try {
-      await deleteStoragePath(deleteId)
-      setItems((prev) => prev.filter((c) => c.id !== deleteId))
+      const id = await removeStoragePath(deleteId)
+      setItems((prev) => prev.filter((item) => item.id !== id))
       toast.success("Storage path deleted")
-    } catch (e: any) {
-      toast.error("Failed to delete", { description: e.message })
+    } catch {
+      // Error toast is handled by useAsyncAction.
     } finally {
       setDeleteId(null)
     }
@@ -220,7 +236,7 @@ export function StoragePathsTable({ initialItems }: { initialItems: StoragePath[
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving || !editing?.name?.trim()}>
+            <Button onClick={() => void handleSave()} disabled={saving || !editing?.name?.trim()}>
               {saving ? "Saving…" : isNew ? "Create" : "Save"}
             </Button>
           </DialogFooter>
@@ -235,7 +251,11 @@ export function StoragePathsTable({ initialItems }: { initialItems: StoragePath[
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => void handleDelete()}
+              disabled={deleting}
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
