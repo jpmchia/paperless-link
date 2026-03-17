@@ -77,11 +77,24 @@ describe("Epic 2 shell features", () => {
         <NotificationSeed
           notifications={[
             {
+              kind: "document-consumed",
+              level: "success",
               createdAt: "2026-03-16T10:00:00.000Z",
               id: "one",
               message: "invoice.pdf",
+              read: false,
               source: "realtime",
               title: "Document consumed",
+            },
+            {
+              createdAt: "2026-03-16T10:05:00.000Z",
+              id: "two",
+              kind: "document-updated",
+              level: "info",
+              message: "Document #22 was updated.",
+              read: true,
+              source: "realtime",
+              title: "Document updated",
             },
           ]}
         />

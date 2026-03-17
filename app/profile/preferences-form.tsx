@@ -13,7 +13,10 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Save } from "lucide-react"
+import { useSetAtom } from "jotai"
 import { useAsyncAction } from "@/hooks/use-async-action"
+import { mapNotificationPreferences } from "@/lib/notifications"
+import { setNotificationPreferencesAtom } from "@/lib/stores/notifications"
 import { updateUiSettings } from "@/lib/ui-settings"
 
 const DATE_LOCALE_OPTIONS = [
@@ -43,6 +46,9 @@ interface PreferencesSettings {
   date_locale?: string
   default_page_size?: number
   notifications_consumer_new_document?: boolean
+  notifications_consumer_success?: boolean
+  notifications_consumer_failed?: boolean
+  notifications_consumer_suppress_on_dashboard?: boolean
   notifications_document_added?: boolean
   notifications_document_updated?: boolean
 }
@@ -55,31 +61,53 @@ interface PreferencesFormProps {
 
 export function PreferencesForm({ initialSettings }: PreferencesFormProps) {
   const settings = initialSettings?.settings ?? {}
+  const initialNotificationPreferences = mapNotificationPreferences(
+    settings as Record<string, unknown>
+  )
 
   const [dateLocale, setDateLocale] = React.useState<string>(settings.date_locale ?? "")
   const [defaultPageSize, setDefaultPageSize] = React.useState<string>(
     String(settings.default_page_size ?? 25)
   )
   const [notifyNewDoc, setNotifyNewDoc] = React.useState<boolean>(
-    settings.notifications_consumer_new_document ?? false
+    initialNotificationPreferences.consumerNewDocument
   )
-  const [notifyDocAdded, setNotifyDocAdded] = React.useState<boolean>(
-    settings.notifications_document_added ?? false
+  const [notifyConsumerSuccess, setNotifyConsumerSuccess] = React.useState<boolean>(
+    initialNotificationPreferences.consumerSuccess
+  )
+  const [notifyConsumerFailed, setNotifyConsumerFailed] = React.useState<boolean>(
+    initialNotificationPreferences.consumerFailed
   )
   const [notifyDocUpdated, setNotifyDocUpdated] = React.useState<boolean>(
-    settings.notifications_document_updated ?? false
+    initialNotificationPreferences.documentUpdated
   )
+  const [suppressOnDashboard, setSuppressOnDashboard] = React.useState<boolean>(
+    initialNotificationPreferences.suppressOnDashboard
+  )
+  const setNotificationPreferences = useSetAtom(setNotificationPreferencesAtom)
   const { pending: saving, run: handleSave } = useAsyncAction({
     action: async () =>
       updateUiSettings({
         date_locale: dateLocale,
         default_page_size: Number(defaultPageSize),
         notifications_consumer_new_document: notifyNewDoc,
-        notifications_document_added: notifyDocAdded,
+        notifications_consumer_success: notifyConsumerSuccess,
+        notifications_consumer_failed: notifyConsumerFailed,
+        notifications_consumer_suppress_on_dashboard: suppressOnDashboard,
+        notifications_document_added: notifyConsumerSuccess,
         notifications_document_updated: notifyDocUpdated,
       }),
     errorMessage: "Failed to save preferences",
     successMessage: "Preferences saved",
+    onSuccess: () => {
+      setNotificationPreferences({
+        consumerFailed: notifyConsumerFailed,
+        consumerNewDocument: notifyNewDoc,
+        consumerSuccess: notifyConsumerSuccess,
+        documentUpdated: notifyDocUpdated,
+        suppressOnDashboard,
+      })
+    },
   })
 
   return (
@@ -137,8 +165,8 @@ export function PreferencesForm({ initialSettings }: PreferencesFormProps) {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium">New document consumed</p>
-            <p className="text-xs text-muted-foreground">Notify when the consumer ingests a new document.</p>
+            <p className="text-sm font-medium">Document detected</p>
+            <p className="text-xs text-muted-foreground">Notify when a new document starts processing.</p>
           </div>
           <Switch
             checked={notifyNewDoc}
@@ -147,12 +175,22 @@ export function PreferencesForm({ initialSettings }: PreferencesFormProps) {
         </div>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium">Document added</p>
-            <p className="text-xs text-muted-foreground">Notify when a document is added to the system.</p>
+            <p className="text-sm font-medium">Document consumed</p>
+            <p className="text-xs text-muted-foreground">Notify when processing succeeds and a document is created.</p>
           </div>
           <Switch
-            checked={notifyDocAdded}
-            onCheckedChange={setNotifyDocAdded}
+            checked={notifyConsumerSuccess}
+            onCheckedChange={setNotifyConsumerSuccess}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Document failed</p>
+            <p className="text-xs text-muted-foreground">Notify when a document cannot be processed.</p>
+          </div>
+          <Switch
+            checked={notifyConsumerFailed}
+            onCheckedChange={setNotifyConsumerFailed}
           />
         </div>
         <div className="flex items-center justify-between">
@@ -163,6 +201,16 @@ export function PreferencesForm({ initialSettings }: PreferencesFormProps) {
           <Switch
             checked={notifyDocUpdated}
             onCheckedChange={setNotifyDocUpdated}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Suppress popup toasts on dashboard</p>
+            <p className="text-xs text-muted-foreground">Keep the notification history, but avoid popup toasts while you are on the dashboard.</p>
+          </div>
+          <Switch
+            checked={suppressOnDashboard}
+            onCheckedChange={setSuppressOnDashboard}
           />
         </div>
       </div>
