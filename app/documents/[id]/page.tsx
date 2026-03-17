@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell"
+import { OpenDocumentTracker } from "@/components/open-document-tracker"
 import { getDocument, getDocumentMetadata, getCorrespondents, getDocumentTypes, getStoragePaths, getTags, getCustomFields, getDocumentHistory, getDocumentNotes, getUsers, getGroups } from "@/lib/api"
 import { canAccessObject, currentUserCan } from "@/lib/permissions"
 import { requireRoutePermission } from "@/lib/server-permissions"
@@ -91,6 +92,11 @@ export default async function DocumentDetailsPage({
         </div>
       </TopBar>
     }>
+      <OpenDocumentTracker
+        documentId={document.id}
+        href={`/documents/${document.id}`}
+        title={document.title}
+      />
       <div className="flex h-full w-full flex-col">
         <ResizablePanelGroup
           // @ts-expect-error ResizablePrimitive type conflict in react-resizable-panels v4

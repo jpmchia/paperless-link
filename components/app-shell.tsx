@@ -1,4 +1,7 @@
 import { AppSidebar } from "@/components/app-sidebar"
+import { GlobalSearch } from "@/components/global-search/global-search"
+import { NotificationCenter } from "@/components/notifications/notification-center"
+import { ShellStatus } from "@/components/shell-status"
 import { PermissionsProvider } from "@/components/permissions/provider"
 import {
   SidebarInset,
@@ -40,13 +43,17 @@ export async function AppShell({
   // Fetch saved views server-side so the sidebar can show sidebar-pinned views
   let savedViews: SavedViewEntry[] = []
   let resolvedPermissions = initialPermissions ?? emptyPermissions
+  let appTitle: string | null = null
+  let appLogo: string | null = null
   try {
     const session = await getServerSession(authOptions)
     if (session) {
       savedViews = (await getSavedViews()) as SavedViewEntry[]
+      const uiSettings = await getUiSettings().catch(() => null)
+      appTitle = uiSettings?.app_title ?? null
+      appLogo = uiSettings?.app_logo ?? null
 
       if (!initialPermissions) {
-        const uiSettings = await getUiSettings().catch(() => null)
         resolvedPermissions = mapPermissionBootstrapPayload(
           uiSettings as PermissionBootstrapPayload | null
         )
@@ -60,15 +67,22 @@ export async function AppShell({
     <PermissionsProvider initialPermissions={resolvedPermissions}>
       <SidebarProvider className="h-full">
         <AppSidebar
+          appLogo={appLogo}
+          appTitle={appTitle}
           initialPermissions={resolvedPermissions}
           savedViews={savedViews}
         />
         <SidebarInset className="h-full">
           <header className="sticky top-0 flex h-20 shrink-0 items-center justify-between gap-2 px-4 z-10 bg-transparent transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-            <div className="flex items-center gap-2 w-[100%]">
+            <div className="flex items-center gap-2 w-full min-w-0">
               <SidebarTrigger className="-ml-1" />
               <Separator orientation="vertical" className="mr-2 h-4" />
-              {topbar}
+              <div className="min-w-0 flex-1">{topbar}</div>
+              <div className="flex items-center gap-2">
+                <GlobalSearch savedViews={savedViews} />
+                <ShellStatus />
+                <NotificationCenter />
+              </div>
             </div>
           </header>
           <main className="flex flex-1 flex-col min-h-0 overflow-hidden h-[calc(100%-1rem)] mb-[1rem] rounded-lg">

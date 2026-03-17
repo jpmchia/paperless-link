@@ -56,6 +56,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { NavUser } from "@/components/nav-user"
 import { ModeToggle } from "@/components/theme-toggle"
+import { SidebarOpenDocuments } from "@/components/sidebar-open-documents"
 import {
   Collapsible,
   CollapsibleContent,
@@ -84,6 +85,8 @@ interface SidebarTaskSummary {
 }
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
+  appLogo?: string | null
+  appTitle?: string | null
   initialPermissions?: CurrentUserPermissions
   savedViews?: SavedViewEntry[]
 }
@@ -167,6 +170,8 @@ function SortableViewItem({
 }
 
 export function AppSidebar({
+  appLogo,
+  appTitle,
   initialPermissions,
   savedViews = [],
   ...props
@@ -259,11 +264,21 @@ export function AppSidebar({
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/dashboard">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <Files className="size-4" />
-                </div>
+                {appLogo ? (
+                  <div
+                    className="size-8 rounded-lg bg-cover bg-center ring-1 ring-sidebar-border"
+                    style={{ backgroundImage: `url(${appLogo})` }}
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                    <Files className="size-4" />
+                  </div>
+                )}
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold text-lg">Paperless</span>
+                  <span className="truncate font-semibold text-lg">
+                    {appTitle?.trim() || "Paperless"}
+                  </span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -290,6 +305,8 @@ export function AppSidebar({
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <SidebarOpenDocuments />
 
         {/* Saved Views — shown only when there are sidebar views */}
         {orderedViews.length > 0 && (
