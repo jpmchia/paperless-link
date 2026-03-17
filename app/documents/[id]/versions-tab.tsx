@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useAtom } from "jotai"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
+import { useRealtimeDocumentRefresh } from "@/hooks/use-realtime-document-refresh"
 import { activeVersionIdAtom } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -30,6 +31,13 @@ interface VersionsTabProps {
   permissionedDocument?: PermissionedObject | null
 }
 
+async function fetchVersions(documentId: number): Promise<DocumentVersion[]> {
+  const docRes = await fetch(`/api/proxy/documents/${documentId}/?full_perms=true`)
+  if (!docRes.ok) throw new Error("Failed to load versions")
+  const doc = (await docRes.json()) as { versions?: DocumentVersion[] }
+  return Array.isArray(doc.versions) ? doc.versions : []
+}
+
 export function VersionsTab({ documentId, initialVersions, permissionedDocument }: VersionsTabProps) {
   const [versions, setVersions] = React.useState<DocumentVersion[]>(initialVersions)
   const [activeVersionId, setActiveVersionId] = useAtom(activeVersionIdAtom)
@@ -38,6 +46,31 @@ export function VersionsTab({ documentId, initialVersions, permissionedDocument 
   const [editLabel, setEditLabel] = React.useState("")
   const [uploading, setUploading] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const refreshToken = useRealtimeDocumentRefresh({
+    documentId,
+    pause: uploading || editId !== null || deleteId !== null,
+  })
+
+  const loadVersions = React.useCallback(async () => {
+    const nextVersions = await fetchVersions(documentId)
+    setVersions(nextVersions)
+    if (
+      activeVersionId != null &&
+      !nextVersions.some((version) => version.id === activeVersionId)
+    ) {
+      setActiveVersionId(null)
+    }
+  }, [activeVersionId, documentId, setActiveVersionId])
+
+  React.useEffect(() => {
+    if (refreshToken === 0) return
+
+    void loadVersions().catch((error: unknown) => {
+      toast.error("Failed to refresh versions", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+    })
+  }, [loadVersions, refreshToken])
 
   const handleViewVersion = (versionId: number | null) => {
     setActiveVersionId(versionId)
@@ -99,12 +132,7 @@ export function VersionsTab({ documentId, initialVersions, permissionedDocument 
         body: formData,
       })
       if (!res.ok) throw new Error(await res.text())
-      // Refresh versions list
-      const docRes = await fetch(`/api/proxy/documents/${documentId}/?full_perms=true`)
-      if (docRes.ok) {
-        const doc = await docRes.json()
-        if (Array.isArray(doc.versions)) setVersions(doc.versions)
-      }
+      await loadVersions()
       toast.success("New version uploaded")
     } catch (error) {
       toast.error("Upload failed", {

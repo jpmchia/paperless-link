@@ -9,6 +9,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { useRealtimeDocumentRefresh } from "@/hooks/use-realtime-document-refresh"
 import { Trash2, Send } from "lucide-react"
 import { toast } from "sonner"
 
@@ -41,11 +42,36 @@ async function removeNote(documentId: number, noteId: number): Promise<void> {
   if (!res.ok) throw new Error("Failed to delete note")
 }
 
+async function fetchNotes(documentId: number): Promise<Note[]> {
+  const res = await fetch(`/api/documents/${documentId}/notes`)
+  if (!res.ok) throw new Error("Failed to load notes")
+  return res.json()
+}
+
 export function NotesTab({ documentId, initialNotes }: NotesTabProps) {
   const [notes, setNotes] = React.useState<Note[]>(initialNotes)
   const [text, setText] = React.useState("")
   const [sending, setSending] = React.useState(false)
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
+  const refreshToken = useRealtimeDocumentRefresh({
+    documentId,
+    pause: sending || deleteId !== null,
+  })
+
+  const loadNotes = React.useCallback(async () => {
+    const nextNotes = await fetchNotes(documentId)
+    setNotes(nextNotes)
+  }, [documentId])
+
+  React.useEffect(() => {
+    if (refreshToken === 0) return
+
+    void loadNotes().catch((error: unknown) => {
+      toast.error("Failed to refresh notes", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+    })
+  }, [loadNotes, refreshToken])
 
   const handleAdd = async () => {
     if (!text.trim()) return

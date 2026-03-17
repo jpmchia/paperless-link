@@ -3,6 +3,7 @@
 import * as React from "react"
 import { CanCreate } from "@/components/permissions/can-create"
 import { CanDelete } from "@/components/permissions/can-delete"
+import { useRealtimeDocumentRefresh } from "@/hooks/use-realtime-document-refresh"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -50,19 +51,28 @@ interface ShareLinksTabProps {
   paperlessBaseUrl: string
 }
 
+async function fetchShareLinks(documentId: number): Promise<ShareLink[]> {
+  const res = await fetch(`/api/proxy/documents/${documentId}/share_links/`)
+  if (!res.ok) throw new Error("Failed to load share links")
+  const data = (await res.json()) as ShareLink[] | { results?: ShareLink[] }
+  return Array.isArray(data) ? data : (data.results ?? [])
+}
+
 export function ShareLinksTab({ documentId, paperlessBaseUrl }: ShareLinksTabProps) {
   const [links, setLinks] = React.useState<ShareLink[]>([])
   const [loading, setLoading] = React.useState(true)
   const [creating, setCreating] = React.useState(false)
   const [expiration, setExpiration] = React.useState("7")
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
+  const refreshToken = useRealtimeDocumentRefresh({
+    documentId,
+    pause: creating || deleteId !== null,
+  })
 
   const loadLinks = React.useCallback(async () => {
     try {
-      const res = await fetch(`/api/proxy/documents/${documentId}/share_links/`)
-      if (!res.ok) throw new Error()
-      const data = await res.json()
-      setLinks(Array.isArray(data) ? data : (data.results ?? []))
+      const nextLinks = await fetchShareLinks(documentId)
+      setLinks(nextLinks)
     } catch {
       toast.error("Failed to load share links")
     } finally {
@@ -72,10 +82,15 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl }: ShareLinksTabPro
 
   React.useEffect(() => { loadLinks() }, [loadLinks])
 
+  React.useEffect(() => {
+    if (refreshToken === 0) return
+    void loadLinks()
+  }, [loadLinks, refreshToken])
+
   const handleCreate = async () => {
     setCreating(true)
     try {
-      const body: Record<string, any> = {}
+      const body: Record<string, string> = {}
       const exp = expirationDate(expiration)
       if (exp) body.expiration = exp
       const res = await fetch(`/api/proxy/documents/${documentId}/share_links/`, {
@@ -87,8 +102,10 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl }: ShareLinksTabPro
       const created = await res.json()
       setLinks((prev) => [created, ...prev])
       toast.success("Share link created")
-    } catch (e: any) {
-      toast.error("Failed to create share link", { description: e.message })
+    } catch (e: unknown) {
+      toast.error("Failed to create share link", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      })
     } finally {
       setCreating(false)
     }
