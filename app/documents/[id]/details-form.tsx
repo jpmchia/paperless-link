@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form"
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Check, ChevronsUpDown, Loader2 } from "lucide-react"
+import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 import { Button } from "@/components/ui/button"
@@ -65,50 +65,47 @@ type Props = {
   customFieldsList: any[]
 }
 
+function buildDefaultValues(
+  document: Props["document"],
+  customFieldsList: Props["customFieldsList"]
+) {
+  const defaultValues: Record<string, any> = {
+    title: document.title || "",
+    created: document.created
+      ? document.created.split("T")[0]
+      : document.created_date
+        ? document.created_date.split("T")[0]
+        : "",
+    archive_serial_number: document.archive_serial_number ?? null,
+    correspondent: document.correspondent ?? null,
+    document_type: document.document_type ?? null,
+    storage_path: document.storage_path ?? null,
+    tags: document.tags ?? [],
+  }
+
+  customFieldsList.forEach((cf) => {
+    const existing = document.custom_fields?.find((f: any) => f.field === cf.id)
+    defaultValues[`cf_${cf.id}`] = existing !== undefined ? existing.value : ""
+
+    if (cf.data_type === "boolean") {
+      defaultValues[`cf_${cf.id}`] =
+        existing !== undefined && existing.value !== null ? existing.value : false
+    }
+    if (cf.data_type === "documentlink" && existing !== undefined && Array.isArray(existing.value)) {
+      defaultValues[`cf_${cf.id}`] = existing.value.join(", ")
+    }
+  })
+
+  return defaultValues
+}
+
 export function DetailsForm({ document, correspondents, documentTypes, storagePaths, tagsList, customFieldsList }: Props) {
   const [isSaving, setIsSaving] = useState(false)
   const router = useRouter()
   const documentList = useAtomValue(documentListState)
   const setDocumentDetailsDirty = useSetAtom(documentDetailsDirtyAtom)
   const [visibleCustomFields, setVisibleCustomFields] = useAtom(visibleCustomFieldsAtom)
-  
-  // Track the document we initialized on to avoid resetting toggle state when re-rendering
-  const [lastInitId, setLastInitId] = useState<number | null>(null)
-  if (lastInitId !== document.id) {
-      setLastInitId(document.id!)
-      // In NGX, the dropdown strictly merges the globally visible fields + the fields that already have a value for this document.
-      const initialFields = document.custom_fields
-          ?.filter((cf: any) => cf.value !== null && cf.value !== "" && cf.value !== false)
-          .map((cf: any) => cf.field) || []
-      
-      const newVisible = Array.from(new Set([...visibleCustomFields, ...initialFields]))
-      if (newVisible.length !== visibleCustomFields.length) {
-          Promise.resolve().then(() => setVisibleCustomFields(newVisible))
-      }
-  }
-
-  // Map existing custom field values
-  const defaultValues: Record<string, any> = {
-      title: document.title || "",
-      created: document.created ? document.created.split("T")[0] : document.created_date ? document.created_date.split("T")[0] : "",
-      archive_serial_number: document.archive_serial_number ?? null,
-      correspondent: document.correspondent ?? null,
-      document_type: document.document_type ?? null,
-      storage_path: document.storage_path ?? null,
-      tags: document.tags ?? [],
-  }
-
-  customFieldsList.forEach(cf => {
-    const existing = document.custom_fields?.find((f: any) => f.field === cf.id)
-    defaultValues[`cf_${cf.id}`] = existing !== undefined ? existing.value : ""
-    
-    if (cf.data_type === "boolean") {
-        defaultValues[`cf_${cf.id}`] = existing !== undefined && existing.value !== null ? existing.value : false
-    }
-    if (cf.data_type === "documentlink" && existing !== undefined && Array.isArray(existing.value)) {
-        defaultValues[`cf_${cf.id}`] = existing.value.join(", ")
-    }
-  })
+  const defaultValues = buildDefaultValues(document, customFieldsList)
 
   // We rely on HTML validation and basic coercion for custom fields.
   const form = useForm({
@@ -126,6 +123,27 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
       setDocumentDetailsDirty(false)
     }
   }, [form.formState.isDirty, setDocumentDetailsDirty])
+
+  useEffect(() => {
+    const initialFields =
+      document.custom_fields
+        ?.filter((cf: any) => cf.value !== null && cf.value !== "" && cf.value !== false)
+        .map((cf: any) => cf.field) || []
+
+    const newVisible = Array.from(new Set([...visibleCustomFields, ...initialFields]))
+    const hasChanged =
+      newVisible.length !== visibleCustomFields.length ||
+      newVisible.some((fieldId, index) => fieldId !== visibleCustomFields[index])
+
+    if (hasChanged) {
+      setVisibleCustomFields(newVisible)
+    }
+  }, [document.custom_fields, setVisibleCustomFields, visibleCustomFields])
+
+  useEffect(() => {
+    if (form.formState.isDirty || isSaving) return
+    form.reset(buildDefaultValues(document, customFieldsList))
+  }, [customFieldsList, document, form, isSaving])
 
   async function onSubmit(values: any) {
     setIsSaving(true)
