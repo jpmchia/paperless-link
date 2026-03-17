@@ -10,6 +10,8 @@ import { getRealtimeClient } from "@/lib/realtime/client"
 import {
   latestRealtimeEventAtom,
   realtimeConnectionAtom,
+  removeRealtimeTaskAtom,
+  upsertRealtimeTaskAtom,
 } from "@/lib/stores/realtime"
 import {
   notificationPreferencesAtom,
@@ -29,12 +31,50 @@ export function RealtimeProvider({
   const setConnection = useSetAtom(realtimeConnectionAtom)
   const setLatestEvent = useSetAtom(latestRealtimeEventAtom)
   const pushNotification = useSetAtom(pushNotificationAtom)
+  const upsertRealtimeTask = useSetAtom(upsertRealtimeTaskAtom)
+  const removeRealtimeTask = useSetAtom(removeRealtimeTaskAtom)
 
   React.useEffect(() => {
     const client = getRealtimeClient()
     const unsubscribeConnection = client.subscribeConnection(setConnection)
     const unsubscribeEvents = client.subscribeEvents((event) => {
       setLatestEvent(event)
+
+      switch (event.kind) {
+        case "task-progress":
+          if (event.taskId) {
+            upsertRealtimeTask({
+              currentProgress: event.currentProgress,
+              documentId: event.documentId,
+              filename: event.filename,
+              maxProgress: event.maxProgress,
+              message: event.message,
+              status: event.status,
+              taskId: event.taskId,
+            })
+          }
+          break
+        case "document-detected":
+          if (event.taskId) {
+            upsertRealtimeTask({
+              currentProgress: event.currentProgress,
+              documentId: event.documentId,
+              filename: event.filename,
+              maxProgress: event.maxProgress,
+              message: event.message,
+              status: event.status ?? "STARTED",
+              taskId: event.taskId,
+            })
+          }
+          break
+        case "document-consumed":
+        case "document-failed":
+          removeRealtimeTask(event.taskId)
+          break
+        default:
+          break
+      }
+
       const dispatch = getRealtimeNotificationDispatch(
         event,
         notificationPreferences
@@ -93,10 +133,12 @@ export function RealtimeProvider({
     notificationPreferences,
     pathname,
     pushNotification,
+    removeRealtimeTask,
     setConnection,
     setLatestEvent,
     status,
     suppressNotificationToasts,
+    upsertRealtimeTask,
   ])
 
   return <>{children}</>

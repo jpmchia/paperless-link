@@ -176,9 +176,11 @@ export function TasksView() {
     if (!latestRealtimeEvent) return
 
     switch (latestRealtimeEvent.kind) {
+      case "task-progress":
       case "document-detected":
       case "document-consumed":
       case "document-failed":
+      case "documents-deleted":
         void fetchTasks()
         break
       default:

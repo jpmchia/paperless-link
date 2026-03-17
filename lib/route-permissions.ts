@@ -27,6 +27,7 @@ export type RoutePermissionKey =
   | "/savedviews"
   | "/settings"
   | "/storage-paths"
+  | "/system-status"
   | "/tags"
   | "/tasks"
   | "/trash"
@@ -70,6 +71,9 @@ export const routePermissionRequirements: Record<
   },
   "/storage-paths": {
     anyOf: [{ action: "view", type: "storagePath" }],
+  },
+  "/system-status": {
+    requireAdmin: true,
   },
   "/tags": {
     anyOf: [{ action: "view", type: "tag" }],

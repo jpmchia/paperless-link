@@ -46,4 +46,15 @@ describe("route permissions", () => {
       isRouteAllowed(currentUser, routePermissionRequirements["/dashboard"])
     ).toBe(true)
   })
+
+  it("treats system status as an admin-only route", () => {
+    const currentUser = mapPermissionBootstrapPayload({
+      permissions: ["view_document"],
+      user: { id: 1, is_staff: true },
+    })
+
+    expect(
+      isRouteAllowed(currentUser, routePermissionRequirements["/system-status"])
+    ).toBe(true)
+  })
 })

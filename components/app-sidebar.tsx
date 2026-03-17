@@ -39,6 +39,7 @@ import {
   GitBranch,
   Mail,
   GripVertical,
+  HeartPulse,
 } from "lucide-react"
 
 import {
@@ -129,6 +130,7 @@ const navSettings: NavItem[] = [
   { title: "Trash", url: "/trash", icon: Trash2 },
   { title: "Tasks", url: "/tasks", icon: Activity },
   { title: "Logs", url: "/logs", icon: ScrollText },
+  { title: "System Status", url: "/system-status", icon: HeartPulse },
   { title: "Settings", url: "/settings", icon: Settings },
 ]
 
@@ -265,7 +267,7 @@ export function AppSidebar({
   })
 
   const systemItems = navSettings.filter((item) => {
-    if (item.title === "Settings") {
+    if (item.title === "Settings" || item.title === "System Status") {
       return canManageConfig(currentUserPermissions)
     }
 
