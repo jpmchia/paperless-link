@@ -15,6 +15,13 @@ import {
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { getJson, postJson } from "@/lib/paperless-client"
 import {
   activeRealtimeTasksAtom,
@@ -77,25 +84,6 @@ function StatusBadge({ status }: { status?: SystemStatusLevel | string }) {
   )
 }
 
-function SectionCard({
-  children,
-  title,
-}: {
-  children: React.ReactNode
-  title: string
-}) {
-  return (
-    <section className="rounded-xl border bg-card p-5 shadow-sm">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          {title}
-        </h2>
-      </div>
-      {children}
-    </section>
-  )
-}
-
 function Metric({
   children,
   label,
@@ -110,6 +98,28 @@ function Metric({
       </p>
       <div className="text-sm">{children}</div>
     </div>
+  )
+}
+
+function SectionCard({
+  action,
+  children,
+  title,
+}: {
+  action?: React.ReactNode
+  children: React.ReactNode
+  title: string
+}) {
+  return (
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          {title}
+        </CardTitle>
+        {action ? <CardAction>{action}</CardAction> : null}
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
   )
 }
 
@@ -174,26 +184,28 @@ export function SystemStatusView({
 
   if (!status) {
     return (
-      <div className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
-        <p className="text-sm">System status is unavailable.</p>
-        <p className="mt-1 text-xs">
-          The backend may not expose the status endpoint on this Paperless
-          version.
-        </p>
-        <Button
-          className="mt-4"
-          variant="outline"
-          onClick={() => void refreshStatus()}
-          disabled={refreshing}
-        >
-          {refreshing ? (
-            <Loader2 className="mr-2 size-4 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-2 size-4" />
-          )}
-          Retry
-        </Button>
-      </div>
+      <Card className="border-dashed">
+        <CardContent className="py-8 text-center text-muted-foreground">
+          <p className="text-sm">System status is unavailable.</p>
+          <p className="mt-1 text-xs">
+            The backend may not expose the status endpoint on this Paperless
+            version.
+          </p>
+          <Button
+            className="mt-4"
+            variant="outline"
+            onClick={() => void refreshStatus()}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 size-4" />
+            )}
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
     )
   }
 
@@ -280,25 +292,24 @@ export function SystemStatusView({
                     : null
 
                 return (
-                  <div
-                    key={task.taskId}
-                    className="rounded-lg border bg-muted/30 p-3 text-sm"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">
-                        {task.filename || task.taskId}
-                      </span>
-                      <Badge variant="secondary">{task.status || "WORKING"}</Badge>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {task.message || "Processing document"}
-                    </p>
-                    {percent != null && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        Progress: {percent}%
+                  <Card key={task.taskId} size="sm" className="bg-muted/30 shadow-none">
+                    <CardContent>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">
+                          {task.filename || task.taskId}
+                        </span>
+                        <Badge variant="secondary">{task.status || "WORKING"}</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {task.message || "Processing document"}
                       </p>
-                    )}
-                  </div>
+                      {percent != null && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Progress: {percent}%
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
                 )
               })}
             </div>
@@ -324,7 +335,12 @@ export function SystemStatusView({
           </div>
         </SectionCard>
 
-        <SectionCard title="Queue and Health">
+        <SectionCard
+          title="Queue and Health"
+          action={
+            canRunTasks ? <Badge variant="outline">Maintenance actions enabled</Badge> : null
+          }
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             <Metric label="Redis">
               <div className="space-y-2">

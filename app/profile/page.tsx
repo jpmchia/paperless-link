@@ -22,7 +22,7 @@ export default async function ProfilePage() {
             Manage your account details, password, and preferences.
           </p>
         </div>
-        <ProfileTabs profile={profile as any} uiSettings={uiSettings} />
+        <ProfileTabs profile={profile} uiSettings={uiSettings} />
       </div>
     </AppShell>
   )

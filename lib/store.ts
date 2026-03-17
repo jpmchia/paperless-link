@@ -6,6 +6,8 @@ import type { FilterParams } from './api'
 
 export const documentListState = atom<number[]>([])
 
+export const documentDetailsDirtyAtom = atom(false)
+
 // Version ID currently being previewed in the PDF viewer (null = latest)
 export const activeVersionIdAtom = atom<number | null>(null)
 

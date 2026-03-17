@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell"
+import { RealtimeDocumentListSync } from "@/components/realtime-document-list-sync"
 import {
   getDocuments,
   getSavedView,
@@ -93,6 +94,7 @@ export default async function DocumentsPage({
   return (
     <AppShell initialPermissions={permissions} topbar={<TopBar title={title} />}>
       <div className="flex flex-col gap-4 p-4 h-full">
+        <RealtimeDocumentListSync />
         <FilterPanel
           correspondents={correspondentsList}
           documentTypes={typesList}

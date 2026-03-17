@@ -53,7 +53,7 @@ interface PreferencesSettings {
   notifications_document_updated?: boolean
 }
 
-interface PreferencesFormProps {
+export interface PreferencesFormProps {
   initialSettings?: {
     settings?: PreferencesSettings
   } | null

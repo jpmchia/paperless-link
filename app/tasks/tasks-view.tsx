@@ -32,7 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   AlertTriangle,
   CheckCircle,
@@ -375,20 +375,25 @@ export function TasksView() {
           onValueChange={(value) => setActiveTab(value as TaskTab)}
           className="gap-4"
         >
-          <TabsList variant="line">
-            {(["failed", "completed", "started", "queued"] as TaskTab[]).map(
-              (tab) => (
-                <TabsTrigger key={tab} value={tab}>
-                  {getTabLabel(tab)}
-                  {counts[tab] > 0 && (
-                    <Badge variant={tab === "failed" ? "destructive" : "secondary"}>
-                      {counts[tab]}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-              )
-            )}
-          </TabsList>
+          <div className="overflow-x-auto">
+            <TabsList variant="line" className="min-w-max justify-start border-b p-0">
+              {(["failed", "completed", "started", "queued"] as TaskTab[]).map(
+                (tab) => (
+                  <TabsTrigger key={tab} value={tab} className="gap-1.5 px-3">
+                    {getTabLabel(tab)}
+                    {counts[tab] > 0 && (
+                      <Badge
+                        variant={tab === "failed" ? "destructive" : "secondary"}
+                      >
+                        {counts[tab]}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                )
+              )}
+            </TabsList>
+          </div>
+          <TabsContent value={activeTab} className="m-0" />
         </Tabs>
       </div>
 

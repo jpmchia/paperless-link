@@ -116,20 +116,22 @@ export function MailTable({ accounts, rules, processedMail = [], gmailOAuthUrl, 
 
   return (
     <>
-      <Tabs defaultValue="accounts">
-        <TabsList>
-          <TabsTrigger value="accounts" className="gap-1.5">
-            <Mail className="h-3.5 w-3.5" />Accounts ({accountList.length})
-          </TabsTrigger>
-          <TabsTrigger value="rules" className="gap-1.5">
-            <Shield className="h-3.5 w-3.5" />Rules ({ruleList.length})
-          </TabsTrigger>
-          <TabsTrigger value="processed" className="gap-1.5">
-            <History className="h-3.5 w-3.5" />Processed ({processedMail.length})
-          </TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="accounts" className="gap-4">
+        <div className="overflow-x-auto">
+          <TabsList variant="line" className="min-w-max justify-start border-b p-0">
+            <TabsTrigger value="accounts" className="gap-1.5 px-3">
+              <Mail className="h-3.5 w-3.5" />Accounts ({accountList.length})
+            </TabsTrigger>
+            <TabsTrigger value="rules" className="gap-1.5 px-3">
+              <Shield className="h-3.5 w-3.5" />Rules ({ruleList.length})
+            </TabsTrigger>
+            <TabsTrigger value="processed" className="gap-1.5 px-3">
+              <History className="h-3.5 w-3.5" />Processed ({processedMail.length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="accounts" className="mt-4 space-y-4">
+        <TabsContent value="accounts" className="m-0 space-y-4">
           {/* OAuth connect buttons */}
           {(gmailOAuthUrl || outlookOAuthUrl) && (
             <div className="flex items-center gap-2 flex-wrap">
@@ -199,7 +201,7 @@ export function MailTable({ accounts, rules, processedMail = [], gmailOAuthUrl, 
           </div>
         </TabsContent>
 
-        <TabsContent value="rules" className="mt-4">
+        <TabsContent value="rules" className="m-0">
           <div className="rounded-md border overflow-hidden">
             <Table>
               <TableHeader>
@@ -244,7 +246,7 @@ export function MailTable({ accounts, rules, processedMail = [], gmailOAuthUrl, 
           </div>
         </TabsContent>
 
-        <TabsContent value="processed" className="mt-4">
+        <TabsContent value="processed" className="m-0">
           <div className="rounded-md border overflow-hidden">
             <Table>
               <TableHeader>

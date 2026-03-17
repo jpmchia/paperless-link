@@ -21,7 +21,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { updateProfile } from "./actions"
 
-interface ProfileFormProps {
+export interface ProfileFormProps {
   profile: {
     id: number
     username: string
@@ -79,8 +79,10 @@ export function ProfileForm({ profile, showProfileSection = true, showPasswordSe
       await updateProfile(values)
       profileForm.reset(values)
       toast.success("Profile updated")
-    } catch (e: any) {
-      toast.error("Failed to update profile", { description: e.message })
+    } catch (e: unknown) {
+      toast.error("Failed to update profile", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      })
     } finally {
       setSavingProfile(false)
     }
@@ -95,8 +97,10 @@ export function ProfileForm({ profile, showProfileSection = true, showPasswordSe
       })
       passwordForm.reset()
       toast.success("Password changed successfully")
-    } catch (e: any) {
-      toast.error("Failed to change password", { description: e.message })
+    } catch (e: unknown) {
+      toast.error("Failed to change password", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      })
     } finally {
       setSavingPassword(false)
     }

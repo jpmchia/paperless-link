@@ -321,18 +321,20 @@ export function UsersTable({
 
   return (
     <>
-      <Tabs defaultValue="users">
-        <TabsList>
-          <TabsTrigger value="users" className="gap-1.5">
-            <Users className="h-3.5 w-3.5" />Users ({users.length})
-          </TabsTrigger>
-          <TabsTrigger value="groups" className="gap-1.5">
-            <Shield className="h-3.5 w-3.5" />Groups ({groups.length})
-          </TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="users" className="gap-4">
+        <div className="overflow-x-auto">
+          <TabsList variant="line" className="min-w-max justify-start border-b p-0">
+            <TabsTrigger value="users" className="gap-1.5 px-3">
+              <Users className="h-3.5 w-3.5" />Users ({users.length})
+            </TabsTrigger>
+            <TabsTrigger value="groups" className="gap-1.5 px-3">
+              <Shield className="h-3.5 w-3.5" />Groups ({groups.length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ── Users tab ── */}
-        <TabsContent value="users" className="mt-4 space-y-3">
+        <TabsContent value="users" className="m-0 space-y-3">
           <div className="flex justify-end">
             <CanCreate type="user">
               <Button size="sm" onClick={() => setEditUser("new")}>
@@ -424,7 +426,7 @@ export function UsersTable({
         </TabsContent>
 
         {/* ── Groups tab ── */}
-        <TabsContent value="groups" className="mt-4 space-y-3">
+        <TabsContent value="groups" className="m-0 space-y-3">
           <div className="flex justify-end">
             <CanCreate type="group">
               <Button size="sm" onClick={() => setEditGroup("new")}>

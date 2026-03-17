@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -39,8 +39,12 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useRouter } from "next/navigation"
-import { useAtom, useAtomValue } from "jotai"
-import { documentListState, visibleCustomFieldsAtom } from "@/lib/store"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import {
+  documentDetailsDirtyAtom,
+  documentListState,
+  visibleCustomFieldsAtom,
+} from "@/lib/store"
 
 const baseSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -65,6 +69,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
   const [isSaving, setIsSaving] = useState(false)
   const router = useRouter()
   const documentList = useAtomValue(documentListState)
+  const setDocumentDetailsDirty = useSetAtom(documentDetailsDirtyAtom)
   const [visibleCustomFields, setVisibleCustomFields] = useAtom(visibleCustomFieldsAtom)
   
   // Track the document we initialized on to avoid resetting toggle state when re-rendering
@@ -113,6 +118,14 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
 
   // Warn user before navigating away with unsaved changes
   useUnsavedChanges(form.formState.isDirty)
+
+  useEffect(() => {
+    setDocumentDetailsDirty(form.formState.isDirty)
+
+    return () => {
+      setDocumentDetailsDirty(false)
+    }
+  }, [form.formState.isDirty, setDocumentDetailsDirty])
 
   async function onSubmit(values: any) {
     setIsSaving(true)
