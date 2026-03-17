@@ -82,6 +82,8 @@ export interface FilterParams {
   customFieldsContain?: string
   // Ownership
   owner?: number | null
+  ownerAny?: number[]
+  ownerExclude?: number[]
   ownerIsNull?: boolean
   sharedByUser?: number
 }
@@ -136,7 +138,10 @@ export function buildDocumentQueryString(
   if (filters.customFieldsContain) params.set("custom_fields__icontains", filters.customFieldsContain)
 
   if (filters.owner != null) params.set("owner__id", String(filters.owner))
-  if (filters.ownerIsNull) params.set("owner__isnull", "true")
+  if (filters.ownerAny?.length) params.set("owner__id__in", filters.ownerAny.join(","))
+  if (filters.ownerExclude?.length) params.set("owner__id__none", filters.ownerExclude.join(","))
+  if (filters.ownerIsNull === true) params.set("owner__isnull", "true")
+  if (filters.ownerIsNull === false) params.set("owner__isnull", "false")
   if (filters.sharedByUser != null) params.set("shared_by__id", String(filters.sharedByUser))
 
   return params.toString()
@@ -201,6 +206,12 @@ export function filterParamsFromSavedView(view: any): FilterParams {
       // Custom fields
       case 36: params.customFieldsContain = value; break
       case 42: params.customFieldQuery = value; break
+      // Permissions / ownership
+      case 32: params.owner = Number(value); break
+      case 33: { if (!params.ownerAny) params.ownerAny = []; params.ownerAny.push(Number(value)); break }
+      case 34: params.ownerIsNull = value !== "false"; break
+      case 35: { if (!params.ownerExclude) params.ownerExclude = []; params.ownerExclude.push(Number(value)); break }
+      case 37: params.sharedByUser = Number(value); break
       default: break
     }
   }
@@ -405,4 +416,3 @@ export async function getDocumentNotes(id: string | number) {
     return []
   }
 }
-

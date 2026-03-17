@@ -3,7 +3,8 @@
 import * as React from "react"
 import { CanCreate } from "@/components/permissions/can-create"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
-import { useRouter, usePathname, useSearchParams } from "next/navigation"
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes"
+import { useRouter, usePathname } from "next/navigation"
 import { useAtom } from "jotai"
 import { filterParamsAtom, activeFilterCountAtom } from "@/lib/store"
 import type { FilterParams } from "@/lib/api"
@@ -24,25 +25,42 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Search, Filter, X, ChevronDown, Tag, User, FileType, FolderOpen, Calendar, SortAsc, LayoutList, Save, SaveAll, UserCheck } from "lucide-react"
+import { Search, X, ChevronDown, Tag, User, FileType, Calendar, SortAsc, LayoutList, Save, SaveAll, UserCheck } from "lucide-react"
 import { toast } from "sonner"
 import { patchSavedView, createSavedView } from "./saved-view-actions"
-import { tagColourHex, tagPillStyle } from "@/lib/tag-colors"
+import {
+  getComparableSavedViewStateFromFilters,
+  getComparableSavedViewStateFromView,
+  isSavedViewDirty,
+  orderingToSavedViewSort,
+  filterParamsToSavedViewRules,
+} from "./saved-view-state"
+import { tagColourHex } from "@/lib/tag-colors"
+
+type ActiveSavedView = PermissionedObject & {
+  filter_rules?: Array<{ rule_type?: number; value?: string | number | boolean | null }>
+  id?: number
+  name?: string
+  sort_field?: string | null
+  sort_reverse?: boolean | null
+}
 
 interface FilterPanelProps {
   correspondents: any[]
   documentTypes: any[]
   storagePaths: any[]
   tags: any[]
+  users?: Array<{ id: number; username?: string; first_name?: string; last_name?: string }>
   savedViews: any[]
   totalCount: number
   activeViewId?: number | null
   activeViewName?: string | null
-  activeView?: PermissionedObject | null
+  activeView?: ActiveSavedView | null
   initialFilters?: FilterParams
   onFilterChange?: (params: FilterParams) => void
   currentUserId?: number | null
@@ -62,27 +80,63 @@ const SORT_OPTIONS = [
 
 type TagFilterMode = "all" | "any" | "not"
 
-// Convert FilterParams back into Paperless filter_rules[] for saving
-function filterParamsToRules(f: FilterParams): any[] {
-  const rules: any[] = []
-  if (f.query) rules.push({ rule_type: 20, value: f.query })
-  if (f.titleContains) rules.push({ rule_type: 0, value: f.titleContains })
-  if (f.correspondent != null) rules.push({ rule_type: 3, value: String(f.correspondent) })
-  if (f.documentType != null) rules.push({ rule_type: 4, value: String(f.documentType) })
-  if (f.storagePath != null) rules.push({ rule_type: 25, value: String(f.storagePath) })
-  ;(f.tags || []).forEach(id => rules.push({ rule_type: 6, value: String(id) }))
-  ;(f.tagsAny || []).forEach(id => rules.push({ rule_type: 22, value: String(id) }))
-  ;(f.tagsExclude || []).forEach(id => rules.push({ rule_type: 17, value: String(id) }))
-  if (f.createdAfter) rules.push({ rule_type: 9, value: f.createdAfter })
-  if (f.createdBefore) rules.push({ rule_type: 8, value: f.createdBefore })
-  if (f.addedAfter) rules.push({ rule_type: 14, value: f.addedAfter })
-  if (f.addedBefore) rules.push({ rule_type: 13, value: f.addedBefore })
-  if (f.isInInbox) rules.push({ rule_type: 5, value: "true" })
-  ;(f.correspondentAny || []).forEach(id => rules.push({ rule_type: 26, value: String(id) }))
-  ;(f.correspondentNone || []).forEach(id => rules.push({ rule_type: 27, value: String(id) }))
-  ;(f.documentTypeAny || []).forEach(id => rules.push({ rule_type: 28, value: String(id) }))
-  ;(f.documentTypeNone || []).forEach(id => rules.push({ rule_type: 29, value: String(id) }))
-  return rules
+const DATE_PRESETS = [
+  { id: "within-1-week", label: "Within 1 week" },
+  { id: "within-1-month", label: "Within 1 month" },
+  { id: "within-3-months", label: "Within 3 months" },
+  { id: "within-1-year", label: "Within 1 year" },
+  { id: "this-month", label: "This month" },
+  { id: "this-year", label: "This year" },
+  { id: "today", label: "Today" },
+  { id: "yesterday", label: "Yesterday" },
+] as const
+
+type DatePresetId = (typeof DATE_PRESETS)[number]["id"]
+type DateTarget = "created" | "added"
+
+function toIsoDate(date: Date) {
+  return date.toISOString().split("T")[0]
+}
+
+function getDatePresetRange(preset: DatePresetId) {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const startOfYear = new Date(now.getFullYear(), 0, 1)
+
+  switch (preset) {
+    case "within-1-week": {
+      const from = new Date(today)
+      from.setDate(from.getDate() - 7)
+      return { from: toIsoDate(from), to: toIsoDate(today) }
+    }
+    case "within-1-month": {
+      const from = new Date(today)
+      from.setMonth(from.getMonth() - 1)
+      return { from: toIsoDate(from), to: toIsoDate(today) }
+    }
+    case "within-3-months": {
+      const from = new Date(today)
+      from.setMonth(from.getMonth() - 3)
+      return { from: toIsoDate(from), to: toIsoDate(today) }
+    }
+    case "within-1-year": {
+      const from = new Date(today)
+      from.setFullYear(from.getFullYear() - 1)
+      return { from: toIsoDate(from), to: toIsoDate(today) }
+    }
+    case "this-month":
+      return { from: toIsoDate(startOfMonth), to: toIsoDate(today) }
+    case "this-year":
+      return { from: toIsoDate(startOfYear), to: toIsoDate(today) }
+    case "today":
+      return { from: toIsoDate(today), to: toIsoDate(today) }
+    case "yesterday": {
+      const yesterday = new Date(today)
+      yesterday.setDate(yesterday.getDate() - 1)
+      return { from: toIsoDate(yesterday), to: toIsoDate(yesterday) }
+    }
+  }
 }
 
 export function FilterPanel({
@@ -90,6 +144,7 @@ export function FilterPanel({
   documentTypes,
   storagePaths,
   tags,
+  users = [],
   savedViews,
   totalCount,
   activeViewId,
@@ -112,18 +167,30 @@ export function FilterPanel({
   const [saveAsOpen, setSaveAsOpen] = React.useState(false)
   const [saveAsName, setSaveAsName] = React.useState("")
   const [saving, setSaving] = React.useState(false)
+  const [savedViewBaseline, setSavedViewBaseline] = React.useState(() =>
+    getComparableSavedViewStateFromView(activeView)
+  )
   const router = useRouter()
   const pathname = usePathname()
+
+  const currentSavedViewState = getComparableSavedViewStateFromFilters(filters)
+  const activeViewIsDirty = isSavedViewDirty(filters, savedViewBaseline)
 
   // Keep Jotai atom in sync for cross-component use (e.g. document detail Next/Prev)
   React.useEffect(() => {
     setAtomFilters(filters)
   }, [filters, setAtomFilters])
 
+  React.useEffect(() => {
+    setSavedViewBaseline(getComparableSavedViewStateFromView(activeView))
+  }, [activeView])
+
   // When searchValue changes externally (view switch) reset search bar
   React.useEffect(() => {
     setSearchValue(filters.query || "")
   }, [filters.query])
+
+  useUnsavedChanges(Boolean(activeViewId && activeViewIsDirty))
 
   const applyFilters = React.useCallback(
     (updated: FilterParams) => {
@@ -143,6 +210,11 @@ export function FilterPanel({
       if (updated.createdBefore) params.set("created_before", updated.createdBefore)
       if (updated.addedAfter) params.set("added_after", updated.addedAfter)
       if (updated.addedBefore) params.set("added_before", updated.addedBefore)
+      if (updated.owner != null) params.set("owner", String(updated.owner))
+      if (updated.ownerAny?.length) params.set("owner_any", updated.ownerAny.join(","))
+      if (updated.ownerExclude?.length) params.set("owner_exclude", updated.ownerExclude.join(","))
+      if (updated.ownerIsNull != null) params.set("owner_is_null", String(updated.ownerIsNull))
+      if (updated.sharedByUser != null) params.set("shared_by_user", String(updated.sharedByUser))
       if (updated.ordering) params.set("ordering", updated.ordering)
       const qs = params.toString()
       router.push(`${pathname}${qs ? `?${qs}` : ""}`)
@@ -151,8 +223,119 @@ export function FilterPanel({
   )
 
   const loadSavedView = (view: any) => {
+    if (
+      activeViewId &&
+      activeViewIsDirty &&
+      !window.confirm(`Discard unsaved changes to "${activeViewName}"?`)
+    ) {
+      return
+    }
     router.push(`/documents?view=${view.id}`)
   }
+
+  const getUserLabel = React.useCallback(
+    (userId: number) => {
+      const user = users.find((candidate) => candidate.id === userId)
+      if (!user) return `#${userId}`
+
+      const fullName = [user.first_name, user.last_name]
+        .filter(Boolean)
+        .join(" ")
+        .trim()
+
+      return fullName || user.username || `#${userId}`
+    },
+    [users]
+  )
+
+  const clearPermissionFilters = React.useCallback(() => {
+    applyFilters({
+      ...filters,
+      owner: undefined,
+      ownerAny: undefined,
+      ownerExclude: undefined,
+      ownerIsNull: undefined,
+      sharedByUser: undefined,
+    })
+  }, [applyFilters, filters])
+
+  const applyPermissionPreset = React.useCallback(
+    (preset: "all" | "mine" | "shared-with-me" | "shared-by-me" | "unowned") => {
+      const next: FilterParams = {
+        ...filters,
+        owner: undefined,
+        ownerAny: undefined,
+        ownerExclude: undefined,
+        ownerIsNull: undefined,
+        sharedByUser: undefined,
+      }
+
+      if (preset === "mine" && currentUserId != null) {
+        next.owner = currentUserId
+      } else if (preset === "shared-with-me" && currentUserId != null) {
+        next.ownerExclude = [currentUserId]
+        next.ownerIsNull = false
+      } else if (preset === "shared-by-me" && currentUserId != null) {
+        next.sharedByUser = currentUserId
+      } else if (preset === "unowned") {
+        next.ownerIsNull = true
+      }
+
+      applyFilters(next)
+    },
+    [applyFilters, currentUserId, filters]
+  )
+
+  const toggleOwnerAny = React.useCallback(
+    (userId: number) => {
+      const current = filters.ownerAny || []
+      const next = current.includes(userId)
+        ? current.filter((id) => id !== userId)
+        : [...current, userId]
+
+      applyFilters({
+        ...filters,
+        owner: undefined,
+        ownerAny: next.length ? next : undefined,
+        ownerExclude: undefined,
+        ownerIsNull: undefined,
+        sharedByUser: undefined,
+      })
+    },
+    [applyFilters, filters]
+  )
+
+  const toggleHideUnowned = React.useCallback(
+    (checked: boolean) => {
+      applyFilters({
+        ...filters,
+        ownerIsNull: checked ? false : undefined,
+      })
+    },
+    [applyFilters, filters]
+  )
+
+  const applyDatePreset = React.useCallback(
+    (target: DateTarget, preset: DatePresetId) => {
+      const range = getDatePresetRange(preset)
+
+      if (target === "created") {
+        applyFilters({
+          ...filters,
+          createdAfter: range.from,
+          createdBefore: range.to,
+        })
+        return
+      }
+
+      applyFilters({
+        ...filters,
+        addedAfter: range.from,
+        addedBefore: range.to,
+      })
+    },
+    [applyFilters, filters]
+  )
 
   const fetchSuggestions = React.useCallback(async (term: string) => {
     if (!term.trim() || term.length < 2) {
@@ -193,6 +376,14 @@ export function FilterPanel({
   }
 
   const clearAll = () => {
+    if (
+      activeViewId &&
+      activeViewIsDirty &&
+      !window.confirm(`Discard unsaved changes to "${activeViewName}"?`)
+    ) {
+      return
+    }
+
     setLocalFilters({})
     setAtomFilters({})
     if (activeViewId) {
@@ -210,6 +401,12 @@ export function FilterPanel({
     } else if (key === "tagsExclude" && value !== undefined) {
       updated.tagsExclude = (updated.tagsExclude || []).filter((t) => t !== value)
       if (updated.tagsExclude.length === 0) delete updated.tagsExclude
+    } else if (key === "ownerAny" && value !== undefined) {
+      updated.ownerAny = (updated.ownerAny || []).filter((id) => id !== value)
+      if (updated.ownerAny.length === 0) delete updated.ownerAny
+    } else if (key === "ownerExclude" && value !== undefined) {
+      updated.ownerExclude = (updated.ownerExclude || []).filter((id) => id !== value)
+      if (updated.ownerExclude.length === 0) delete updated.ownerExclude
     } else {
       delete (updated as any)[key]
     }
@@ -230,16 +427,16 @@ export function FilterPanel({
 
   // Save active view
   const handleSaveView = async () => {
-    if (!activeViewId) return
+    if (!activeViewId || !activeViewIsDirty) return
     setSaving(true)
     try {
-      const sortParts = filters.ordering?.startsWith("-")
-        ? { sort_reverse: true, sort_field: filters.ordering.slice(1) }
-        : { sort_reverse: false, sort_field: filters.ordering || "created" }
+      const sortParts = orderingToSavedViewSort(filters.ordering)
       await patchSavedView(activeViewId, {
-        filter_rules: filterParamsToRules(filters),
-        ...sortParts,
+        filter_rules: currentSavedViewState.filterRules,
+        sort_field: sortParts.sortField,
+        sort_reverse: sortParts.sortReverse,
       })
+      setSavedViewBaseline(currentSavedViewState)
       toast.success(`View "${activeViewName}" saved`)
     } catch (e: any) {
       toast.error("Failed to save view", { description: e.message })
@@ -253,13 +450,14 @@ export function FilterPanel({
     if (!saveAsName.trim()) return
     setSaving(true)
     try {
-      const sortParts = filters.ordering?.startsWith("-")
-        ? { sort_reverse: true, sort_field: filters.ordering.slice(1) }
-        : { sort_reverse: false, sort_field: filters.ordering || "created" }
+      const sortParts = orderingToSavedViewSort(filters.ordering)
       const created = await createSavedView({
         name: saveAsName.trim(),
-        filter_rules: filterParamsToRules(filters),
-        ...sortParts,
+        filter_rules: filterParamsToSavedViewRules(filters),
+        sort_field: sortParts.sortField,
+        sort_reverse: sortParts.sortReverse,
+        show_on_dashboard: false,
+        show_in_sidebar: false,
       })
       toast.success(`View "${saveAsName}" created`)
       setSaveAsOpen(false)
@@ -302,9 +500,18 @@ export function FilterPanel({
   if (filters.isInInbox) chips.push({ label: `Inbox only`, onRemove: () => removeChip("isInInbox") })
   if (filters.moreLikeId) chips.push({ label: `Similar to doc #${filters.moreLikeId}`, onRemove: () => removeChip("moreLikeId") })
   if (filters.owner === currentUserId && currentUserId != null) chips.push({ label: `Owner: Mine`, onRemove: () => removeChip("owner") })
-  else if (filters.owner != null) chips.push({ label: `Owner: #${filters.owner}`, onRemove: () => removeChip("owner") })
-  if (filters.ownerIsNull) chips.push({ label: `Owner: None`, onRemove: () => removeChip("ownerIsNull") })
-  if (filters.sharedByUser != null) chips.push({ label: `Shared with me`, onRemove: () => removeChip("sharedByUser") })
+  else if (filters.owner != null) chips.push({ label: `Owner: ${getUserLabel(filters.owner)}`, onRemove: () => removeChip("owner") })
+  ;(filters.ownerAny || []).forEach((id) => {
+    chips.push({ label: `Owner: ${getUserLabel(id)}`, onRemove: () => removeChip("ownerAny", id) })
+  })
+  if (filters.ownerExclude?.includes(currentUserId ?? -1)) {
+    chips.push({ label: `Shared with me`, onRemove: () => removeChip("ownerExclude", currentUserId ?? undefined) })
+  }
+  if (filters.ownerIsNull === true) chips.push({ label: `Owner: None`, onRemove: () => removeChip("ownerIsNull") })
+  if (filters.ownerIsNull === false && !filters.ownerExclude?.includes(currentUserId ?? -1)) {
+    chips.push({ label: `Hide unowned`, onRemove: () => removeChip("ownerIsNull") })
+  }
+  if (filters.sharedByUser != null) chips.push({ label: `Shared by me`, onRemove: () => removeChip("sharedByUser") })
 
   const currentSort = SORT_OPTIONS.find((o) => o.value === (filters.ordering || "-created"))
 
@@ -319,13 +526,18 @@ export function FilterPanel({
         <div className="flex items-center gap-2 text-sm">
           <LayoutList className="h-4 w-4 text-primary" />
           <span className="font-medium text-primary">{activeViewName}</span>
+          {activeViewIsDirty && (
+            <Badge variant="secondary" className="h-5 px-1.5 text-[11px]">
+              Modified
+            </Badge>
+          )}
           <HasObjectPermission action="change" object={activeView} type="savedView">
             <Button
-              variant="ghost"
+              variant={activeViewIsDirty ? "default" : "ghost"}
               size="sm"
               className="h-6 px-2 text-xs"
               onClick={handleSaveView}
-              disabled={saving}
+              disabled={saving || !activeViewIsDirty}
             >
               <Save className="mr-1 h-3 w-3" />
               Save View
@@ -428,6 +640,22 @@ export function FilterPanel({
               </CanCreate>
             </DropdownMenuContent>
           </DropdownMenu>
+        )}
+
+        {!activeViewId && (
+          <CanCreate type="savedView">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSaveAsName(searchValue.trim())
+                setSaveAsOpen(true)
+              }}
+            >
+              <SaveAll className="mr-2 h-4 w-4" />
+              Save View…
+            </Button>
+          </CanCreate>
         )}
 
         {/* Correspondent picker */}
@@ -537,37 +765,80 @@ export function FilterPanel({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Date range — Created */}
+        {/* Dates */}
         <Popover>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
               size="sm"
-              className={(filters.createdAfter || filters.createdBefore) ? "border-primary text-primary" : ""}
+              className={(filters.createdAfter || filters.createdBefore || filters.addedAfter || filters.addedBefore) ? "border-primary text-primary" : ""}
             >
               <Calendar className="mr-2 h-4 w-4" />
-              Created
+              Dates
               <ChevronDown className="ml-2 h-3 w-3" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="start" className="w-[220px] p-3 space-y-3">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">After</label>
-              <Input
-                type="date"
-                className="h-8 text-sm"
-                value={filters.createdAfter || ""}
-                onChange={(e) => applyFilters({ ...filters, createdAfter: e.target.value || undefined })}
-              />
+          <PopoverContent align="start" className="w-[320px] p-3 space-y-4">
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">Created</div>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  type="date"
+                  className="h-8 text-sm"
+                  value={filters.createdAfter || ""}
+                  onChange={(e) => applyFilters({ ...filters, createdAfter: e.target.value || undefined })}
+                />
+                <Input
+                  type="date"
+                  className="h-8 text-sm"
+                  value={filters.createdBefore || ""}
+                  onChange={(e) => applyFilters({ ...filters, createdBefore: e.target.value || undefined })}
+                />
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {DATE_PRESETS.map((preset) => (
+                  <Button
+                    key={`created-${preset.id}`}
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px]"
+                    onClick={() => applyDatePreset("created", preset.id)}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Before</label>
-              <Input
-                type="date"
-                className="h-8 text-sm"
-                value={filters.createdBefore || ""}
-                onChange={(e) => applyFilters({ ...filters, createdBefore: e.target.value || undefined })}
-              />
+
+            <div className="space-y-2 border-t pt-3">
+              <div className="text-xs font-medium text-muted-foreground">Added</div>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  type="date"
+                  className="h-8 text-sm"
+                  value={filters.addedAfter || ""}
+                  onChange={(e) => applyFilters({ ...filters, addedAfter: e.target.value || undefined })}
+                />
+                <Input
+                  type="date"
+                  className="h-8 text-sm"
+                  value={filters.addedBefore || ""}
+                  onChange={(e) => applyFilters({ ...filters, addedBefore: e.target.value || undefined })}
+                />
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {DATE_PRESETS.map((preset) => (
+                  <Button
+                    key={`added-${preset.id}`}
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px]"
+                    onClick={() => applyDatePreset("added", preset.id)}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
             </div>
           </PopoverContent>
         </Popover>
@@ -594,45 +865,75 @@ export function FilterPanel({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Owner filter */}
+        {/* Permissions filter */}
         {currentUserId != null && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <Popover>
+            <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 size="sm"
-                className={(filters.owner != null || filters.ownerIsNull || filters.sharedByUser != null) ? "border-primary text-primary" : ""}
+                className={(filters.owner != null || filters.ownerAny?.length || filters.ownerExclude?.length || filters.ownerIsNull != null || filters.sharedByUser != null) ? "border-primary text-primary" : ""}
               >
                 <UserCheck className="mr-2 h-4 w-4" />
-                Owner
+                Permissions
                 <ChevronDown className="ml-2 h-3 w-3" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[180px]">
-              <DropdownMenuItem onClick={() => applyFilters({ ...filters, owner: undefined, ownerIsNull: undefined, sharedByUser: undefined })}>
-                <span className="text-muted-foreground">Any owner</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => applyFilters({ ...filters, owner: currentUserId, ownerIsNull: undefined, sharedByUser: undefined })}
-                className={filters.owner === currentUserId ? "bg-accent" : ""}
-              >
-                Mine
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => applyFilters({ ...filters, owner: undefined, ownerIsNull: true, sharedByUser: undefined })}
-                className={filters.ownerIsNull ? "bg-accent" : ""}
-              >
-                No owner
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => applyFilters({ ...filters, owner: undefined, ownerIsNull: undefined, sharedByUser: currentUserId })}
-                className={filters.sharedByUser != null ? "bg-accent" : ""}
-              >
-                Shared with me
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[300px] p-3 space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  size="sm"
+                  variant={filters.owner == null && !filters.ownerAny?.length && !filters.ownerExclude?.length && filters.ownerIsNull == null && filters.sharedByUser == null ? "default" : "outline"}
+                  onClick={() => applyPermissionPreset("all")}
+                >
+                  All
+                </Button>
+                <Button size="sm" variant={filters.owner === currentUserId ? "default" : "outline"} onClick={() => applyPermissionPreset("mine")}>
+                  My documents
+                </Button>
+                <Button
+                  size="sm"
+                  variant={filters.ownerExclude?.includes(currentUserId) && filters.ownerIsNull === false ? "default" : "outline"}
+                  onClick={() => applyPermissionPreset("shared-with-me")}
+                >
+                  Shared with me
+                </Button>
+                <Button size="sm" variant={filters.sharedByUser === currentUserId ? "default" : "outline"} onClick={() => applyPermissionPreset("shared-by-me")}>
+                  Shared by me
+                </Button>
+                <Button size="sm" variant={filters.ownerIsNull === true ? "default" : "outline"} onClick={() => applyPermissionPreset("unowned")}>
+                  Unowned
+                </Button>
+                <Button size="sm" variant="outline" onClick={clearPermissionFilters}>
+                  Reset
+                </Button>
+              </div>
+
+              <div className="space-y-2 border-t pt-3">
+                <div className="text-xs font-medium text-muted-foreground">Specific owners</div>
+                <div className="max-h-[180px] overflow-y-auto rounded-md border">
+                  {users.map((user) => (
+                    <label key={user.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent">
+                      <input
+                        type="checkbox"
+                        checked={filters.ownerAny?.includes(user.id) ?? false}
+                        onChange={() => toggleOwnerAny(user.id)}
+                      />
+                      <span>{getUserLabel(user.id)}</span>
+                    </label>
+                  ))}
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={filters.ownerIsNull === false}
+                    onChange={(e) => toggleHideUnowned(e.target.checked)}
+                  />
+                  <span>Hide unowned</span>
+                </label>
+              </div>
+            </PopoverContent>
+          </Popover>
         )}
 
         {/* Result count + Clear */}
@@ -674,6 +975,9 @@ export function FilterPanel({
           <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle>Save view as…</DialogTitle>
+              <DialogDescription>
+                Create a saved view from the current document filters and sort order.
+              </DialogDescription>
             </DialogHeader>
             <Input
               placeholder="View name"

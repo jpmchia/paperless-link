@@ -56,6 +56,11 @@ export default async function DocumentsPage({
   if (params.created_before) initialFilters.createdBefore = params.created_before as string
   if (params.added_after) initialFilters.addedAfter = params.added_after as string
   if (params.added_before) initialFilters.addedBefore = params.added_before as string
+  if (params.owner) initialFilters.owner = Number(params.owner)
+  if (params.owner_any) initialFilters.ownerAny = String(params.owner_any).split(",").map(Number)
+  if (params.owner_exclude) initialFilters.ownerExclude = String(params.owner_exclude).split(",").map(Number)
+  if (params.owner_is_null != null) initialFilters.ownerIsNull = String(params.owner_is_null) === "true"
+  if (params.shared_by_user) initialFilters.sharedByUser = Number(params.shared_by_user)
   if (params.ordering) initialFilters.ordering = params.ordering as string
   if (params.more_like_id) initialFilters.moreLikeId = Number(params.more_like_id)
 
@@ -88,6 +93,7 @@ export default async function DocumentsPage({
     documentTypes: idx(typesList),
     tags: idx(tagsList),
     storagePaths: idx(pathsList),
+    users: idx(usersList),
     customFields: idx(customFieldsList),
   }
 
@@ -107,6 +113,7 @@ export default async function DocumentsPage({
           activeView={activeView}
           initialFilters={initialFilters}
           currentUserId={currentUserId}
+          users={usersList}
         />
         <DataTable
           lookup={lookup}

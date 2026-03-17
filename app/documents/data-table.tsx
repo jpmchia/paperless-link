@@ -29,6 +29,10 @@ import {
   DISPLAY_FIELD_DOCUMENT_TYPE,
   DISPLAY_FIELD_STORAGE_PATH,
   DISPLAY_FIELD_ASN,
+  DISPLAY_FIELD_NOTES,
+  DISPLAY_FIELD_OWNER,
+  DISPLAY_FIELD_SHARED,
+  DISPLAY_FIELD_PAGE_COUNT,
   CUSTOM_FIELD_PREFIX,
 } from "./columns"
 import { patchSavedView } from "./saved-view-actions"
@@ -73,7 +77,11 @@ const ALL_FIELDS: { id: string; label: string }[] = [
   { id: DISPLAY_FIELD_DOCUMENT_TYPE, label: "Document Type" },
   { id: DISPLAY_FIELD_STORAGE_PATH,  label: "Storage Path" },
   { id: DISPLAY_FIELD_TAGS,          label: "Tags" },
+  { id: DISPLAY_FIELD_NOTES,         label: "Notes" },
+  { id: DISPLAY_FIELD_OWNER,         label: "Owner" },
+  { id: DISPLAY_FIELD_SHARED,        label: "Shared" },
   { id: DISPLAY_FIELD_ASN,           label: "ASN" },
+  { id: DISPLAY_FIELD_PAGE_COUNT,    label: "Pages" },
 ]
 
 interface DataTableProps {

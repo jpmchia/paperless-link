@@ -33,5 +33,10 @@ export const activeFilterCountAtom = atom((get) => {
   if (f.addedAfter) count++
   if (f.addedBefore) count++
   if (f.hasTag != null) count++
+  if (f.owner != null) count++
+  if (f.ownerAny && f.ownerAny.length > 0) count += f.ownerAny.length
+  if (f.ownerExclude && f.ownerExclude.length > 0) count += f.ownerExclude.length
+  if (f.ownerIsNull != null) count++
+  if (f.sharedByUser != null) count++
   return count
 })

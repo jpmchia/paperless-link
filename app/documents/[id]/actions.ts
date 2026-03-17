@@ -67,12 +67,16 @@ export async function reprocessDocument(id: number | string) {
     throw new Error("Unauthorized")
   }
 
-  const response = await fetch(`${baseUrl}api/documents/${id}/reprocess/`, {
+  const response = await fetch(`${baseUrl}api/documents/reprocess/`, {
     method: "POST",
     headers: {
       Authorization: `Token ${token}`,
+      "Content-Type": "application/json",
       Accept: "application/json; version=2",
     },
+    body: JSON.stringify({
+      documents: [Number(id)],
+    }),
   })
 
   // Paperless-ngx reprocess might return 200 or 202

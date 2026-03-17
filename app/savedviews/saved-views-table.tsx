@@ -112,14 +112,9 @@ export function SavedViewsTable({ initialViews }: { initialViews: SavedView[] })
           sort_field: editing.sort_field ?? "created",
           sort_reverse: editing.sort_reverse ?? true,
           page_size: editing.page_size ?? undefined,
+          show_on_dashboard: editing.show_on_dashboard ?? false,
+          show_in_sidebar: editing.show_in_sidebar ?? false,
         })
-
-        if (editing.show_on_dashboard || editing.show_in_sidebar) {
-          await updateSavedViewMeta(created.id, {
-            show_on_dashboard: editing.show_on_dashboard,
-            show_in_sidebar: editing.show_in_sidebar,
-          })
-        }
 
         setViews((prev) => [
           ...prev,

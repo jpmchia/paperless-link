@@ -49,6 +49,8 @@ export async function createSavedView(data: {
   display_mode?: string
   display_fields?: string[]
   page_size?: number
+  show_on_dashboard?: boolean
+  show_in_sidebar?: boolean
 }) {
   const token = await getToken()
   const res = await fetch(`${baseUrl}api/saved_views/`, {
