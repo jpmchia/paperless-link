@@ -1,0 +1,141 @@
+import * as React from "react"
+import { act, render, screen, waitFor } from "@testing-library/react"
+import { useAtomValue } from "jotai"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { JotaiProvider } from "@/components/jotai-provider"
+import { RealtimeProvider } from "@/components/realtime-provider"
+import { notificationsAtom } from "@/lib/stores/notifications"
+import {
+  activeRealtimeTasksAtom,
+  latestRealtimeEventAtom,
+  realtimeConnectionAtom,
+} from "@/lib/stores/realtime"
+
+const realtimeTestState = vi.hoisted(() => ({
+  connectMock: vi.fn(),
+  connectionListener: null as ((status: string) => void) | null,
+  disconnectMock: vi.fn(),
+  eventListener: null as ((event: unknown) => void) | null,
+  sessionStatus: "authenticated" as "authenticated" | "unauthenticated",
+  toastFn: Object.assign(vi.fn(), {
+    error: vi.fn(),
+    success: vi.fn(),
+  }),
+}))
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    status: realtimeTestState.sessionStatus,
+  }),
+}))
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/documents",
+}))
+
+vi.mock("sonner", () => ({
+  toast: realtimeTestState.toastFn,
+}))
+
+vi.mock("@/lib/realtime/client", () => ({
+  getRealtimeClient: () => ({
+    connect: realtimeTestState.connectMock,
+    disconnect: realtimeTestState.disconnectMock,
+    subscribeConnection: (listener: (status: string) => void) => {
+      realtimeTestState.connectionListener = listener
+      listener("idle")
+      return () => {
+        realtimeTestState.connectionListener = null
+      }
+    },
+    subscribeEvents: (listener: (event: unknown) => void) => {
+      realtimeTestState.eventListener = listener
+      return () => {
+        realtimeTestState.eventListener = null
+      }
+    },
+  }),
+}))
+
+function RealtimeProbe() {
+  const connection = useAtomValue(realtimeConnectionAtom)
+  const latestEvent = useAtomValue(latestRealtimeEventAtom)
+  const activeTasks = useAtomValue(activeRealtimeTasksAtom)
+  const notifications = useAtomValue(notificationsAtom)
+
+  return (
+    <>
+      <div data-testid="connection">{connection}</div>
+      <div data-testid="event">{latestEvent ? JSON.stringify(latestEvent) : "none"}</div>
+      <div data-testid="tasks">{JSON.stringify(activeTasks)}</div>
+      <div data-testid="notifications">{JSON.stringify(notifications)}</div>
+    </>
+  )
+}
+
+describe("RealtimeProvider", () => {
+  beforeEach(() => {
+    realtimeTestState.connectMock.mockReset()
+    realtimeTestState.disconnectMock.mockReset()
+    realtimeTestState.toastFn.mockReset()
+    realtimeTestState.toastFn.error.mockReset()
+    realtimeTestState.toastFn.success.mockReset()
+    realtimeTestState.sessionStatus = "authenticated"
+    realtimeTestState.connectionListener = null
+    realtimeTestState.eventListener = null
+  })
+
+  it("connects when authenticated and fans out task and notification events", async () => {
+    render(
+      <JotaiProvider>
+        <RealtimeProvider>
+          <RealtimeProbe />
+        </RealtimeProvider>
+      </JotaiProvider>
+    )
+
+    expect(realtimeTestState.connectMock).toHaveBeenCalled()
+
+    act(() => {
+      realtimeTestState.connectionListener?.("connected")
+      realtimeTestState.eventListener?.({
+        filename: "invoice.pdf",
+        kind: "task-progress",
+        status: "STARTED",
+        taskId: "task-1",
+      })
+      realtimeTestState.eventListener?.({
+        documentId: 44,
+        filename: "invoice.pdf",
+        kind: "document-consumed",
+        taskId: "task-1",
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId("connection")).toHaveTextContent("connected")
+      expect(screen.getByTestId("event")).toHaveTextContent("document-consumed")
+      expect(screen.getByTestId("tasks")).not.toHaveTextContent("task-1")
+      expect(screen.getByTestId("notifications")).toHaveTextContent(
+        "Document consumed"
+      )
+    })
+
+    expect(realtimeTestState.toastFn.success).toHaveBeenCalled()
+  })
+
+  it("disconnects instead of connecting when unauthenticated", () => {
+    realtimeTestState.sessionStatus = "unauthenticated"
+
+    render(
+      <JotaiProvider>
+        <RealtimeProvider>
+          <RealtimeProbe />
+        </RealtimeProvider>
+      </JotaiProvider>
+    )
+
+    expect(realtimeTestState.disconnectMock).toHaveBeenCalled()
+    expect(realtimeTestState.connectMock).not.toHaveBeenCalled()
+  })
+})

@@ -25,6 +25,7 @@ import {
 import { getJson, postJson } from "@/lib/paperless-client"
 import {
   activeRealtimeTasksAtom,
+  latestRealtimeEventAtom,
   realtimeConnectionAtom,
 } from "@/lib/stores/realtime"
 import {
@@ -133,17 +134,25 @@ export function SystemStatusView({
   initialStatus: SystemStatus | null
 }) {
   const realtimeConnection = useAtomValue(realtimeConnectionAtom)
+  const latestRealtimeEvent = useAtomValue(latestRealtimeEventAtom)
   const activeRealtimeTasks = useAtomValue(activeRealtimeTasksAtom)
   const [runningTask, setRunningTask] =
     React.useState<MaintenanceTaskName | null>(null)
   const [refreshing, setRefreshing] = React.useState(false)
   const [status, setStatus] = React.useState<SystemStatus | null>(initialStatus)
+  const [lastRefreshedAt, setLastRefreshedAt] = React.useState<string | null>(
+    initialStatus ? new Date().toISOString() : null
+  )
+  const lastAutoRefreshAtRef = React.useRef(0)
+  const previousConnectionRef =
+    React.useRef<typeof realtimeConnection>(realtimeConnection)
 
   const refreshStatus = React.useCallback(async () => {
     setRefreshing(true)
     try {
       const nextStatus = await getJson<SystemStatus>("/api/system-status")
       setStatus(nextStatus)
+      setLastRefreshedAt(new Date().toISOString())
     } catch (error) {
       toast.error("Failed to refresh system status", {
         description: error instanceof Error ? error.message : "Unknown error",
@@ -181,6 +190,40 @@ export function SystemStatusView({
       ),
     [activeRealtimeTasks]
   )
+
+  React.useEffect(() => {
+    const previousConnection = previousConnectionRef.current
+    previousConnectionRef.current = realtimeConnection
+
+    if (
+      realtimeConnection === "connected" &&
+      previousConnection !== "connected" &&
+      !refreshing
+    ) {
+      lastAutoRefreshAtRef.current = Date.now()
+      void refreshStatus()
+    }
+  }, [realtimeConnection, refreshStatus, refreshing])
+
+  React.useEffect(() => {
+    if (!latestRealtimeEvent || refreshing) return
+
+    switch (latestRealtimeEvent.kind) {
+      case "task-progress":
+      case "document-detected":
+      case "document-consumed":
+      case "document-failed":
+        break
+      default:
+        return
+    }
+
+    const now = Date.now()
+    if (now - lastAutoRefreshAtRef.current < 1500) return
+
+    lastAutoRefreshAtRef.current = now
+    void refreshStatus()
+  }, [latestRealtimeEvent, refreshStatus, refreshing])
 
   if (!status) {
     return (
@@ -220,6 +263,11 @@ export function SystemStatusView({
             {hasSystemStatusErrors(status) ? "Issues detected" : "Healthy"}
           </Badge>
           {versionMismatch && <Badge variant="secondary">Version mismatch</Badge>}
+          {lastRefreshedAt && (
+            <Badge variant="outline">
+              Refreshed {formatDateTime(lastRefreshedAt)}
+            </Badge>
+          )}
           <Badge
             variant={realtimeConnection === "connected" ? "outline" : "secondary"}
             className="gap-1"

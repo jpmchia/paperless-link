@@ -1,7 +1,13 @@
+import * as React from "react"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { useSetAtom } from "jotai"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { JotaiProvider } from "@/components/jotai-provider"
 import { SystemStatusView } from "@/app/system-status/system-status-view"
+import {
+  latestRealtimeEventAtom,
+  realtimeConnectionAtom,
+} from "@/lib/stores/realtime"
 import type { SystemStatus } from "@/lib/system-status"
 
 const getJsonMock = vi.fn()
@@ -39,6 +45,32 @@ const statusFixture: SystemStatus = {
     sanity_check_last_run: "2026-03-15T11:00:00Z",
     sanity_check_status: "WARNING",
   },
+}
+
+function RealtimeControls() {
+  const setConnection = useSetAtom(realtimeConnectionAtom)
+  const setLatestEvent = useSetAtom(latestRealtimeEventAtom)
+
+  return (
+    <>
+      <button type="button" onClick={() => setConnection("connected")}>
+        Connect
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          setLatestEvent({
+            kind: "task-progress",
+            message: "Processing",
+            status: "STARTED",
+            taskId: "task-1",
+          })
+        }
+      >
+        Push Task Event
+      </button>
+    </>
+  )
 }
 
 describe("SystemStatusView", () => {
@@ -84,6 +116,48 @@ describe("SystemStatusView", () => {
         task_name: "index_optimize",
       })
     })
+
+    await waitFor(() => {
+      expect(getJsonMock).toHaveBeenCalledWith("/api/system-status")
+    })
+  })
+
+  it("refreshes automatically when realtime reconnects", async () => {
+    getJsonMock.mockResolvedValue(statusFixture)
+
+    render(
+      <JotaiProvider>
+        <RealtimeControls />
+        <SystemStatusView
+          canRunTasks={false}
+          frontendVersion="2.14.0"
+          initialStatus={statusFixture}
+        />
+      </JotaiProvider>
+    )
+
+    fireEvent.click(screen.getByText("Connect"))
+
+    await waitFor(() => {
+      expect(getJsonMock).toHaveBeenCalledWith("/api/system-status")
+    })
+  })
+
+  it("refreshes automatically on realtime task updates", async () => {
+    getJsonMock.mockResolvedValue(statusFixture)
+
+    render(
+      <JotaiProvider>
+        <RealtimeControls />
+        <SystemStatusView
+          canRunTasks={false}
+          frontendVersion="2.14.0"
+          initialStatus={statusFixture}
+        />
+      </JotaiProvider>
+    )
+
+    fireEvent.click(screen.getByText("Push Task Event"))
 
     await waitFor(() => {
       expect(getJsonMock).toHaveBeenCalledWith("/api/system-status")
