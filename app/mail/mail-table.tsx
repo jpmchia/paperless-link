@@ -11,10 +11,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
+import { OpenDocumentLink } from "@/components/open-document-link"
 import { Trash2, Mail, Shield, History, ChromeIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import Link from "next/link"
 import { useAsyncAction } from "@/hooks/use-async-action"
 import { deleteJson } from "@/lib/paperless-client"
 import type { PermissionedObject } from "@/lib/permissions"
@@ -290,7 +290,12 @@ export function MailTable({ accounts, rules, processedMail = [], gmailOAuthUrl, 
                         <TableCell className="text-right">
                           {entry.document != null ? (
                             <Button size="sm" variant="ghost" className="h-7 text-xs" asChild>
-                              <Link href={`/documents/${entry.document}`}>View doc</Link>
+                              <OpenDocumentLink
+                                documentId={entry.document}
+                                title={entry.subject || `Document ${entry.document}`}
+                              >
+                                View doc
+                              </OpenDocumentLink>
                             </Button>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>

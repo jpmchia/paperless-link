@@ -1,10 +1,8 @@
 "use client"
 
 import * as React from "react"
-import Link from "next/link"
-import { Badge } from "@/components/ui/badge"
+import { OpenDocumentLink } from "@/components/open-document-link"
 import { tagPillStyle } from "@/lib/tag-colors"
-import { cn } from "@/lib/utils"
 import type { LookupMaps } from "./columns"
 
 interface CardGridProps {
@@ -35,9 +33,11 @@ export function CardGrid({ data, lookup }: CardGridProps) {
           .filter(Boolean)
 
         return (
-          <Link
+          <OpenDocumentLink
             key={doc.id}
+            documentId={doc.id}
             href={`/documents/${doc.id}`}
+            title={doc.title}
             className="group rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden hover:shadow-md hover:border-primary/50 transition-all flex flex-col"
           >
             {/* Thumbnail */}
@@ -93,7 +93,7 @@ export function CardGrid({ data, lookup }: CardGridProps) {
                 </div>
               )}
             </div>
-          </Link>
+          </OpenDocumentLink>
         )
       })}
     </div>

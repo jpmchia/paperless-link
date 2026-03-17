@@ -1,10 +1,10 @@
 "use client"
 
 import * as React from "react"
-import Link from "next/link"
 import { useAtomValue, useSetAtom } from "jotai"
 import { CanChange } from "@/components/permissions/can-change"
 import { CanView } from "@/components/permissions/can-view"
+import { OpenDocumentLink } from "@/components/open-document-link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -485,10 +485,13 @@ export function TasksView() {
                           <CanView type="document">
                             {task.related_document ? (
                               <Button variant="outline" size="sm" asChild>
-                                <Link href={`/documents/${task.related_document}`}>
+                                <OpenDocumentLink
+                                  documentId={task.related_document}
+                                  title={task.task_file_name || `Document ${task.related_document}`}
+                                >
                                   <ExternalLink className="mr-1 h-3.5 w-3.5" />
                                   Open
-                                </Link>
+                                </OpenDocumentLink>
                               </Button>
                             ) : null}
                           </CanView>

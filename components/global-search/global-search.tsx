@@ -28,6 +28,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command"
+import { useOpenDocumentNavigation } from "@/hooks/use-open-document-navigation"
 import { getJson, withQuery } from "@/lib/paperless-client"
 import { usePermissions } from "@/hooks/use-permissions"
 
@@ -115,6 +116,7 @@ export function GlobalSearch({
   savedViews: SavedViewEntry[]
 }) {
   const router = useRouter()
+  const navigateToDocument = useOpenDocumentNavigation()
   const pathname = usePathname()
   const { can, canManageConfig } = usePermissions()
   const [open, setOpen] = React.useState(false)
@@ -327,7 +329,10 @@ export function GlobalSearch({
                           key={document.id}
                           value={`document-${document.id}-${document.title}`}
                           onSelect={() =>
-                            handleNavigate(`/documents/${document.id}`)
+                            navigateToDocument({
+                              documentId: document.id,
+                              title: document.title || `Document ${document.id}`,
+                            })
                           }
                         >
                           <Files className="size-4" />

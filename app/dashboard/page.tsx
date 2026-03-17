@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell"
+import { OpenDocumentLink } from "@/components/open-document-link"
 import { getDocumentStatistics, getRecentDocuments, getSavedViews, getCorrespondents, getDocumentTypes } from "@/lib/api"
 import { requireRoutePermission } from "@/lib/server-permissions"
 import { FileText, Inbox, Tags, Users, Folder, Clock } from "lucide-react"
@@ -122,9 +123,11 @@ export default async function DashboardPage() {
             <div className="space-y-2">
               {recentDocuments.length > 0 ? (
                 recentDocuments.map((doc: any) => (
-                  <Link
+                  <OpenDocumentLink
                     key={doc.id}
+                    documentId={doc.id}
                     href={`/documents/${doc.id}`}
+                    title={doc.title}
                     className="flex flex-col gap-0.5 p-3 border rounded-lg hover:bg-muted/50 transition-colors group"
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -146,7 +149,7 @@ export default async function DashboardPage() {
                         </>
                       )}
                     </div>
-                  </Link>
+                  </OpenDocumentLink>
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-8">

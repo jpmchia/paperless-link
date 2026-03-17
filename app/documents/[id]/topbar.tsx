@@ -2,10 +2,10 @@
 
 import { useAtom, useAtomValue } from "jotai"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
+import { OpenDocumentLink } from "@/components/open-document-link"
 import { documentListState, visibleCustomFieldsAtom } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, MoreVertical, Trash2, RefreshCw, Save, ListChecks, Sparkles } from "lucide-react"
-import Link from "next/link"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -90,9 +90,12 @@ export function TopBar({
                     <div className="flex items-center rounded-md border p-1 mr-2 bg-secondary">
                         <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!prevId} asChild={!!prevId}>
                             {prevId ? (
-                                <Link href={`/documents/${prevId}`}>
+                                <OpenDocumentLink
+                                    documentId={prevId}
+                                    title={`Document ${prevId}`}
+                                >
                                     <ChevronLeft className="h-4 w-4" />
-                                </Link>
+                                </OpenDocumentLink>
                             ) : <ChevronLeft className="h-4 w-4" />}
                         </Button>
                         <span className="text-xs text-muted-foreground px-2">
@@ -100,9 +103,12 @@ export function TopBar({
                         </span>
                         <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!nextId} asChild={!!nextId}>
                             {nextId ? (
-                                <Link href={`/documents/${nextId}`}>
+                                <OpenDocumentLink
+                                    documentId={nextId}
+                                    title={`Document ${nextId}`}
+                                >
                                     <ChevronRight className="h-4 w-4" />
-                                </Link>
+                                </OpenDocumentLink>
                             ) : <ChevronRight className="h-4 w-4" />}
                         </Button>
                     </div>
@@ -117,7 +123,7 @@ export function TopBar({
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-[240px]">
                                 <div className="max-h-[80vh] overflow-y-auto">
-                                    {customFieldsList?.map((cf: any) => (
+                                    {customFieldsList?.map((cf: CustomFieldItem) => (
                                         <DropdownMenuCheckboxItem
                                             key={cf.id}
                                             checked={visibleCustomFields.includes(cf.id)}

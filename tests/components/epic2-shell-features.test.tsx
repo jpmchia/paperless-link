@@ -4,6 +4,7 @@ import { useAtomValue, useSetAtom } from "jotai"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { JotaiProvider } from "@/components/jotai-provider"
 import { NotificationCenter } from "@/components/notifications/notification-center"
+import { OpenDocumentLink } from "@/components/open-document-link"
 import { OpenDocumentTracker } from "@/components/open-document-tracker"
 import { SidebarOpenDocuments } from "@/components/sidebar-open-documents"
 import { Sidebar, SidebarProvider } from "@/components/ui/sidebar"
@@ -14,9 +15,33 @@ import {
 import { openDocumentsAtom } from "@/lib/stores/open-documents"
 
 const pathnameMock = vi.fn()
+const pushMock = vi.fn()
+
+vi.mock("next/link", () => ({
+  default: ({
+    children,
+    href,
+    onClick,
+    ...props
+  }: React.ComponentProps<"a"> & { href?: string }) => (
+    <a
+      {...props}
+      href={href}
+      onClick={(event) => {
+        onClick?.(event)
+        event.preventDefault()
+      }}
+    >
+      {children}
+    </a>
+  ),
+}))
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathnameMock(),
+  useRouter: () => ({
+    push: pushMock,
+  }),
 }))
 
 function NotificationSeed({
@@ -42,6 +67,7 @@ function OpenDocumentsProbe() {
 describe("Epic 2 shell features", () => {
   beforeEach(() => {
     pathnameMock.mockReset()
+    pushMock.mockReset()
     pathnameMock.mockReturnValue("/documents/42")
   })
 
@@ -98,6 +124,26 @@ describe("Epic 2 shell features", () => {
 
     await waitFor(() => {
       expect(screen.queryByText("Quarterly report")).not.toBeInTheDocument()
+    })
+    expect(pushMock).toHaveBeenCalledWith("/documents")
+  })
+
+  it("tracks document links when users open a document outside the detail page", async () => {
+    render(
+      <JotaiProvider>
+        <OpenDocumentsProbe />
+        <OpenDocumentLink documentId={12} title="Invoice 12">
+          Open invoice
+        </OpenDocumentLink>
+      </JotaiProvider>
+    )
+
+    fireEvent.click(screen.getByText("Open invoice"))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("open-documents-json")).toHaveTextContent(
+        "Invoice 12"
+      )
     })
   })
 })

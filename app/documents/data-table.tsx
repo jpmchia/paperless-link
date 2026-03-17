@@ -13,6 +13,7 @@ import {
 } from "@tanstack/react-table"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSetAtom } from "jotai"
+import { useOpenDocumentNavigation } from "@/hooks/use-open-document-navigation"
 import { documentListState } from "@/lib/store"
 import type { FilterParams } from "@/lib/api"
 import {
@@ -105,6 +106,7 @@ export function DataTable({
   groupsList = [],
 }: DataTableProps) {
   const router = useRouter()
+  const navigateToDocument = useOpenDocumentNavigation()
   const searchParams = useSearchParams()
   const setDocList = useSetAtom(documentListState)
   const [sorting, setSorting] = React.useState<SortingState>([])
@@ -495,7 +497,12 @@ export function DataTable({
                 <TableRow
                   key={row.id}
                   className="cursor-pointer hover:bg-muted/50 group/row"
-                  onClick={() => router.push(`/documents/${row.original.id}`)}
+                  onClick={() =>
+                    navigateToDocument({
+                      documentId: row.original.id,
+                      title: row.original.title || `Document ${row.original.id}`,
+                    })
+                  }
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell

@@ -1,7 +1,7 @@
-import Link from "next/link"
 import { Copy } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { OpenDocumentLink } from "@/components/open-document-link"
 
 interface DuplicateDocument {
   id: number
@@ -47,7 +47,9 @@ export function DuplicatesTab({ duplicates }: DuplicatesTabProps) {
               </div>
             </div>
             <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" asChild>
-              <Link href={`/documents/${doc.id}`}>Open</Link>
+              <OpenDocumentLink documentId={doc.id} title={doc.title}>
+                Open
+              </OpenDocumentLink>
             </Button>
           </div>
         ))}

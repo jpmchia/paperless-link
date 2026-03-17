@@ -2,7 +2,7 @@
 
 import { useAtom } from "jotai"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { FileText, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,6 +22,7 @@ import {
 
 export function SidebarOpenDocuments() {
   const pathname = usePathname()
+  const router = useRouter()
   const [openDocuments] = useAtom(openDocumentsAtom)
   const [, closeDocument] = useAtom(closeOpenDocumentAtom)
   const [, closeAll] = useAtom(closeAllOpenDocumentsAtom)
@@ -30,12 +31,28 @@ export function SidebarOpenDocuments() {
     return null
   }
 
+  const closeDocumentEntry = (documentId: number, href: string) => {
+    closeDocument(documentId)
+
+    if (pathname === href) {
+      router.push("/documents")
+    }
+  }
+
+  const closeAllDocuments = () => {
+    closeAll()
+
+    if (pathname.startsWith("/documents/")) {
+      router.push("/documents")
+    }
+  }
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Open Documents</SidebarGroupLabel>
       <SidebarGroupAction
         title="Close all open documents"
-        onClick={() => closeAll()}
+        onClick={closeAllDocuments}
       >
         <X />
         <span className="sr-only">Close all open documents</span>
@@ -60,7 +77,7 @@ export function SidebarOpenDocuments() {
                   variant="ghost"
                   size="icon-xs"
                   className="mr-1 opacity-0 transition-opacity group-hover/open-doc:opacity-100"
-                  onClick={() => closeDocument(document.id)}
+                  onClick={() => closeDocumentEntry(document.id, document.href)}
                   aria-label={`Close ${document.title}`}
                 >
                   <X className="size-3" />

@@ -8,8 +8,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { OpenDocumentLink } from "@/components/open-document-link"
 import { ExternalLink, Loader2 } from "lucide-react"
-import Link from "next/link"
 
 interface DocumentPreviewDialogProps {
   documentId: number | null
@@ -44,10 +44,13 @@ export function DocumentPreviewDialog({
                 className="h-8 gap-1.5 flex-shrink-0 text-xs"
                 asChild
               >
-                <Link href={`/documents/${documentId}`}>
+                <OpenDocumentLink
+                  documentId={documentId}
+                  title={documentTitle || `Document #${documentId}`}
+                >
                   <ExternalLink className="h-3.5 w-3.5" />
                   Open
-                </Link>
+                </OpenDocumentLink>
               </Button>
             )}
           </div>
