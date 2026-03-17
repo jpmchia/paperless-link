@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useAtomValue } from "jotai"
+import { useAtomValue, useSetAtom } from "jotai"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -70,6 +70,16 @@ import {
 } from "@/lib/permissions"
 import { getJson } from "@/lib/paperless-client"
 import { currentUserPermissionsAtom } from "@/lib/stores/permissions"
+import {
+  latestRealtimeEventAtom,
+  realtimeConnectionAtom,
+} from "@/lib/stores/realtime"
+import {
+  adjustPendingTaskCountAtom,
+  countPendingTasks,
+  setPendingTaskCountAtom,
+  pendingTaskCountAtom,
+} from "@/lib/stores/tasks"
 import { updateUiSettings } from "@/lib/ui-settings"
 import type { CurrentUserPermissions } from "@/lib/permissions"
 
@@ -178,35 +188,55 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const pathname = usePathname()
   const hydratedPermissions = useAtomValue(currentUserPermissionsAtom)
+  const pendingTaskCount = useAtomValue(pendingTaskCountAtom)
+  const latestRealtimeEvent = useAtomValue(latestRealtimeEventAtom)
+  const realtimeConnection = useAtomValue(realtimeConnectionAtom)
+  const setPendingTaskCount = useSetAtom(setPendingTaskCountAtom)
+  const adjustPendingTaskCount = useSetAtom(adjustPendingTaskCountAtom)
   const [viewsOpen, setViewsOpen] = React.useState(true)
-  const [pendingTaskCount, setPendingTaskCount] = React.useState(0)
 
   const currentUserPermissions =
     hydratedPermissions.isAuthenticated || !initialPermissions
       ? hydratedPermissions
       : initialPermissions
 
-  React.useEffect(() => {
-    const fetchCount = async () => {
-      try {
-        const data = await getJson<
-          SidebarTaskSummary[] | { results?: SidebarTaskSummary[] }
-        >("/api/tasks")
-        const tasks = Array.isArray(data) ? data : data.results ?? []
-        const count = tasks.filter(
-          (task) =>
-            !task.acknowledged &&
-            (task.status === "PENDING" || task.status === "STARTED")
-        ).length
-        setPendingTaskCount(count)
-      } catch {
-        // silently ignore
-      }
+  const syncPendingTasks = React.useCallback(async () => {
+    try {
+      const data = await getJson<
+        SidebarTaskSummary[] | { results?: SidebarTaskSummary[] }
+      >("/api/tasks")
+      const tasks = Array.isArray(data) ? data : data.results ?? []
+      setPendingTaskCount(countPendingTasks(tasks))
+    } catch {
+      // Silently ignore shell task-count sync failures.
     }
-    fetchCount()
-    const interval = setInterval(fetchCount, 30_000)
-    return () => clearInterval(interval)
-  }, [])
+  }, [setPendingTaskCount])
+
+  React.useEffect(() => {
+    void syncPendingTasks()
+  }, [syncPendingTasks])
+
+  React.useEffect(() => {
+    if (realtimeConnection === "connected") {
+      void syncPendingTasks()
+    }
+  }, [realtimeConnection, syncPendingTasks])
+
+  React.useEffect(() => {
+    if (!latestRealtimeEvent) return
+
+    switch (latestRealtimeEvent.kind) {
+      case "document-detected":
+        adjustPendingTaskCount(1)
+        break
+      case "document-consumed":
+      case "document-failed":
+        adjustPendingTaskCount(-1)
+        break
+      default:
+        break
+    }
+  }, [adjustPendingTaskCount, latestRealtimeEvent])
 
   const initialSidebarViews = savedViews.filter((v) => v.show_in_sidebar)
   const [orderedViews, setOrderedViews] = React.useState<SavedViewEntry[]>(initialSidebarViews)
