@@ -23,13 +23,13 @@ interface TrashDoc {
 }
 
 async function bulkTrashAction(ids: number[], method: string) {
-  const res = await fetch("/api/bulk-edit", {
+  const action = method === "untrash" ? "restore" : "empty"
+  const res = await fetch("/api/proxy/trash/", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      action,
       documents: ids,
-      method,
-      parameters: {},
     }),
   })
   if (!res.ok) throw new Error("Action failed")

@@ -11,6 +11,26 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 
+interface MetadataDocument {
+  added?: string
+  id?: number
+  modified?: string
+}
+
+interface DocumentMetadata {
+  archive_checksum?: string
+  archive_metadata?: Record<string, unknown> | unknown[] | null
+  archive_size?: number
+  has_archive_version?: boolean
+  media_filename?: string
+  media_info?: Record<string, unknown> | unknown[] | null
+  original_checksum?: string
+  original_filename?: string
+  original_mime_type?: string
+  original_size?: number
+  [key: string]: unknown
+}
+
 function formatFileSize(bytes?: number) {
   if (bytes === undefined || bytes === null) return null
   if (bytes < 1024) return `${bytes} B`
@@ -48,13 +68,14 @@ export function MetadataTab({
   metadata,
   document,
 }: {
-  metadata: Record<string, unknown> | null
-  document: { added?: string; id?: number; modified?: string } | null
+  metadata: DocumentMetadata | null
+  document: MetadataDocument | null
 }) {
   const [currentDocument, setCurrentDocument] = React.useState(document)
   const [currentMetadata, setCurrentMetadata] = React.useState(metadata)
   const refreshToken = useRealtimeDocumentRefresh({
-    documentId: document?.id,
+    documentId: document?.id ?? 0,
+    enabled: typeof document?.id === "number",
   })
 
   React.useEffect(() => {
@@ -107,7 +128,10 @@ export function MetadataTab({
           {data.map((item, i) => {
             if (typeof item === "object" && item !== null) {
               const obj = item as Record<string, unknown>
-              const keyStr = obj.prefix ? `${obj.prefix}:${obj.key}` : obj.key || `Item ${i}`
+              const keyStr =
+                obj.prefix || obj.key
+                  ? `${String(obj.prefix ?? "")}${obj.prefix ? ":" : ""}${String(obj.key ?? "")}`
+                  : `Item ${i}`
               const valStr =
                 obj.value !== undefined ? String(obj.value) : JSON.stringify(obj)
               return (

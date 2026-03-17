@@ -4,10 +4,19 @@ import { getPaperlessApi } from "@/lib/api"
 import { requireRoutePermission } from "@/lib/server-permissions"
 import { TrashTable } from "./trash-table"
 
+interface TrashDocument {
+  created?: string
+  deleted_at?: string
+  id: number
+  title: string
+}
+
 async function getTrashedDocuments() {
   try {
-    const data = await getPaperlessApi("documents/?is_in_trash=true&page_size=100") as any
-    return (data.results || []) as any[]
+    const data = (await getPaperlessApi(
+      "trash/?page=1&page_size=100"
+    )) as { results?: TrashDocument[] }
+    return data.results || []
   } catch {
     return []
   }

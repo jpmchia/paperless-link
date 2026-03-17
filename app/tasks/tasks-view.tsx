@@ -114,6 +114,10 @@ function getTabLabel(tab: TaskTab) {
   }
 }
 
+function getDismissLabel(task: PaperlessTask) {
+  return task.status === "SUCCESS" ? "Clear from history" : "Dismiss"
+}
+
 function matchesTaskFilter(
   task: PaperlessTask,
   filterText: string,
@@ -207,7 +211,17 @@ export function TasksView() {
     successMessage: "Tasks acknowledged",
   })
 
-  const unacknowledged = tasks.filter((task) => !task.acknowledged)
+  const actionableUnacknowledged = tasks.filter(
+    (task) =>
+      !task.acknowledged &&
+      (task.status === "PENDING" ||
+        task.status === "STARTED" ||
+        task.status === "FAILURE" ||
+        task.status === "REVOKED")
+  )
+  const completedHistoryItems = tasks.filter(
+    (task) => !task.acknowledged && task.status === "SUCCESS"
+  )
   const counts = React.useMemo(
     () => ({
       completed: tasks.filter((task) => getTaskTab(task) === "completed").length,
@@ -301,8 +315,10 @@ export function TasksView() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">
             {tasks.length} task(s)
-            {unacknowledged.length > 0 &&
-              ` · ${unacknowledged.length} unacknowledged`}
+            {actionableUnacknowledged.length > 0 &&
+              ` · ${actionableUnacknowledged.length} active or failed`}
+            {completedHistoryItems.length > 0 &&
+              ` · ${completedHistoryItems.length} completed history item${completedHistoryItems.length === 1 ? "" : "s"}`}
             {selectedTaskIds.length > 0 &&
               ` · ${selectedTaskIds.length} selected`}
           </p>
@@ -486,7 +502,7 @@ export function TasksView() {
                               disabled={dismissing}
                             >
                               <Trash2 className="mr-1 h-3.5 w-3.5" />
-                              Dismiss
+                              {getDismissLabel(task)}
                             </Button>
                           </CanChange>
                           <CanView type="document">
