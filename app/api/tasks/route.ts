@@ -5,17 +5,29 @@ import { NextResponse } from "next/server"
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
 
 async function getToken() {
-  const session = await getServerSession(authOptions as any)
-  const token = (session as any)?.accessToken
-  if (!token) return null
-  return token
+  const session = (await getServerSession(authOptions)) as
+    | { accessToken?: unknown }
+    | null
+  return typeof session?.accessToken === "string" ? session.accessToken : null
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const token = await getToken()
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const res = await fetch(`${baseUrl}api/tasks/`, {
+  const url = new URL(req.url)
+  const params = new URLSearchParams(url.search)
+
+  if (!params.has("acknowledged")) {
+    params.set("acknowledged", "false")
+  }
+
+  if (!params.has("task_name")) {
+    params.set("task_name", "consume_file")
+  }
+
+  const query = params.toString()
+  const res = await fetch(`${baseUrl}api/tasks/${query ? `?${query}` : ""}`, {
     headers: {
       Authorization: `Token ${token}`,
       Accept: "application/json; version=2",
