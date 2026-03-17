@@ -1,5 +1,10 @@
 import type { FilterParams } from "@/lib/api"
 import { filterParamsFromSavedView } from "@/lib/api"
+import {
+  DEFAULT_DOCUMENT_DISPLAY_MODE,
+  type DocumentDisplayMode,
+  normalizeDocumentDisplayMode,
+} from "./display-mode"
 
 type SavedViewRule = {
   rule_type: number
@@ -10,12 +15,14 @@ type ComparableSavedViewState = {
   filterRules: SavedViewRule[]
   sortField: string
   sortReverse: boolean
+  displayMode: DocumentDisplayMode
 }
 
 type SavedViewLike = {
   filter_rules?: Array<{ rule_type?: number; value?: string | number | boolean | null }>
   sort_field?: string | null
   sort_reverse?: boolean | null
+  display_mode?: string | null
 }
 
 export const DEFAULT_SAVED_VIEW_ORDERING = "-created"
@@ -76,7 +83,8 @@ export function orderingToSavedViewSort(ordering?: string | null) {
 }
 
 export function getComparableSavedViewStateFromFilters(
-  filters: FilterParams
+  filters: FilterParams,
+  displayMode?: unknown
 ): ComparableSavedViewState {
   const sort = orderingToSavedViewSort(filters.ordering)
 
@@ -84,6 +92,8 @@ export function getComparableSavedViewStateFromFilters(
     filterRules: filterParamsToSavedViewRules(filters),
     sortField: sort.sortField,
     sortReverse: sort.sortReverse,
+    displayMode:
+      normalizeDocumentDisplayMode(displayMode) ?? DEFAULT_DOCUMENT_DISPLAY_MODE,
   }
 }
 
@@ -93,7 +103,10 @@ export function getComparableSavedViewStateFromView(
   if (!view) return null
 
   const comparableFilters = filterParamsFromSavedView(view)
-  return getComparableSavedViewStateFromFilters(comparableFilters)
+  return getComparableSavedViewStateFromFilters(
+    comparableFilters,
+    view.display_mode
+  )
 }
 
 export function savedViewStatesEqual(
@@ -105,17 +118,19 @@ export function savedViewStatesEqual(
   return (
     left.sortField === right.sortField &&
     left.sortReverse === right.sortReverse &&
+    left.displayMode === right.displayMode &&
     JSON.stringify(left.filterRules) === JSON.stringify(right.filterRules)
   )
 }
 
 export function isSavedViewDirty(
   filters: FilterParams,
-  baseline: ComparableSavedViewState | null | undefined
+  baseline: ComparableSavedViewState | null | undefined,
+  displayMode?: unknown
 ) {
   if (!baseline) return false
   return !savedViewStatesEqual(
-    getComparableSavedViewStateFromFilters(filters),
+    getComparableSavedViewStateFromFilters(filters, displayMode),
     baseline
   )
 }

@@ -33,10 +33,7 @@ import {
   DISPLAY_FIELD_OWNER,
   DISPLAY_FIELD_SHARED,
   DISPLAY_FIELD_PAGE_COUNT,
-  CUSTOM_FIELD_PREFIX,
 } from "./columns"
-import { patchSavedView } from "./saved-view-actions"
-import { toast } from "sonner"
 
 import {
   Table,
@@ -55,13 +52,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Columns, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Eye, EyeOff, ScanEye } from "lucide-react"
+  ChevronLeft,
+  ChevronRight,
+  ScanEye,
+} from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import Link from "next/link"
 import { BulkActionBar } from "./bulk-action-bar"
@@ -88,34 +82,118 @@ interface DataTableProps {
   lookup: LookupMaps
   data: any[]
   pageCount: number
-  currentPage: number
-  totalCount: number
   displayFields?: string[]
-  activeViewId?: number | null
   currentFilters?: FilterParams
   onFilterChange?: (params: FilterParams) => void
   usersList?: any[]
   groupsList?: any[]
+  onDisplayFieldsChange?: React.Dispatch<React.SetStateAction<string[]>>
 }
 
 const PAGE_SIZES = [10, 25, 50, 100]
+
+interface DataTableHeaderBarProps {
+  currentPage: number
+  pageCount: number
+  totalCount: number
+}
+
+export function DataTableHeaderBar({
+  currentPage,
+  pageCount,
+  totalCount,
+}: DataTableHeaderBarProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const pageSize = Number(searchParams.get("page_size") || "25")
+  const start = (currentPage - 1) * pageSize + 1
+  const end = Math.min(currentPage * pageSize, totalCount)
+
+  const buildPageUrl = (page: number) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("page", String(page))
+    return `?${params.toString()}`
+  }
+
+  const buildPageSizeUrl = (size: number) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("page_size", String(size))
+    params.delete("page")
+    return `?${params.toString()}`
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-3 text-sm text-muted-foreground">
+        <span className="whitespace-nowrap">{totalCount.toLocaleString()} documents</span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+        <span className="whitespace-nowrap">
+          {totalCount > 0 ? `${start}–${end} of ${totalCount.toLocaleString()}` : "0 results"}
+        </span>
+
+        <Select
+          value={String(pageSize)}
+          onValueChange={(value) => router.push(buildPageSizeUrl(Number(value)))}
+        >
+          <SelectTrigger className="h-7 w-[72px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PAGE_SIZES.map((size) => (
+              <SelectItem key={size} value={String(size)}>
+                {size}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            disabled={currentPage <= 1}
+            asChild
+          >
+            <Link href={buildPageUrl(currentPage - 1)}>
+              <ChevronLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+          <span className="min-w-[60px] text-center text-xs">
+            {currentPage} / {pageCount || 1}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            disabled={currentPage >= (pageCount || 1)}
+            asChild
+          >
+            <Link href={buildPageUrl(currentPage + 1)}>
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function DataTable({
   lookup,
   data,
   pageCount,
-  currentPage,
-  totalCount,
   displayFields: initialDisplayFields,
-  activeViewId,
   currentFilters = {},
   onFilterChange,
   usersList = [],
   groupsList = [],
+  onDisplayFieldsChange,
 }: DataTableProps) {
   const router = useRouter()
   const navigateToDocument = useOpenDocumentNavigation()
-  const searchParams = useSearchParams()
   const setDocList = useSetAtom(documentListState)
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
@@ -123,40 +201,31 @@ export function DataTable({
   const [previewDocId, setPreviewDocId] = React.useState<number | null>(null)
   const [previewDocTitle, setPreviewDocTitle] = React.useState<string | undefined>()
   const [columnResizeMode] = React.useState<ColumnResizeMode>("onChange")
-  const pageSize = Number(searchParams.get("page_size") || "25")
 
   // Local display fields state — initialized from prop (view's settings) or default
-  const [displayFields, setDisplayFields] = React.useState<string[]>(
+  const [localDisplayFields, setLocalDisplayFields] = React.useState<string[]>(
     initialDisplayFields && initialDisplayFields.length > 0
       ? initialDisplayFields
       : DEFAULT_DISPLAY_FIELDS
   )
+  const displayFields = onDisplayFieldsChange ? (initialDisplayFields ?? DEFAULT_DISPLAY_FIELDS) : localDisplayFields
+  const setDisplayFields = onDisplayFieldsChange ?? setLocalDisplayFields
 
   // Re-sync when prop changes (e.g. navigating between views)
   React.useEffect(() => {
-    if (initialDisplayFields && initialDisplayFields.length > 0) {
-      setDisplayFields(initialDisplayFields)
-    } else {
-      setDisplayFields(DEFAULT_DISPLAY_FIELDS)
+    if (!onDisplayFieldsChange) {
+      if (initialDisplayFields && initialDisplayFields.length > 0) {
+        setLocalDisplayFields(initialDisplayFields)
+      } else {
+        setLocalDisplayFields(DEFAULT_DISPLAY_FIELDS)
+      }
     }
-  }, [initialDisplayFields?.join(",")]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialDisplayFields?.join(","), onDisplayFieldsChange]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep document ID list in Jotai for Next/Prev navigation in detail view
   React.useEffect(() => {
     setDocList(data.map((d: any) => d.id))
   }, [data, setDocList])
-
-  // Build all known custom field entries
-  const customFieldEntries = Object.values(lookup.customFields ?? {}) as any[]
-
-  // Combine all available fields for the picker (standard + custom)
-  const allAvailableFields: { id: string; label: string }[] = [
-    ...ALL_FIELDS,
-    ...customFieldEntries.map((cf) => ({
-      id: `${CUSTOM_FIELD_PREFIX}${cf.id}`,
-      label: cf.name,
-    })),
-  ]
 
   const columns = React.useMemo(() => {
     const selectColumn: ColumnDef<any>[] = [{
@@ -230,57 +299,6 @@ export function DataTable({
     },
   })
 
-  // --- Display field ordering helpers ---
-
-  const moveField = (id: string, dir: "up" | "down") => {
-    setDisplayFields((prev) => {
-      const idx = prev.indexOf(id)
-      if (idx === -1) return prev
-      const next = [...prev]
-      const swap = dir === "up" ? idx - 1 : idx + 1
-      if (swap < 0 || swap >= next.length) return prev
-      ;[next[idx], next[swap]] = [next[swap], next[idx]]
-      return next
-    })
-  }
-
-  const toggleField = (fieldId: string) => {
-    setDisplayFields((prev) =>
-      prev.includes(fieldId)
-        ? prev.filter((f) => f !== fieldId)
-        : [...prev, fieldId]
-    )
-  }
-
-  const saveColumns = async () => {
-    if (!activeViewId) return
-    setSaving(true)
-    try {
-      await patchSavedView(activeViewId, { display_fields: displayFields })
-      toast.success("Column layout saved to view")
-    } catch (e: any) {
-      toast.error("Failed to save columns", { description: e.message })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const buildPageUrl = (page: number) => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set("page", String(page))
-    return `?${params.toString()}`
-  }
-
-  const buildPageSizeUrl = (size: number) => {
-    const params = new URLSearchParams(searchParams.toString())
-    params.set("page_size", String(size))
-    params.delete("page")
-    return `?${params.toString()}`
-  }
-
-  const start = (currentPage - 1) * pageSize + 1
-  const end = Math.min(currentPage * pageSize, totalCount)
-
   const selectedIds = Object.keys(rowSelection).map(Number)
 
   const handleBulkComplete = () => {
@@ -290,168 +308,6 @@ export function DataTable({
 
   return (
     <div className="flex flex-col gap-2 min-h-0 flex-1">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between gap-2 flex-shrink-0">
-        {/* Column picker */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Columns className="mr-2 h-4 w-4" />
-              Columns
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            className="w-[260px] max-h-[440px] overflow-y-auto"
-            onCloseAutoFocus={(e) => e.preventDefault()}
-          >
-            {/* Active columns — ordered, with Up/Down reorder + hide button */}
-            <DropdownMenuLabel className="text-xs text-muted-foreground">
-              Active columns (drag order with ↑↓)
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {displayFields.map((fId, idx) => {
-              const meta = allAvailableFields.find((f) => f.id === fId)
-              if (!meta) return null
-              return (
-                <div
-                  key={fId}
-                  className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent rounded-sm"
-                >
-                  <span className="flex-1 truncate">{meta.label}</span>
-                  <button
-                    type="button"
-                    className="p-0.5 rounded hover:bg-muted disabled:opacity-30"
-                    disabled={idx === 0}
-                    onClick={() => moveField(fId, "up")}
-                    title="Move up"
-                  >
-                    <ChevronUp className="h-3 w-3" />
-                  </button>
-                  <button
-                    type="button"
-                    className="p-0.5 rounded hover:bg-muted disabled:opacity-30"
-                    disabled={idx === displayFields.length - 1}
-                    onClick={() => moveField(fId, "down")}
-                    title="Move down"
-                  >
-                    <ChevronDown className="h-3 w-3" />
-                  </button>
-                  <button
-                    type="button"
-                    className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-destructive"
-                    onClick={() => toggleField(fId)}
-                    title="Hide column"
-                  >
-                    <EyeOff className="h-3 w-3" />
-                  </button>
-                </div>
-              )
-            })}
-
-            {/* Hidden columns — show + button to add them */}
-            {(() => {
-              const hidden = allAvailableFields.filter(
-                (f) => !displayFields.includes(f.id)
-              )
-              if (hidden.length === 0) return null
-              return (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs text-muted-foreground">
-                    Hidden columns
-                  </DropdownMenuLabel>
-                  {hidden.map((f) => (
-                    <div
-                      key={f.id}
-                      className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground rounded-sm"
-                    >
-                      <span className="flex-1 truncate">{f.label}</span>
-                      <button
-                        type="button"
-                        className="p-0.5 rounded hover:bg-muted"
-                        onClick={() => toggleField(f.id)}
-                        title="Show column"
-                      >
-                        <Eye className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </>
-              )
-            })()}
-
-            {/* Save to view button */}
-            {activeViewId && (
-              <>
-                <DropdownMenuSeparator />
-                <div className="p-1">
-                  <Button
-                    size="sm"
-                    className="w-full h-7 text-xs"
-                    onClick={saveColumns}
-                    disabled={saving}
-                  >
-                    {saving ? "Saving…" : "Save to view"}
-                  </Button>
-                </div>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Pagination */}
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="whitespace-nowrap">
-            {totalCount > 0 ? `${start}–${end} of ${totalCount.toLocaleString()}` : "0 results"}
-          </span>
-
-          <Select
-            value={String(pageSize)}
-            onValueChange={(v) => router.push(buildPageSizeUrl(Number(v)))}
-          >
-            <SelectTrigger className="h-7 w-[72px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PAGE_SIZES.map((s) => (
-                <SelectItem key={s} value={String(s)}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              disabled={currentPage <= 1}
-              asChild
-            >
-              <Link href={buildPageUrl(currentPage - 1)}>
-                <ChevronLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-            <span className="min-w-[60px] text-center text-xs">
-              {currentPage} / {pageCount || 1}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              disabled={currentPage >= (pageCount || 1)}
-              asChild
-            >
-              <Link href={buildPageUrl(currentPage + 1)}>
-                <ChevronRight className="h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </div>
-
       {/* Bulk Action Bar */}
       {selectedIds.length > 0 && (
         <BulkActionBar
@@ -468,7 +324,7 @@ export function DataTable({
         />
       )}
       {/* Table */}
-      <div className="rounded-md border overflow-auto flex-1">
+      <div className="relative flex-1 overflow-auto rounded-md border [&>[data-slot=table-container]]:overflow-visible">
         <Table
           className="text-xs"
           style={{ tableLayout: "fixed", width: table.getTotalSize() }}
@@ -479,7 +335,7 @@ export function DataTable({
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className="relative overflow-hidden group/th whitespace-nowrap text-xs"
+                    className="sticky top-0 z-20 overflow-hidden border-b bg-muted text-xs whitespace-nowrap backdrop-blur supports-[backdrop-filter]:bg-muted/50 group/th"
                     style={{ width: header.getSize() }}
                   >
                     {header.isPlaceholder

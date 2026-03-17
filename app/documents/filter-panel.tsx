@@ -41,6 +41,7 @@ import {
   filterParamsToSavedViewRules,
 } from "./saved-view-state"
 import { tagColourHex } from "@/lib/tag-colors"
+import type { DocumentDisplayMode } from "./display-mode"
 
 type ActiveSavedView = PermissionedObject & {
   filter_rules?: Array<{ rule_type?: number; value?: string | number | boolean | null }>
@@ -57,13 +58,14 @@ interface FilterPanelProps {
   tags: any[]
   users?: Array<{ id: number; username?: string; first_name?: string; last_name?: string }>
   savedViews: any[]
-  totalCount: number
   activeViewId?: number | null
   activeViewName?: string | null
   activeView?: ActiveSavedView | null
   initialFilters?: FilterParams
   onFilterChange?: (params: FilterParams) => void
   currentUserId?: number | null
+  currentDisplayMode?: DocumentDisplayMode
+  trailingControls?: React.ReactNode
 }
 
 const SORT_OPTIONS = [
@@ -146,13 +148,14 @@ export function FilterPanel({
   tags,
   users = [],
   savedViews,
-  totalCount,
   activeViewId,
   activeViewName,
   activeView,
   initialFilters = {},
   onFilterChange,
   currentUserId,
+  currentDisplayMode,
+  trailingControls,
 }: FilterPanelProps) {
   // Use local state as the primary state driver (not the stale Jotai atom)
   // This avoids localStorage clobbering server-derived view filters on hydration
@@ -173,8 +176,15 @@ export function FilterPanel({
   const router = useRouter()
   const pathname = usePathname()
 
-  const currentSavedViewState = getComparableSavedViewStateFromFilters(filters)
-  const activeViewIsDirty = isSavedViewDirty(filters, savedViewBaseline)
+  const currentSavedViewState = getComparableSavedViewStateFromFilters(
+    filters,
+    currentDisplayMode
+  )
+  const activeViewIsDirty = isSavedViewDirty(
+    filters,
+    savedViewBaseline,
+    currentDisplayMode
+  )
 
   // Keep Jotai atom in sync for cross-component use (e.g. document detail Next/Prev)
   React.useEffect(() => {
@@ -435,6 +445,7 @@ export function FilterPanel({
         filter_rules: currentSavedViewState.filterRules,
         sort_field: sortParts.sortField,
         sort_reverse: sortParts.sortReverse,
+        display_mode: currentSavedViewState.displayMode,
       })
       setSavedViewBaseline(currentSavedViewState)
       toast.success(`View "${activeViewName}" saved`)
@@ -456,6 +467,7 @@ export function FilterPanel({
         filter_rules: filterParamsToSavedViewRules(filters),
         sort_field: sortParts.sortField,
         sort_reverse: sortParts.sortReverse,
+        display_mode: currentSavedViewState.displayMode,
         show_on_dashboard: false,
         show_in_sidebar: false,
       })
@@ -516,57 +528,18 @@ export function FilterPanel({
   const currentSort = SORT_OPTIONS.find((o) => o.value === (filters.ordering || "-created"))
 
   // Split saved views into sidebar views (show_in_sidebar) and the rest
-  const sidebarViews = savedViews.filter((v: any) => v.show_in_sidebar)
   const allViews = savedViews
 
   return (
     <div className="flex flex-col gap-2">
-      {/* ---- Active view indicator ---- */}
-      {activeViewName && (
-        <div className="flex items-center gap-2 text-sm">
-          <LayoutList className="h-4 w-4 text-primary" />
-          <span className="font-medium text-primary">{activeViewName}</span>
-          {activeViewIsDirty && (
-            <Badge variant="secondary" className="h-5 px-1.5 text-[11px]">
-              Modified
-            </Badge>
-          )}
-          <HasObjectPermission action="change" object={activeView} type="savedView">
-            <Button
-              variant={activeViewIsDirty ? "default" : "ghost"}
-              size="sm"
-              className="h-6 px-2 text-xs"
-              onClick={handleSaveView}
-              disabled={saving || !activeViewIsDirty}
-            >
-              <Save className="mr-1 h-3 w-3" />
-              Save View
-            </Button>
-          </HasObjectPermission>
-          <CanCreate type="savedView">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs"
-              onClick={() => { setSaveAsName(activeViewName + " (copy)"); setSaveAsOpen(true) }}
-            >
-              <SaveAll className="mr-1 h-3 w-3" />
-              Save As…
-            </Button>
-          </CanCreate>
-        </div>
-      )}
-
-      {/* ---- Top row: search + filter controls ---- */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Full text search with autocomplete */}
-        <form onSubmit={handleSearchSubmit} className="flex-1 min-w-[200px] max-w-sm flex gap-2">
+        <form onSubmit={handleSearchSubmit} className="flex min-w-[10rem] flex-1 basis-[340px] items-center">
           <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10 pointer-events-none" />
+            <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground z-10 pointer-events-none" />
             <Input
               type="search"
               placeholder="Search documents…"
-              className="pl-8"
+              className="pl-8 pr-20 h-8"
               value={searchValue}
               onChange={handleSearchChange}
               onFocus={() => suggestions.length > 0 && setSuggestionsOpen(true)}
@@ -574,13 +547,21 @@ export function FilterPanel({
               onBlur={() => setTimeout(() => setSuggestionsOpen(false), 150)}
               autoComplete="off"
             />
+            <Button
+              type="submit"
+              size="sm"
+              variant="secondary"
+              className="absolute right-1 top-1 h-6 px-2 text-[11px] border-muted-foreground/20 hover:border-accent/50 hover:bg-accent/20"
+            >
+              Search
+            </Button>
             {suggestionsOpen && suggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border rounded-md shadow-md py-1">
                 {suggestions.map((s, i) => (
                   <button
                     key={i}
                     type="button"
-                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent cursor-pointer flex items-center gap-2"
+                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent cursor-pointer flex items-center gap-2 "
                     onMouseDown={(e) => { e.preventDefault(); handleSuggestionSelect(s) }}
                   >
                     <Search className="h-3 w-3 text-muted-foreground flex-shrink-0" />
@@ -590,78 +571,12 @@ export function FilterPanel({
               </div>
             )}
           </div>
-          <Button type="submit" size="sm" variant="secondary">Search</Button>
         </form>
-
-        {/* Saved Views */}
-        {allViews.length > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <LayoutList className="mr-2 h-4 w-4" />
-                Views
-                <ChevronDown className="ml-2 h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[240px]">
-              {sidebarViews.length > 0 && (
-                <>
-                  <DropdownMenuLabel className="text-xs text-muted-foreground">Sidebar views</DropdownMenuLabel>
-                  {sidebarViews.map((v: any) => (
-                    <DropdownMenuItem
-                      key={v.id}
-                      onClick={() => loadSavedView(v)}
-                      className={activeViewId === v.id ? "bg-accent" : ""}
-                    >
-                      {activeViewId === v.id && <span className="mr-2 text-primary">✓</span>}
-                      {v.name}
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              <DropdownMenuLabel className="text-xs text-muted-foreground">All views</DropdownMenuLabel>
-              {allViews.map((v: any) => (
-                <DropdownMenuItem
-                  key={v.id}
-                  onClick={() => loadSavedView(v)}
-                  className={activeViewId === v.id ? "bg-accent" : ""}
-                >
-                  {activeViewId === v.id && <span className="mr-2 text-primary">✓</span>}
-                  {v.name}
-                </DropdownMenuItem>
-              ))}
-              <CanCreate type="savedView">
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => { setSaveAsName(""); setSaveAsOpen(true) }}>
-                  <SaveAll className="mr-2 h-4 w-4" />
-                  Save current as new view…
-                </DropdownMenuItem>
-              </CanCreate>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-
-        {!activeViewId && (
-          <CanCreate type="savedView">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSaveAsName(searchValue.trim())
-                setSaveAsOpen(true)
-              }}
-            >
-              <SaveAll className="mr-2 h-4 w-4" />
-              Save View…
-            </Button>
-          </CanCreate>
-        )}
 
         {/* Correspondent picker */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className={filters.correspondent ? "border-primary text-primary" : ""}>
+            <Button variant="outline" size="sm" className={"h-8 min-h-8 hover:border-accent/50 hover:bg-accent/20" + (filters.correspondent ? " border-primary text-primary" : " border-muted-foreground/20")}>
               <User className="mr-2 h-4 w-4" />
               {filters.correspondent
                 ? correspondents.find((c: any) => c.id === filters.correspondent)?.name ?? "Correspondent"
@@ -689,7 +604,7 @@ export function FilterPanel({
         {/* Document type picker */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className={filters.documentType ? "border-primary text-primary" : ""}>
+            <Button variant="outline" size="sm" className={"h-8 min-h-8 hover:border-accent/50 hover:bg-accent/20" + (filters.documentType ? " border-primary text-primary" : " border-muted-foreground/20")}>
               <FileType className="mr-2 h-4 w-4" />
               {filters.documentType
                 ? documentTypes.find((t: any) => t.id === filters.documentType)?.name ?? "Type"
@@ -720,7 +635,7 @@ export function FilterPanel({
             <Button
               variant="outline"
               size="sm"
-              className={((filters.tags?.length || 0) + (filters.tagsExclude?.length || 0)) > 0 ? "border-primary text-primary" : ""}
+              className={"h-8 min-h-8 hover:border-accent/50 hover:bg-accent/20" + (((filters.tags?.length || 0) + (filters.tagsExclude?.length || 0)) > 0 ? " border-primary text-primary" : " border-muted-foreground/20")}
             >
               <Tag className="mr-2 h-4 w-4" />
               Tags
@@ -771,7 +686,7 @@ export function FilterPanel({
             <Button
               variant="outline"
               size="sm"
-              className={(filters.createdAfter || filters.createdBefore || filters.addedAfter || filters.addedBefore) ? "border-primary text-primary" : ""}
+              className={(filters.createdAfter || filters.createdBefore || filters.addedAfter || filters.addedBefore) ? "border-primary text-primary" : "h-8 min-h-8 border-muted-foreground/20 hover:border-accent/50 hover:bg-accent/20"}
             >
               <Calendar className="mr-2 h-4 w-4" />
               Dates
@@ -846,7 +761,7 @@ export function FilterPanel({
         {/* Sort */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className={filters.ordering ? "border-primary text-primary" : "h-8 min-h-8 border-muted-foreground/20 hover:border-accent/50 hover:bg-accent/20"}>
               <SortAsc className="mr-2 h-4 w-4" />
               {currentSort?.label ?? "Sort"}
               <ChevronDown className="ml-2 h-3 w-3" />
@@ -936,9 +851,61 @@ export function FilterPanel({
           </Popover>
         )}
 
-        {/* Result count + Clear */}
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">{totalCount.toLocaleString()} documents</span>
+        {trailingControls}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className={activeViewId ? "border-primary text-primary" : ""}>
+              <LayoutList className="mr-2 h-4 w-4" />
+              Views
+              <ChevronDown className="ml-2 h-3 w-3" />
+              {activeViewIsDirty && (
+                <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[11px]">
+                  Modified
+                </Badge>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-[240px]" forceMount>
+            {allViews.length > 0 && (
+              <>
+                <DropdownMenuLabel className="text-xs text-muted-foreground">Saved views</DropdownMenuLabel>
+                {allViews.map((v: any) => (
+                  <DropdownMenuItem
+                    key={v.id}
+                    onClick={() => loadSavedView(v)}
+                    className={activeViewId === v.id ? "bg-accent" : ""}
+                  >
+                    {activeViewId === v.id && <span className="mr-2 text-primary">✓</span>}
+                    {v.name}
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
+            {(allViews.length > 0 || activeViewId) && <DropdownMenuSeparator />}
+            {activeViewId && (
+              <HasObjectPermission action="change" object={activeView} type="savedView">
+                <DropdownMenuItem onClick={handleSaveView} disabled={saving || !activeViewIsDirty}>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save view
+                </DropdownMenuItem>
+              </HasObjectPermission>
+            )}
+            <CanCreate type="savedView">
+              <DropdownMenuItem
+                onClick={() => {
+                  setSaveAsName(activeViewName ? `${activeViewName} (copy)` : searchValue.trim())
+                  setSaveAsOpen(true)
+                }}
+              >
+                <SaveAll className="mr-2 h-4 w-4" />
+                {activeViewId ? "Save as new view…" : "Save view…"}
+              </DropdownMenuItem>
+            </CanCreate>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           {filterCount > 0 && (
             <Button variant="ghost" size="sm" onClick={clearAll} className="text-destructive hover:text-destructive">
               <X className="mr-1 h-4 w-4" />

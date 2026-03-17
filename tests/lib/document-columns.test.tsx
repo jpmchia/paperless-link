@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { renderToStaticMarkup } from "react-dom/server"
 import type { ColumnDef } from "@tanstack/react-table"
 import {
+  CUSTOM_FIELD_PREFIX,
   DEFAULT_DISPLAY_FIELDS,
   DISPLAY_FIELD_ADDED,
   DISPLAY_FIELD_ASN,
@@ -109,5 +110,28 @@ describe("document list columns", () => {
         getValue: (key: string) => row[key as keyof Document],
       },
     }))).toContain("Cabinet A")
+  })
+
+  it("orders custom fields according to the active display-fields list", () => {
+    const customFieldId = 12
+    const columns = makeColumns(
+      {
+        correspondents: {},
+        customFields: {
+          [customFieldId]: { data_type: "string", id: customFieldId, name: "Project Code" },
+        },
+        documentTypes: {},
+        storagePaths: {},
+        tags: {},
+        users: {},
+      },
+      [DISPLAY_FIELD_TITLE, `${CUSTOM_FIELD_PREFIX}${customFieldId}`, DISPLAY_FIELD_CREATED]
+    )
+
+    expect(columns.map((column) => getColumnKey(column))).toEqual([
+      "title",
+      `${CUSTOM_FIELD_PREFIX}${customFieldId}`,
+      "created",
+    ])
   })
 })

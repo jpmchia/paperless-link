@@ -79,10 +79,23 @@ describe("saved view state helpers", () => {
         ordering: "title",
       })
     ).toEqual({
+      displayMode: "smallCards",
       filterRules: [],
       sortField: "title",
       sortReverse: false,
     })
+  })
+
+  it("includes display mode in saved-view state comparisons", () => {
+    const baseline = getComparableSavedViewStateFromView({
+      filter_rules: [],
+      sort_field: "created",
+      sort_reverse: true,
+      display_mode: "table",
+    })
+
+    expect(isSavedViewDirty({ ordering: "-created" }, baseline, "table")).toBe(false)
+    expect(isSavedViewDirty({ ordering: "-created" }, baseline, "smallCards")).toBe(true)
   })
 
   it("serializes permission filters into saved-view rules", () => {

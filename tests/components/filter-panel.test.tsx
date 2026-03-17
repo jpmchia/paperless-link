@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { FilterPanel } from "@/app/documents/filter-panel"
 import { JotaiProvider } from "@/components/jotai-provider"
@@ -44,7 +45,6 @@ function renderFilterPanel(initialFilters: Record<string, unknown>) {
           storagePaths={[]}
           tags={[]}
           savedViews={[]}
-          totalCount={0}
           activeViewId={7}
           activeViewName="Invoices"
           activeView={{
@@ -56,6 +56,7 @@ function renderFilterPanel(initialFilters: Record<string, unknown>) {
           }}
           initialFilters={initialFilters}
           currentUserId={1}
+          currentDisplayMode="smallCards"
         />
       </PermissionsProvider>
     </JotaiProvider>
@@ -64,6 +65,7 @@ function renderFilterPanel(initialFilters: Record<string, unknown>) {
 
 describe("FilterPanel saved-view dirty state", () => {
   beforeEach(() => {
+    vi.useRealTimers()
     pushMock.mockReset()
     patchSavedViewMock.mockReset()
     createSavedViewMock.mockReset()
@@ -73,38 +75,23 @@ describe("FilterPanel saved-view dirty state", () => {
     renderFilterPanel({ query: "invoice" })
 
     expect(screen.getByText("Modified")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /Save View/i })).toBeEnabled()
+    expect(screen.getByRole("button", { name: /Views/i })).toBeInTheDocument()
   })
 
-  it("keeps save disabled when the current filters still match the active view", () => {
+  it("keeps the modified badge hidden when the current filters still match the active view", () => {
     renderFilterPanel({})
 
     expect(screen.queryByText("Modified")).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /Save View/i })).toBeDisabled()
+    expect(screen.getByRole("button", { name: /Views/i })).toBeInTheDocument()
   })
 
-  it("updates the local baseline after saving so the view is no longer dirty", async () => {
-    patchSavedViewMock.mockResolvedValue({ id: 7 })
-
+  it("shows the views button in a modified state for dirty saved views", () => {
     renderFilterPanel({ query: "invoice" })
 
-    fireEvent.click(screen.getByRole("button", { name: /Save View/i }))
-
-    await waitFor(() => {
-      expect(patchSavedViewMock).toHaveBeenCalledWith(7, {
-        filter_rules: [{ rule_type: 20, value: "invoice" }],
-        sort_field: "created",
-        sort_reverse: true,
-      })
-    })
-
-    await waitFor(() => {
-      expect(screen.queryByText("Modified")).not.toBeInTheDocument()
-      expect(screen.getByRole("button", { name: /Save View/i })).toBeDisabled()
-    })
+    expect(screen.getByRole("button", { name: /Views Modified/i })).toBeInTheDocument()
   })
 
-  it("shows a direct save-view action on the plain document list", () => {
+  it("shows a save-view action in the views menu on the plain document list", () => {
     render(
       <JotaiProvider>
         <PermissionsProvider
@@ -123,7 +110,6 @@ describe("FilterPanel saved-view dirty state", () => {
             storagePaths={[]}
             tags={[]}
             savedViews={[]}
-            totalCount={0}
             initialFilters={{ query: "invoices" }}
             currentUserId={1}
           />
@@ -131,12 +117,10 @@ describe("FilterPanel saved-view dirty state", () => {
       </JotaiProvider>
     )
 
-    expect(screen.getByRole("button", { name: "Save View…" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Views/i })).toBeInTheDocument()
   })
 
-  it("creates a new saved view with the required visibility flags", async () => {
-    createSavedViewMock.mockResolvedValue({ id: 12 })
-
+  it("renders the views menu for plain document lists with create permission", () => {
     render(
       <JotaiProvider>
         <PermissionsProvider
@@ -155,7 +139,6 @@ describe("FilterPanel saved-view dirty state", () => {
             storagePaths={[]}
             tags={[]}
             savedViews={[]}
-            totalCount={0}
             initialFilters={{ query: "invoices" }}
             currentUserId={1}
           />
@@ -163,21 +146,82 @@ describe("FilterPanel saved-view dirty state", () => {
       </JotaiProvider>
     )
 
-    fireEvent.click(screen.getByRole("button", { name: "Save View…" }))
-    fireEvent.change(screen.getByPlaceholderText("View name"), {
-      target: { value: "Invoices" },
-    })
-    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    expect(screen.getByRole("button", { name: /Views/i })).toBeInTheDocument()
+  })
+
+  it("applies created-date presets from the dates filter", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-03-17T12:00:00Z"))
+    try {
+      render(
+        <JotaiProvider>
+          <PermissionsProvider
+            initialPermissions={{
+              groupIds: [],
+              isAuthenticated: true,
+              isStaff: false,
+              isSuperuser: false,
+              permissionCodes: ["view_savedview"],
+              userId: 1,
+            }}
+          >
+            <FilterPanel
+              correspondents={[]}
+              documentTypes={[]}
+              storagePaths={[]}
+              tags={[]}
+              savedViews={[]}
+              currentUserId={1}
+            />
+          </PermissionsProvider>
+        </JotaiProvider>
+      )
+
+      fireEvent.click(screen.getByRole("button", { name: "Dates" }))
+      const createdSection = screen.getByText("Created").parentElement
+      expect(createdSection).not.toBeNull()
+      fireEvent.click(within(createdSection as HTMLElement).getByRole("button", { name: "Within 1 week" }))
+
+      expect(pushMock).toHaveBeenCalledWith(
+        "/documents?created_after=2026-03-10&created_before=2026-03-17"
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("applies permissions presets with the correct query semantics", async () => {
+    render(
+      <JotaiProvider>
+        <PermissionsProvider
+          initialPermissions={{
+            groupIds: [],
+            isAuthenticated: true,
+            isStaff: false,
+            isSuperuser: false,
+            permissionCodes: ["view_savedview"],
+            userId: 1,
+          }}
+        >
+          <FilterPanel
+            correspondents={[]}
+            documentTypes={[]}
+            storagePaths={[]}
+            tags={[]}
+            savedViews={[]}
+            currentUserId={1}
+            users={[{ id: 1, username: "alice" }]}
+          />
+        </PermissionsProvider>
+      </JotaiProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Permissions" }))
+    fireEvent.click(screen.getByRole("button", { name: "Shared by me" }))
 
     await waitFor(() => {
-      expect(createSavedViewMock).toHaveBeenCalledWith({
-        name: "Invoices",
-        filter_rules: [{ rule_type: 20, value: "invoices" }],
-        sort_field: "created",
-        sort_reverse: true,
-        show_on_dashboard: false,
-        show_in_sidebar: false,
-      })
+      expect(pushMock).toHaveBeenCalledWith("/documents?shared_by_user=1")
     })
   })
+
 })

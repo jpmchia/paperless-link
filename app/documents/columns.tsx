@@ -383,6 +383,41 @@ export function makeColumns(
       })
     })
 
+  if (displayFields.length > 0) {
+    const aliases: Record<string, string[]> = {
+      archive_serial_number: [DISPLAY_FIELD_ASN, "archive_serial_number"],
+      document_type: [DISPLAY_FIELD_DOCUMENT_TYPE, "document_type"],
+      num_notes: [DISPLAY_FIELD_NOTES, "notes", "note"],
+      page_count: [DISPLAY_FIELD_PAGE_COUNT, "page_count"],
+      storage_path: [DISPLAY_FIELD_STORAGE_PATH, "storage_path"],
+      tags: [DISPLAY_FIELD_TAGS, "tags"],
+      title: [DISPLAY_FIELD_TITLE],
+      correspondent: [DISPLAY_FIELD_CORRESPONDENT],
+      created: [DISPLAY_FIELD_CREATED],
+      added: [DISPLAY_FIELD_ADDED],
+      modified: [DISPLAY_FIELD_MODIFIED],
+      owner: [DISPLAY_FIELD_OWNER],
+      shared: [DISPLAY_FIELD_SHARED],
+    }
+
+    const getColumnOrder = (column: ColumnDef<Document>) => {
+      const rawKey =
+        ("id" in column && typeof column.id === "string" && column.id) ||
+        ("accessorKey" in column && typeof column.accessorKey === "string" && column.accessorKey) ||
+        ""
+
+      const candidates = aliases[rawKey] ?? [rawKey]
+      const order = candidates
+        .map((candidate) => displayFields.indexOf(candidate))
+        .filter((index) => index !== -1)
+        .sort((a, b) => a - b)[0]
+
+      return order ?? Number.MAX_SAFE_INTEGER
+    }
+
+    cols.sort((a, b) => getColumnOrder(a) - getColumnOrder(b))
+  }
+
   return cols
 }
 

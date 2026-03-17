@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation"
 import { AppShell } from "@/components/app-shell"
-import { RealtimeDocumentListSync } from "@/components/realtime-document-list-sync"
 import {
   getDocuments,
   getSavedView,
@@ -11,12 +10,12 @@ import {
   getSavedViews,
   getCustomFields,
   getUsers,
+  getUiSettings,
   filterParamsFromSavedView,
 } from "@/lib/api"
 import { requireRoutePermission } from "@/lib/server-permissions"
 import type { LookupMaps } from "@/app/documents/columns"
-import { DataTable } from "@/app/documents/data-table"
-import { FilterPanel } from "@/app/documents/filter-panel"
+import { DocumentsWorkspace } from "@/app/documents/documents-workspace"
 import { TopBar } from "@/app/documents/topbar"
 
 function idx<T extends { id: number }>(arr: T[]): Record<number, T> {
@@ -60,7 +59,7 @@ export default async function SavedViewPage({
   const currentPage = Number(sp.page) || 1
   const pageSize = Number(sp.page_size) || view.page_size || 25
 
-  const [documentsData, tagsList, correspondentsList, typesList, pathsList, savedViewsList, customFieldsList, usersList] =
+  const [documentsData, tagsList, correspondentsList, typesList, pathsList, savedViewsList, customFieldsList, usersList, uiSettings] =
     await Promise.all([
       getDocuments(currentPage, pageSize, filters),
       getTags(),
@@ -70,6 +69,7 @@ export default async function SavedViewPage({
       getSavedViews(),
       getCustomFields(),
       getUsers(),
+      getUiSettings(),
     ])
 
   const pageCount = Math.ceil((documentsData.count || 0) / pageSize)
@@ -85,32 +85,23 @@ export default async function SavedViewPage({
 
   return (
     <AppShell initialPermissions={permissions} topbar={<TopBar title={view.name} />}>
-      <div className="flex flex-col gap-4 p-4 h-full">
-        <RealtimeDocumentListSync />
-        <FilterPanel
-          correspondents={correspondentsList}
-          documentTypes={typesList}
-          storagePaths={pathsList}
-          tags={tagsList}
-          users={usersList}
-          savedViews={savedViewsList}
-          totalCount={documentsData.count || 0}
-          activeViewId={view.id}
-          activeViewName={view.name}
-          activeView={view}
-          initialFilters={filters}
-        />
-        <DataTable
-          lookup={lookup}
-          data={documentsData.results}
-          pageCount={pageCount}
-          currentPage={currentPage}
-          totalCount={documentsData.count || 0}
-          displayFields={view.display_fields ?? undefined}
-          activeViewId={view.id}
-          currentFilters={filters}
-        />
-      </div>
+      <DocumentsWorkspace
+        activeView={view}
+        correspondents={correspondentsList}
+        currentFilters={filters}
+        currentPage={currentPage}
+        customFields={customFieldsList}
+        data={documentsData.results}
+        documentTypes={typesList}
+        lookup={lookup}
+        pageCount={pageCount}
+        savedViews={savedViewsList}
+        storagePaths={pathsList}
+        tags={tagsList}
+        totalCount={documentsData.count || 0}
+        users={usersList}
+        initialDisplayMode={(uiSettings as any)?.settings?.document_list_display_mode ?? null}
+      />
     </AppShell>
   )
 }

@@ -1,5 +1,4 @@
 import { AppShell } from "@/components/app-shell"
-import { RealtimeDocumentListSync } from "@/components/realtime-document-list-sync"
 import {
   getDocuments,
   getSavedView,
@@ -12,14 +11,14 @@ import {
   getUsers,
   getGroups,
   getProfile,
+  getUiSettings,
   filterParamsFromSavedView,
 } from "@/lib/api"
 import type { FilterParams } from "@/lib/api"
 import { requireRoutePermission } from "@/lib/server-permissions"
-import { DataTable } from "./data-table"
+import { DocumentsWorkspace } from "./documents-workspace"
 import type { LookupMaps } from "./columns"
 import { TopBar } from "./topbar"
-import { FilterPanel } from "./filter-panel"
 
 function idx<T extends { id: number }>(arr: T[]): Record<number, T> {
   return Object.fromEntries(arr.map((x) => [x.id, x])) as Record<number, T>
@@ -68,7 +67,7 @@ export default async function DocumentsPage({
   const pageSize = Number(params.page_size) || (activeView?.page_size ?? 25)
 
   // ---- Parallel fetch everything ----
-  const [documentsData, tagsList, correspondentsList, typesList, pathsList, savedViewsList, customFieldsList, usersList, groupsList, profile] =
+  const [documentsData, tagsList, correspondentsList, typesList, pathsList, savedViewsList, customFieldsList, usersList, groupsList, profile, uiSettings] =
     await Promise.all([
       getDocuments(currentPage, pageSize, initialFilters),
       getTags(),
@@ -80,6 +79,7 @@ export default async function DocumentsPage({
       getUsers(),
       getGroups(),
       getProfile(),
+      getUiSettings(),
     ])
 
   const currentUserId: number | null = (profile as any)?.id ?? null
@@ -99,35 +99,25 @@ export default async function DocumentsPage({
 
   return (
     <AppShell initialPermissions={permissions} topbar={<TopBar title={title} />}>
-      <div className="flex flex-col gap-4 p-4 h-full">
-        <RealtimeDocumentListSync />
-        <FilterPanel
-          correspondents={correspondentsList}
-          documentTypes={typesList}
-          storagePaths={pathsList}
-          tags={tagsList}
-          savedViews={savedViewsList}
-          totalCount={documentsData.count || 0}
-          activeViewId={activeView?.id ?? null}
-          activeViewName={activeView?.name ?? null}
-          activeView={activeView}
-          initialFilters={initialFilters}
-          currentUserId={currentUserId}
-          users={usersList}
-        />
-        <DataTable
-          lookup={lookup}
-          data={documentsData.results}
-          pageCount={pageCount}
-          currentPage={currentPage}
-          totalCount={documentsData.count || 0}
-          displayFields={activeView?.display_fields ?? undefined}
-          activeViewId={activeView?.id ?? null}
-          currentFilters={initialFilters}
-          usersList={usersList}
-          groupsList={groupsList}
-        />
-      </div>
+      <DocumentsWorkspace
+        activeView={activeView}
+        correspondents={correspondentsList}
+        currentFilters={initialFilters}
+        currentPage={currentPage}
+        customFields={customFieldsList}
+        data={documentsData.results}
+        documentTypes={typesList}
+        groupsList={groupsList}
+        lookup={lookup}
+        pageCount={pageCount}
+        savedViews={savedViewsList}
+        storagePaths={pathsList}
+        tags={tagsList}
+        totalCount={documentsData.count || 0}
+        users={usersList}
+        currentUserId={currentUserId}
+        initialDisplayMode={(uiSettings as any)?.settings?.document_list_display_mode ?? null}
+      />
     </AppShell>
   )
 }
