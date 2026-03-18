@@ -59,6 +59,20 @@ export interface DashboardData {
   statistics: DashboardStatistics
 }
 
+function formatDocumentDate(value?: string | null) {
+  if (!value) return ""
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  })
+}
+
 function buildNameMap(items: DashboardEntity[]) {
   const map: Record<number, string> = {}
   items.forEach((item) => {
@@ -299,7 +313,7 @@ export function DashboardContent({
                         {doc.title}
                       </p>
                       <span className="whitespace-nowrap text-xs text-muted-foreground">
-                        {new Date(doc.created).toLocaleDateString()}
+                        {formatDocumentDate(doc.created)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">

@@ -196,6 +196,7 @@ export function AppSidebar({
   const setPendingTaskCount = useSetAtom(setPendingTaskCountAtom)
   const adjustPendingTaskCount = useSetAtom(adjustPendingTaskCountAtom)
   const [viewsOpen, setViewsOpen] = React.useState(true)
+  const [hasMounted, setHasMounted] = React.useState(false)
 
   const currentUserPermissions =
     hydratedPermissions.isAuthenticated || !initialPermissions
@@ -213,6 +214,10 @@ export function AppSidebar({
       // Silently ignore shell task-count sync failures.
     }
   }, [setPendingTaskCount])
+
+  React.useEffect(() => {
+    setHasMounted(true)
+  }, [])
 
   React.useEffect(() => {
     void syncPendingTasks()
@@ -352,31 +357,55 @@ export function AppSidebar({
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <SidebarGroupContent>
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <SortableContext
-                      items={orderedViews.map((v) => v.id)}
-                      strategy={verticalListSortingStrategy}
+                  {hasMounted ? (
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
                     >
-                      <SidebarMenu>
-                        {orderedViews.map((view) => {
-                          const isActive =
-                            pathname === `/view/${view.id}` ||
-                            pathname.includes(`view/${view.id}`)
-                          return (
-                            <SortableViewItem
-                              key={view.id}
-                              view={view}
+                      <SortableContext
+                        items={orderedViews.map((v) => v.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <SidebarMenu>
+                          {orderedViews.map((view) => {
+                            const isActive =
+                              pathname === `/view/${view.id}` ||
+                              pathname.includes(`view/${view.id}`)
+                            return (
+                              <SortableViewItem
+                                key={view.id}
+                                view={view}
+                                isActive={isActive}
+                              />
+                            )
+                          })}
+                        </SidebarMenu>
+                      </SortableContext>
+                    </DndContext>
+                  ) : (
+                    <SidebarMenu>
+                      {orderedViews.map((view) => {
+                        const isActive =
+                          pathname === `/view/${view.id}` ||
+                          pathname.includes(`view/${view.id}`)
+                        return (
+                          <SidebarMenuItem key={view.id}>
+                            <SidebarMenuButton
+                              asChild
                               isActive={isActive}
-                            />
-                          )
-                        })}
-                      </SidebarMenu>
-                    </SortableContext>
-                  </DndContext>
+                              className="min-w-0"
+                            >
+                              <Link href={`/view/${view.id}`}>
+                                <LayoutList className="h-4 w-4 shrink-0" />
+                                <span className="truncate">{view.name}</span>
+                              </Link>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        )
+                      })}
+                    </SidebarMenu>
+                  )}
                 </SidebarGroupContent>
               </CollapsibleContent>
             </Collapsible>

@@ -25,8 +25,23 @@ export async function updateDocument(id: number | string, data: any) {
   })
 
   if (!response.ok) {
-    console.error(`Failed to patch document ${id}. Status: ${response.status}`, await response.text())
-    throw new Error(`Failed to update document: ${response.statusText}`)
+    const responseText = await response.text()
+    console.error(`Failed to patch document ${id}. Status: ${response.status}`, responseText)
+
+    let detail = response.statusText
+    try {
+      const parsed = JSON.parse(responseText)
+      detail =
+        parsed?.detail ||
+        parsed?.error ||
+        JSON.stringify(parsed)
+    } catch {
+      if (responseText.trim().length > 0) {
+        detail = responseText
+      }
+    }
+
+    throw new Error(`Failed to update document: ${detail}`)
   }
 
   revalidatePath(`/documents/${id}`)

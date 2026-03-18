@@ -40,6 +40,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useRouter } from "next/navigation"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { buildUpdateDocumentPayload } from "./details-payload"
 import {
   documentDetailsDirtyAtom,
   documentListState,
@@ -148,56 +149,11 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
   async function onSubmit(values: any) {
     setIsSaving(true)
     try {
-      // 1. Prepare Standard Fields
-      const payload: any = {
-        title: values.title,
-        created: values.created ? new Date(values.created).toISOString() : undefined,
-        correspondent: values.correspondent,
-        document_type: values.document_type,
-        storage_path: values.storage_path,
-        tags: values.tags,
-      }
-
-      if (values.archive_serial_number === null || typeof values.archive_serial_number === "undefined" || isNaN(values.archive_serial_number as number)) {
-          payload.archive_serial_number = null as any
-      } else {
-          payload.archive_serial_number = values.archive_serial_number
-      }
-
-      // 2. Prepare Custom Fields - ONLY INCLUDED VISIBLE ONES
-      payload.custom_fields = []
-      const visibleFieldsObjects = customFieldsList.filter(cf => visibleCustomFields.includes(cf.id))
-      
-      for (const cf of visibleFieldsObjects) {
-        let val = values[`cf_${cf.id}`]
-        
-        // Handle empty values
-        if (cf.data_type === 'integer' || cf.data_type === 'float') {
-            if (val === "" || val === null || val === undefined) {
-                val = null
-            } else {
-                val = cf.data_type === 'integer' ? parseInt(val) : parseFloat(val)
-            }
-        } else if (cf.data_type === 'documentlink' && typeof val === 'string') {
-            if (val.trim() === "") {
-                val = []
-            } else {
-                val = val.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
-            }
-        } else {
-            if (val === "") val = null
-        }
-        
-        if (cf.data_type === "boolean") {
-             if (val === "" || val === null) val = false
-             val = !!val
-        }
-        
-        payload.custom_fields.push({
-          field: cf.id,
-          value: val
-        })
-      }
+      const payload = buildUpdateDocumentPayload(
+        values,
+        customFieldsList,
+        visibleCustomFields
+      )
 
       await updateDocument(document.id!, payload)
       form.reset(values)
@@ -413,13 +369,17 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
         return <Input type="text" placeholder="e.g. 100, 101, 102" {...field} value={field.value || ""} />
       case "select":
         return (
-          <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
+          <Select
+            onValueChange={(value) => field.onChange(value === "__none__" ? null : value)}
+            value={field.value ? String(field.value) : "__none__"}
+          >
             <FormControl>
               <SelectTrigger>
                 <SelectValue placeholder="Select an option" />
               </SelectTrigger>
             </FormControl>
             <SelectContent>
+              <SelectItem value="__none__">None</SelectItem>
               {cf.extra_data?.select_options?.map((opt: any, index: number) => {
                 const optId = opt?.id !== undefined ? String(opt.id) : String(opt)
                 const optLabel = opt?.label !== undefined ? opt.label : String(opt)

@@ -11,6 +11,7 @@ import { ColumnsPicker } from "./columns-picker"
 import { CardGrid } from "./card-grid"
 import { DisplayModePicker } from "./display-mode-picker"
 import {
+  DEFAULT_DOCUMENT_DISPLAY_MODE,
   type DocumentDisplayMode,
   resolveDocumentDisplayMode,
 } from "./display-mode"
@@ -55,12 +56,19 @@ export function DocumentsWorkspace({
   currentUserId,
   initialDisplayMode,
 }: DocumentsWorkspaceProps) {
+  const activeViewDisplayFieldsKey = React.useMemo(
+    () => activeView?.display_fields?.join(",") ?? "",
+    [activeView?.display_fields]
+  )
+
   const [displayFields, setDisplayFields] = React.useState<string[]>(
     activeView?.display_fields?.length ? activeView.display_fields : DEFAULT_DISPLAY_FIELDS
   )
   const [displayMode, setDisplayMode] = React.useState<DocumentDisplayMode>(() =>
     resolveDocumentDisplayMode(activeView?.display_mode, initialDisplayMode)
   )
+  const [smallCardSize, setSmallCardSize] = React.useState(190)
+  const [largeCardSize, setLargeCardSize] = React.useState(280)
 
   React.useEffect(() => {
     if (activeView?.display_fields?.length) {
@@ -68,7 +76,7 @@ export function DocumentsWorkspace({
     } else {
       setDisplayFields(DEFAULT_DISPLAY_FIELDS)
     }
-  }, [activeView?.id, activeView?.display_fields?.join(",")])
+  }, [activeView?.id, activeViewDisplayFieldsKey])
 
   React.useEffect(() => {
     setDisplayMode(resolveDocumentDisplayMode(activeView?.display_mode, initialDisplayMode))
@@ -86,6 +94,22 @@ export function DocumentsWorkspace({
     return () => window.clearTimeout(timeout)
   }, [activeView?.id, displayMode])
 
+  const cardSize = displayMode === "largeCards" ? largeCardSize : smallCardSize
+
+  const handleCardSizeChange = React.useCallback(
+    (value: number) => {
+      if (displayMode === "largeCards") {
+        setLargeCardSize(value)
+        return
+      }
+
+      if (displayMode === DEFAULT_DOCUMENT_DISPLAY_MODE || displayMode === "smallCards") {
+        setSmallCardSize(value)
+      }
+    },
+    [displayMode]
+  )
+
   return (
     <div className="flex h-full flex-col gap-4 p-4">
       <RealtimeDocumentListSync />
@@ -93,6 +117,9 @@ export function DocumentsWorkspace({
         currentPage={currentPage}
         pageCount={pageCount}
         totalCount={totalCount}
+        displayMode={displayMode}
+        cardSize={cardSize}
+        onCardSizeChange={handleCardSizeChange}
       />
       <FilterPanel
         correspondents={correspondents}
@@ -137,6 +164,8 @@ export function DocumentsWorkspace({
           data={data}
           lookup={lookup}
           displayMode={displayMode}
+          displayFields={displayFields}
+          cardSize={cardSize}
         />
       )}
     </div>

@@ -60,6 +60,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import Link from "next/link"
 import { BulkActionBar } from "./bulk-action-bar"
 import { DocumentPreviewDialog } from "./document-preview-dialog"
+import { Slider } from "@/components/ui/slider"
+import type { DocumentDisplayMode } from "./display-mode"
 
 // All available display fields users can toggle
 const ALL_FIELDS: { id: string; label: string }[] = [
@@ -96,18 +98,25 @@ interface DataTableHeaderBarProps {
   currentPage: number
   pageCount: number
   totalCount: number
+  displayMode?: DocumentDisplayMode
+  cardSize?: number
+  onCardSizeChange?: (value: number) => void
 }
 
 export function DataTableHeaderBar({
   currentPage,
   pageCount,
   totalCount,
+  displayMode = "table",
+  cardSize = 220,
+  onCardSizeChange,
 }: DataTableHeaderBarProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const pageSize = Number(searchParams.get("page_size") || "25")
   const start = (currentPage - 1) * pageSize + 1
   const end = Math.min(currentPage * pageSize, totalCount)
+  const isCardMode = displayMode !== "table"
 
   const buildPageUrl = (page: number) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -129,6 +138,28 @@ export function DataTableHeaderBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+        {isCardMode && onCardSizeChange ? (
+          <div className="flex min-w-[180px] items-center gap-2">
+            <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+              Card size
+            </span>
+            <Slider
+              value={[cardSize]}
+              min={displayMode === "largeCards" ? 240 : 150}
+              max={displayMode === "largeCards" ? 420 : 280}
+              step={10}
+              className="w-28"
+              aria-label="Card size"
+              onValueChange={(values) => {
+                const nextValue = values[0]
+                if (typeof nextValue === "number") {
+                  onCardSizeChange(nextValue)
+                }
+              }}
+            />
+          </div>
+        ) : null}
+
         <span className="whitespace-nowrap">
           {totalCount > 0 ? `${start}–${end} of ${totalCount.toLocaleString()}` : "0 results"}
         </span>
