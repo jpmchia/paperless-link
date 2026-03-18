@@ -184,8 +184,16 @@ export async function createCustomField(data: {
   return result
 }
 
+export async function updateCustomField(id: number, data: Partial<{
+  name: string
+  extra_data: { select_options?: string[] }
+}>) {
+  const result = await apiRequest("PATCH", `custom_fields/${id}/`, data)
+  revalidatePath("/custom-fields")
+  return result
+}
+
 export async function deleteCustomField(id: number) {
   await apiRequest("DELETE", `custom_fields/${id}/`)
   revalidatePath("/custom-fields")
 }
-

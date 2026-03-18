@@ -56,7 +56,17 @@ const emptyItem = (): Partial<DocumentType> => ({
   is_insensitive: false,
 })
 
-export function DocumentTypesTable({ initialItems }: { initialItems: DocumentType[] }) {
+export function DocumentTypesTable({
+  initialItems,
+  onItemsChange,
+  onSelectDocumentType,
+  selectLabel = "Use",
+}: {
+  initialItems: DocumentType[]
+  onItemsChange?: (items: DocumentType[]) => void
+  onSelectDocumentType?: (item: DocumentType) => void
+  selectLabel?: string
+}) {
   const { can } = usePermissions()
   const [items, setItems] = React.useState<DocumentType[]>(initialItems)
   const [search, setSearch] = React.useState("")
@@ -67,6 +77,10 @@ export function DocumentTypesTable({ initialItems }: { initialItems: DocumentTyp
   const filtered = items.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase())
   )
+
+  React.useEffect(() => {
+    onItemsChange?.(items)
+  }, [items, onItemsChange])
 
   const { pending: saving, run: saveDocumentType } = useAsyncAction({
     action: async () => {
@@ -153,7 +167,7 @@ export function DocumentTypesTable({ initialItems }: { initialItems: DocumentTyp
               <TableHead>Matching</TableHead>
               <TableHead>Match pattern</TableHead>
               <TableHead className="text-right">Docs</TableHead>
-              <TableHead className="w-20 text-right">Actions</TableHead>
+              <TableHead className="w-28 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -178,6 +192,16 @@ export function DocumentTypesTable({ initialItems }: { initialItems: DocumentTyp
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {onSelectDocumentType && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={() => onSelectDocumentType(item)}
+                        >
+                          {selectLabel}
+                        </Button>
+                      )}
                       <CanChange type="documentType">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
                           <Pencil className="h-3.5 w-3.5" />

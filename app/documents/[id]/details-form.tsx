@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import * as React from "react"
 import { useForm } from "react-hook-form"
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes"
+import { usePermissions } from "@/hooks/use-permissions"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronsUpDown, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 import { Button } from "@/components/ui/button"
@@ -38,14 +39,49 @@ import { updateDocument } from "./actions"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Dialog as DraggableDialog,
+  DialogBody as DraggableDialogBody,
+  DialogContent as DraggableDialogContent,
+  DialogHeader as DraggableDialogHeader,
+  DialogTitle as DraggableDialogTitle,
+} from "@/components/draggable-dialog"
+import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { buildUpdateDocumentPayload } from "./details-payload"
 import {
+  documentDetailAvailableFieldsAtom,
+  documentDetailFieldLayoutAtom,
+  documentDetailFieldLayoutRevisionAtom,
   documentDetailsDirtyAtom,
   documentListState,
-  visibleCustomFieldsAtom,
 } from "@/lib/store"
+import { fetchUiSettings, updateUiSettings } from "@/lib/ui-settings"
+import {
+  updateCustomField,
+} from "@/lib/management-actions"
+import { CorrespondentsTable } from "@/app/correspondents/correspondents-table"
+import { TagsTable } from "@/app/tags/tags-table"
+import { DocumentTypesTable } from "@/app/document-types/document-types-table"
+import { TAG_COLOUR_OPTIONS } from "@/lib/tag-colors"
+import {
+  areDetailFieldLayoutsEqual,
+  buildAvailableDetailFields,
+  DOCUMENT_DETAIL_LAYOUTS_BY_TYPE_KEY,
+  DOCUMENT_DETAIL_LAYOUTS_STORAGE_KEY,
+  getDefaultDetailFieldLayout,
+  getDocumentTypeLayoutStorageKey,
+  parseDetailCustomFieldId,
+  resolveDetailFieldLayoutForDocumentType,
+} from "./detail-field-layout"
 
 const baseSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -64,6 +100,34 @@ type Props = {
   storagePaths: any[]
   tagsList: any[]
   customFieldsList: any[]
+}
+
+type CreateDialogState =
+  | { type: "selectOption"; fieldId: number }
+  | null
+
+function readCachedDetailLayouts() {
+  if (typeof window === "undefined") return {}
+
+  try {
+    const raw = window.localStorage.getItem(DOCUMENT_DETAIL_LAYOUTS_STORAGE_KEY)
+    if (!raw) return {}
+
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, string[]>) : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeCachedDetailLayouts(layouts: Record<string, string[]>) {
+  if (typeof window === "undefined") return
+
+  try {
+    window.localStorage.setItem(DOCUMENT_DETAIL_LAYOUTS_STORAGE_KEY, JSON.stringify(layouts))
+  } catch {
+    // Ignore storage errors and fall back to in-memory state.
+  }
 }
 
 function buildDefaultValues(
@@ -101,23 +165,53 @@ function buildDefaultValues(
 }
 
 export function DetailsForm({ document, correspondents, documentTypes, storagePaths, tagsList, customFieldsList }: Props) {
-  const [isSaving, setIsSaving] = useState(false)
+  const [isSaving, setIsSaving] = React.useState(false)
+  const [detailLayoutsByType, setDetailLayoutsByType] = React.useState<Record<string, string[]>>(() =>
+    readCachedDetailLayouts()
+  )
+  const [correspondentItems, setCorrespondentItems] = React.useState(correspondents)
+  const [documentTypeItems, setDocumentTypeItems] = React.useState(documentTypes)
+  const [tagItems, setTagItems] = React.useState(tagsList)
+  const [customFieldDefinitions, setCustomFieldDefinitions] = React.useState(customFieldsList)
+  const [createDialog, setCreateDialog] = React.useState<CreateDialogState>(null)
+  const [correspondentsDialogOpen, setCorrespondentsDialogOpen] = React.useState(false)
+  const [tagsDialogOpen, setTagsDialogOpen] = React.useState(false)
+  const [documentTypesDialogOpen, setDocumentTypesDialogOpen] = React.useState(false)
+  const [newEntityName, setNewEntityName] = React.useState("")
+  const [newTagColor, setNewTagColor] = React.useState(TAG_COLOUR_OPTIONS[0]?.hex ?? "#a6cee3")
+  const [creatingEntity, setCreatingEntity] = React.useState(false)
   const router = useRouter()
+  const { can } = usePermissions()
   const documentList = useAtomValue(documentListState)
   const setDocumentDetailsDirty = useSetAtom(documentDetailsDirtyAtom)
-  const [visibleCustomFields, setVisibleCustomFields] = useAtom(visibleCustomFieldsAtom)
-  const defaultValues = buildDefaultValues(document, customFieldsList)
+  const [detailFieldLayout, setDetailFieldLayout] = useAtom(documentDetailFieldLayoutAtom)
+  const layoutRevision = useAtomValue(documentDetailFieldLayoutRevisionAtom)
+  const setDetailAvailableFields = useSetAtom(documentDetailAvailableFieldsAtom)
+  const defaultValues = buildDefaultValues(document, customFieldDefinitions)
+  const availableDetailFields = React.useMemo(
+    () => buildAvailableDetailFields(customFieldDefinitions),
+    [customFieldDefinitions]
+  )
+  const availableDetailFieldIds = React.useMemo(
+    () => availableDetailFields.map((field) => field.id),
+    [availableDetailFields]
+  )
+  const fallbackDetailFieldLayout = React.useMemo(
+    () => getDefaultDetailFieldLayout(document, customFieldDefinitions),
+    [customFieldDefinitions, document]
+  )
 
   // We rely on HTML validation and basic coercion for custom fields.
   const form = useForm({
     resolver: zodResolver(baseSchema),
     defaultValues: defaultValues as any
   })
+  const currentDocumentTypeId = form.watch("document_type")
 
   // Warn user before navigating away with unsaved changes
   useUnsavedChanges(form.formState.isDirty)
 
-  useEffect(() => {
+  React.useEffect(() => {
     setDocumentDetailsDirty(form.formState.isDirty)
 
     return () => {
@@ -125,34 +219,183 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
     }
   }, [form.formState.isDirty, setDocumentDetailsDirty])
 
-  useEffect(() => {
-    const initialFields =
-      document.custom_fields
-        ?.filter((cf: any) => cf.value !== null && cf.value !== "" && cf.value !== false)
-        .map((cf: any) => cf.field) || []
+  React.useEffect(() => {
+    setCorrespondentItems(correspondents)
+  }, [correspondents])
 
-    const newVisible = Array.from(new Set([...visibleCustomFields, ...initialFields]))
-    const hasChanged =
-      newVisible.length !== visibleCustomFields.length ||
-      newVisible.some((fieldId, index) => fieldId !== visibleCustomFields[index])
+  React.useEffect(() => {
+    setDocumentTypeItems(documentTypes)
+  }, [documentTypes])
 
-    if (hasChanged) {
-      setVisibleCustomFields(newVisible)
+  React.useEffect(() => {
+    setTagItems(tagsList)
+  }, [tagsList])
+
+  React.useEffect(() => {
+    setCustomFieldDefinitions(customFieldsList)
+  }, [customFieldsList])
+
+  React.useEffect(() => {
+    setDetailAvailableFields(availableDetailFields)
+  }, [availableDetailFields, setDetailAvailableFields])
+
+  React.useEffect(() => {
+    let isCancelled = false
+
+    void fetchUiSettings()
+      .then((uiSettings) => {
+        if (isCancelled) return
+
+        const serverLayouts =
+          (uiSettings.settings?.[DOCUMENT_DETAIL_LAYOUTS_BY_TYPE_KEY] as Record<string, string[]> | undefined) ??
+          {}
+        const mergedLayouts = {
+          ...serverLayouts,
+          ...readCachedDetailLayouts(),
+        }
+        setDetailLayoutsByType(mergedLayouts)
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setDetailLayoutsByType(readCachedDetailLayouts())
+        }
+      })
+
+    return () => {
+      isCancelled = true
     }
-  }, [document.custom_fields, setVisibleCustomFields, visibleCustomFields])
+  }, [])
 
-  useEffect(() => {
+  React.useEffect(() => {
+    setDetailFieldLayout(
+      resolveDetailFieldLayoutForDocumentType(
+        detailLayoutsByType,
+        typeof currentDocumentTypeId === "number" ? currentDocumentTypeId : null,
+        availableDetailFieldIds,
+        fallbackDetailFieldLayout
+      )
+    )
+  }, [
+    availableDetailFieldIds,
+    currentDocumentTypeId,
+    detailLayoutsByType,
+    fallbackDetailFieldLayout,
+    setDetailFieldLayout,
+  ])
+
+  React.useEffect(() => {
+    if (layoutRevision === 0) return
+
+    const documentTypeKey = getDocumentTypeLayoutStorageKey(
+      typeof currentDocumentTypeId === "number" ? currentDocumentTypeId : null
+    )
+    if (areDetailFieldLayoutsEqual(detailLayoutsByType[documentTypeKey], detailFieldLayout)) {
+      return
+    }
+
+    const nextLayouts = {
+      ...detailLayoutsByType,
+      [documentTypeKey]: detailFieldLayout,
+    }
+
+    writeCachedDetailLayouts(nextLayouts)
+    setDetailLayoutsByType(nextLayouts)
+
+    const timeout = window.setTimeout(() => {
+      void updateUiSettings({
+        [DOCUMENT_DETAIL_LAYOUTS_BY_TYPE_KEY]: nextLayouts,
+      })
+        .catch((error) => {
+          console.error("Failed to save document detail field layout", error)
+        })
+    }, 250)
+
+    return () => window.clearTimeout(timeout)
+  }, [currentDocumentTypeId, detailFieldLayout, detailLayoutsByType, layoutRevision])
+
+  React.useEffect(() => {
     if (form.formState.isDirty || isSaving) return
-    form.reset(buildDefaultValues(document, customFieldsList))
-  }, [customFieldsList, document, form, isSaving])
+    form.reset(buildDefaultValues(document, customFieldDefinitions))
+  }, [customFieldDefinitions, document, form, isSaving])
+
+  const openCreateDialog = React.useCallback((state: NonNullable<CreateDialogState>) => {
+    if (state.type === "selectOption") {
+      setCreateDialog(state)
+      setNewEntityName("")
+      setNewTagColor(TAG_COLOUR_OPTIONS[0]?.hex ?? "#a6cee3")
+    }
+  }, [])
+
+  const closeCreateDialog = React.useCallback(() => {
+    if (creatingEntity) return
+    setCreateDialog(null)
+    setNewEntityName("")
+  }, [creatingEntity])
+
+  const createDialogTitle = React.useMemo(() => {
+    switch (createDialog?.type) {
+      case "selectOption": {
+        const field = customFieldDefinitions.find((item) => item.id === createDialog.fieldId)
+        return field ? `Add Option to ${field.name}` : "Add Option"
+      }
+      default:
+        return ""
+    }
+  }, [createDialog, customFieldDefinitions])
+
+  const handleCreateEntity = React.useCallback(async () => {
+    const trimmedName = newEntityName.trim()
+    if (!createDialog || !trimmedName) return
+
+    setCreatingEntity(true)
+    try {
+      switch (createDialog.type) {
+        case "selectOption": {
+          const customField = customFieldDefinitions.find((field) => field.id === createDialog.fieldId)
+          if (!customField) {
+            throw new Error("Custom field not found")
+          }
+          const existingOptions = Array.isArray(customField.extra_data?.select_options)
+            ? [...customField.extra_data.select_options]
+            : []
+          if (existingOptions.includes(trimmedName)) {
+            form.setValue(`cf_${customField.id}`, trimmedName, { shouldDirty: true })
+            toast.success(`Option "${trimmedName}" selected`)
+            break
+          }
+          const updated = await updateCustomField(customField.id, {
+            extra_data: {
+              select_options: [...existingOptions, trimmedName],
+            },
+          })
+          setCustomFieldDefinitions((prev) =>
+            prev.map((field) => (field.id === updated.id ? updated : field))
+          )
+          form.setValue(`cf_${customField.id}`, trimmedName, { shouldDirty: true })
+          toast.success(`Option "${trimmedName}" added`)
+          break
+        }
+      }
+
+      setCreateDialog(null)
+      setNewEntityName("")
+    } catch (error) {
+      console.error(error)
+      toast.error("Failed to create item")
+    } finally {
+      setCreatingEntity(false)
+    }
+  }, [createDialog, customFieldDefinitions, form, newEntityName, newTagColor])
 
   async function onSubmit(values: any) {
     setIsSaving(true)
     try {
       const payload = buildUpdateDocumentPayload(
         values,
-        customFieldsList,
-        visibleCustomFields
+        customFieldDefinitions,
+        detailFieldLayout
+          .map(parseDetailCustomFieldId)
+          .filter((fieldId): fieldId is number => fieldId !== null)
       )
 
       await updateDocument(document.id!, payload)
@@ -255,91 +498,82 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
     const selectedTags = field.value || []
 
     return (
-      <div className="flex flex-col gap-2">
-        <Popover>
-          <PopoverTrigger asChild>
-            <FormControl>
-              <Button
-                variant="outline"
-                role="combobox"
-                className="w-full justify-between"
-              >
-                {selectedTags.length > 0
-                  ? `${selectedTags.length} tag(s) selected`
-                  : "Select Tags..."}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </FormControl>
-          </PopoverTrigger>
-          <PopoverContent className="w-[300px] p-0" align="start">
-            <Command>
-              <CommandInput placeholder="Search tags..." />
-              <CommandList>
-                <CommandEmpty>No Tags found.</CommandEmpty>
-                <CommandGroup>
-                  {tagsList.map((tag) => {
-                    const isSelected = selectedTags.includes(tag.id)
+      <Popover>
+        <PopoverTrigger asChild>
+          <FormControl>
+            <Button
+              variant="outline"
+              role="combobox"
+              className="h-auto min-h-10 w-full justify-between py-2"
+            >
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-left">
+                {selectedTags.length > 0 ? (
+                  selectedTags.map((tagId: number) => {
+                    const tag = tagItems.find((t) => t.id === tagId)
+                    if (!tag) return null
+
                     return (
-                      <CommandItem
+                      <Badge
                         key={tag.id}
-                        value={tag.name}
-                        onSelect={() => {
-                          if (isSelected) {
-                            field.onChange(selectedTags.filter((id: number) => id !== tag.id))
-                          } else {
-                            field.onChange([...selectedTags, tag.id])
-                          }
+                        variant="secondary"
+                        className="max-w-full truncate px-2 py-0.5"
+                        style={{
+                          backgroundColor: tag.text_color ? tag.color : undefined,
+                          color: tag.text_color || undefined,
                         }}
                       >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            isSelected ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        <div className="flex items-center gap-2">
-                          {tag.name}
-                          {tag.color && (
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }} />
-                          )}
-                        </div>
-                      </CommandItem>
+                        {tag.name}
+                      </Badge>
                     )
-                  })}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-
-        {selectedTags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-2">
-            {selectedTags.map((tagId: number) => {
-              const tag = tagsList.find((t) => t.id === tagId)
-              if (!tag) return null
-              return (
-                <Badge
-                  key={tag.id}
-                  variant="secondary"
-                  className="flex items-center gap-1 px-2 py-1"
-                  style={{ backgroundColor: tag.text_color ? tag.color : undefined, color: tag.text_color || undefined }}
-                >
-                  {tag.name}
-                  <button
-                    type="button"
-                    className="ml-1 hover:bg-black/20 rounded-full p-0.5"
-                    onClick={() => {
-                      field.onChange(selectedTags.filter((id: number) => id !== tag.id))
-                    }}
-                  >
-                    ×
-                  </button>
-                </Badge>
-              )
-            })}
-          </div>
-        )}
-      </div>
+                  })
+                ) : (
+                  <span className="text-muted-foreground">Select Tags...</span>
+                )}
+              </div>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </FormControl>
+        </PopoverTrigger>
+        <PopoverContent className="w-[300px] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Search tags..." />
+            <CommandList>
+              <CommandEmpty>No Tags found.</CommandEmpty>
+              <CommandGroup>
+                {tagItems.map((tag) => {
+                  const isSelected = selectedTags.includes(tag.id)
+                  return (
+                    <CommandItem
+                      key={tag.id}
+                      value={tag.name}
+                      onSelect={() => {
+                        if (isSelected) {
+                          field.onChange(selectedTags.filter((id: number) => id !== tag.id))
+                        } else {
+                          field.onChange([...selectedTags, tag.id])
+                        }
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          isSelected ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <div className="flex items-center gap-2">
+                        {tag.name}
+                        {tag.color && (
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }} />
+                        )}
+                      </div>
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
     )
   }
 
@@ -396,153 +630,321 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
     }
   }
 
-  return (
-    <Form {...form}>
-      <form id="document-details-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 max-w-4xl pb-16">
-        
-        {/* Standard Metadata Section */}
-        <div className="space-y-6">
-            <div className="border-b pb-2 mb-4">
-                <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Standard Metadata</h4>
-            </div>
-            
-            <FormField
+  function renderDetailField(fieldId: string) {
+    const renderFieldLabel = (
+      label: string,
+      createState?: NonNullable<CreateDialogState> | null
+    ) => (
+      <div className="flex items-center justify-between gap-2">
+        <FormLabel>{label}</FormLabel>
+        {createState ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs text-muted-foreground"
+            onClick={() => openCreateDialog(createState)}
+          >
+            <Plus className="mr-1 h-3 w-3" />
+            New
+          </Button>
+        ) : null}
+      </div>
+    )
+
+      switch (fieldId) {
+      case "title":
+        return (
+          <FormField
+            key={fieldId}
             control={form.control}
             name="title"
             render={({ field }: any) => (
-                <FormItem>
+              <FormItem className="md:col-span-2">
                 <FormLabel>Title</FormLabel>
                 <FormControl>
-                    <Input {...field} />
+                  <Input {...field} />
                 </FormControl>
                 <FormMessage />
-                </FormItem>
+              </FormItem>
             )}
-            />
-
-            <div className="grid grid-cols-2 gap-4">
-            <FormField
-                control={form.control}
-                name="created"
-                render={({ field }: any) => (
-                <FormItem>
-                    <FormLabel>Created Date</FormLabel>
-                    <FormControl>
-                    <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                </FormItem>
-                )}
-            />
-
-            <FormField
-                control={form.control}
-                name="archive_serial_number"
-                render={({ field }: any) => (
-                <FormItem>
-                    <FormLabel>ASN</FormLabel>
-                    <FormControl>
-                    <Input 
-                        type="number" 
-                        value={field.value || ""} 
-                        onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : null)} 
-                    />
-                    </FormControl>
-                    <FormMessage />
-                </FormItem>
-                )}
-            />
-            </div>
-
-            <FormField
+          />
+        )
+      case "created":
+        return (
+          <FormField
+            key={fieldId}
+            control={form.control}
+            name="created"
+            render={({ field }: any) => (
+              <FormItem>
+                <FormLabel>Created Date</FormLabel>
+                <FormControl>
+                  <Input type="date" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )
+      case "archive_serial_number":
+        return (
+          <FormField
+            key={fieldId}
+            control={form.control}
+            name="archive_serial_number"
+            render={({ field }: any) => (
+              <FormItem>
+                <FormLabel>ASN</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    value={field.value || ""}
+                    onChange={(event) =>
+                      field.onChange(
+                        event.target.value ? Number.parseInt(event.target.value, 10) : null
+                      )
+                    }
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )
+      case "correspondent":
+        return (
+          <FormField
+            key={fieldId}
             control={form.control}
             name="correspondent"
             render={({ field }: any) => (
-                <FormItem className="flex flex-col">
-                <FormLabel>Correspondent</FormLabel>
-                {renderCombobox(field, correspondents, "Correspondent", "No Correspondent found.")}
+              <FormItem className="flex flex-col shrink-1">
+                <div className="flex items-center justify-between gap-2">
+                  <FormLabel>Correspondent</FormLabel>
+                  {can("create", "correspondent") && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs text-accent"
+                      onClick={() => setCorrespondentsDialogOpen(true)}
+                    >
+                      <Plus className="mr-1 h-3 w-3" />
+                      Manage
+                    </Button>
+                  )}
+                </div>
+                {renderCombobox(field, correspondentItems, "Correspondent", "No Correspondent found.")}
                 <FormMessage />
-                </FormItem>
+              </FormItem>
             )}
-            />
-
-            <FormField
+          />
+        )
+      case "document_type":
+        return (
+          <FormField
+            key={fieldId}
             control={form.control}
             name="document_type"
             render={({ field }: any) => (
-                <FormItem className="flex flex-col">
-                <FormLabel>Document Type</FormLabel>
-                {renderCombobox(field, documentTypes, "Document Type", "No Document Type found.")}
+              <FormItem className="flex flex-col">
+                <div className="flex items-center justify-between gap-2">
+                  <FormLabel>Document Type</FormLabel>
+                  {can("create", "documentType") && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs text-muted-foreground"
+                      onClick={() => setDocumentTypesDialogOpen(true)}
+                    >
+                      <Plus className="mr-1 h-3 w-3" />
+                      Manage
+                    </Button>
+                  )}
+                </div>
+                {renderCombobox(field, documentTypeItems, "Document Type", "No Document Type found.")}
                 <FormMessage />
-                </FormItem>
+              </FormItem>
             )}
-            />
-
-            <FormField
+          />
+        )
+      case "storage_path":
+        return (
+          <FormField
+            key={fieldId}
             control={form.control}
             name="storage_path"
             render={({ field }: any) => (
-                <FormItem className="flex flex-col">
+              <FormItem className="flex flex-col">
                 <FormLabel>Storage Path</FormLabel>
                 {renderCombobox(field, storagePaths, "Storage Path", "No Storage Path found.")}
                 <FormMessage />
-                </FormItem>
+              </FormItem>
             )}
-            />
-
-            <FormField
+          />
+        )
+      case "tags":
+        return (
+          <FormField
+            key={fieldId}
             control={form.control}
             name="tags"
             render={({ field }: any) => (
-                <FormItem>
-                <FormLabel>Tags</FormLabel>
+              <FormItem className="md:col-span-2">
+                <div className="flex items-center justify-between gap-2">
+                  <FormLabel>Tags</FormLabel>
+                  {can("create", "tag") && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs text-muted-foreground"
+                      onClick={() => setTagsDialogOpen(true)}
+                    >
+                      <Plus className="mr-1 h-3 w-3" />
+                      Manage
+                    </Button>
+                  )}
+                </div>
                 {renderTagsCombobox(field)}
                 <FormMessage />
-                </FormItem>
+              </FormItem>
             )}
-            />
+          />
+        )
+      default: {
+        const customFieldId = parseDetailCustomFieldId(fieldId)
+        if (customFieldId === null) return null
+
+        const customField = customFieldDefinitions.find((field) => field.id === customFieldId)
+        if (!customField) return null
+
+        const isHalfWidth = ["integer", "float", "monetary", "date", "boolean", "documentlink", "select"].includes(customField.data_type)
+
+        return (
+          <FormField
+            key={fieldId}
+            control={form.control}
+            name={`cf_${customField.id}`}
+            render={({ field }) => (
+              <FormItem className={cn(isHalfWidth ? "md:col-span-1" : "md:col-span-2")}>
+                {renderFieldLabel(
+                  customField.name,
+                  customField.data_type === "select" && can("change", "customField")
+                    ? { type: "selectOption", fieldId: customField.id }
+                    : null
+                )}
+                <FormControl>{renderCustomFieldInput(customField, field)}</FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )
+      }
+    }
+  }
+
+  return (
+    <Form {...form}>
+      <form id="document-details-form" onSubmit={form.handleSubmit(onSubmit)} className="max-w-4xl pb-16">
+        <div className="grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-2">
+          {detailFieldLayout.map((fieldId) => renderDetailField(fieldId))}
         </div>
-
-        {/* Custom Fields Section */}
-        {customFieldsList.length > 0 && (
-            <div className="space-y-6 mt-8">
-                <div className="border-b pb-2 mb-4">
-                    <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Custom Fields</h4>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                {customFieldsList.filter(cf => visibleCustomFields.includes(cf.id)).map(cf => {
-                    const isHalfWidth = ["integer", "float", "monetary", "date", "boolean", "documentlink", "select"].includes(cf.data_type)
-                    
-                    return (
-                    <FormField
-                        key={cf.id}
-                        control={form.control}
-                        name={`cf_${cf.id}`}
-                        render={({ field }) => (
-                        <FormItem className={cn(
-                            "flex flex-row items-center gap-4 space-y-0",
-                            isHalfWidth ? "col-span-1" : "col-span-1 md:col-span-2"
-                        )}>
-                            <FormLabel className="w-[30%] min-w-[90px] sm:max-w-[150px] text-right shrink-0 m-0 leading-tight">
-                            {cf.name}
-                            </FormLabel>
-                            <div className="flex-1 min-w-0 flex flex-col justify-center">
-                            <FormControl>
-                                {renderCustomFieldInput(cf, field)}
-                            </FormControl>
-                            <FormMessage />
-                            </div>
-                        </FormItem>
-                        )}
-                    />
-                    )
-                })}
-                </div>
-            </div>
-        )}
-
       </form>
+      <Dialog open={createDialog !== null} onOpenChange={(open) => !open && closeCreateDialog()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{createDialogTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="detail-create-name">
+                {createDialog?.type === "selectOption" ? "Option label" : "Name"}
+              </Label>
+              <Input
+                id="detail-create-name"
+                value={newEntityName}
+                onChange={(event) => setNewEntityName(event.target.value)}
+                placeholder={createDialog?.type === "selectOption" ? "New option…" : "Name"}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeCreateDialog} disabled={creatingEntity}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void handleCreateEntity()}
+              disabled={creatingEntity || !newEntityName.trim()}
+            >
+              {creatingEntity ? "Creating…" : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <DraggableDialog open={correspondentsDialogOpen} onOpenChange={setCorrespondentsDialogOpen}>
+        <DraggableDialogContent initialWidth={1100} initialHeight={760} maxWidth={1400}>
+          <DraggableDialogHeader>
+            <DraggableDialogTitle>Correspondents</DraggableDialogTitle>
+          </DraggableDialogHeader>
+          <DraggableDialogBody className="pb-6">
+          <CorrespondentsTable
+            initialCorrespondents={correspondentItems}
+            onItemsChange={setCorrespondentItems}
+            onSelectCorrespondent={(correspondent) => {
+              form.setValue("correspondent", correspondent.id, { shouldDirty: true })
+              setCorrespondentsDialogOpen(false)
+              toast.success(`Selected "${correspondent.name}"`)
+            }}
+            selectLabel="Use"
+          />
+          </DraggableDialogBody>
+        </DraggableDialogContent>
+      </DraggableDialog>
+      <DraggableDialog open={documentTypesDialogOpen} onOpenChange={setDocumentTypesDialogOpen}>
+        <DraggableDialogContent initialWidth={1100} initialHeight={760} maxWidth={1400}>
+          <DraggableDialogHeader>
+            <DraggableDialogTitle>Document Types</DraggableDialogTitle>
+          </DraggableDialogHeader>
+          <DraggableDialogBody className="pb-6">
+          <DocumentTypesTable
+            initialItems={documentTypeItems}
+            onItemsChange={setDocumentTypeItems}
+            onSelectDocumentType={(item) => {
+              form.setValue("document_type", item.id, { shouldDirty: true })
+              setDocumentTypesDialogOpen(false)
+              toast.success(`Selected "${item.name}"`)
+            }}
+            selectLabel="Use"
+          />
+          </DraggableDialogBody>
+        </DraggableDialogContent>
+      </DraggableDialog>
+      <DraggableDialog open={tagsDialogOpen} onOpenChange={setTagsDialogOpen}>
+        <DraggableDialogContent initialWidth={1100} initialHeight={760} maxWidth={1400}>
+          <DraggableDialogHeader>
+            <DraggableDialogTitle>Tags</DraggableDialogTitle>
+          </DraggableDialogHeader>
+          <DraggableDialogBody className="pb-6">
+          <TagsTable
+            initialTags={tagItems}
+            onItemsChange={setTagItems}
+            onSelectTag={(tag) => {
+              const currentTags = form.getValues("tags") ?? []
+              form.setValue("tags", Array.from(new Set([...currentTags, tag.id])), {
+                shouldDirty: true,
+              })
+              setTagsDialogOpen(false)
+              toast.success(`Added "${tag.name}"`)
+            }}
+            selectLabel="Use"
+          />
+          </DraggableDialogBody>
+        </DraggableDialogContent>
+      </DraggableDialog>
     </Form>
   )
 }

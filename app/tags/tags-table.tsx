@@ -79,7 +79,17 @@ const emptyTag = (): Partial<Tag> => ({
   is_inbox_tag: false,
 })
 
-export function TagsTable({ initialTags }: { initialTags: Tag[] }) {
+export function TagsTable({
+  initialTags,
+  onItemsChange,
+  onSelectTag,
+  selectLabel = "Use",
+}: {
+  initialTags: Tag[]
+  onItemsChange?: (items: Tag[]) => void
+  onSelectTag?: (tag: Tag) => void
+  selectLabel?: string
+}) {
   const { can } = usePermissions()
   const [tags, setTags] = React.useState<Tag[]>(initialTags)
   const [search, setSearch] = React.useState("")
@@ -90,6 +100,10 @@ export function TagsTable({ initialTags }: { initialTags: Tag[] }) {
   const filtered = tags.filter((t) =>
     t.name.toLowerCase().includes(search.toLowerCase())
   )
+
+  React.useEffect(() => {
+    onItemsChange?.(tags)
+  }, [onItemsChange, tags])
 
   const { pending: saving, run: saveTag } = useAsyncAction({
     action: async () => {
@@ -195,7 +209,7 @@ export function TagsTable({ initialTags }: { initialTags: Tag[] }) {
               <TableHead>Matching</TableHead>
               <TableHead>Match pattern</TableHead>
               <TableHead className="text-right">Docs</TableHead>
-              <TableHead className="w-20 text-right">Actions</TableHead>
+              <TableHead className="w-28 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -236,6 +250,16 @@ export function TagsTable({ initialTags }: { initialTags: Tag[] }) {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {onSelectTag && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={() => onSelectTag(tag)}
+                        >
+                          {selectLabel}
+                        </Button>
+                      )}
                       <CanChange type="tag">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(tag)}>
                           <Pencil className="h-3.5 w-3.5" />

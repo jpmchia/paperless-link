@@ -3,16 +3,20 @@
 import { atom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 import type { FilterParams } from './api'
+import type { DocumentSection } from '@/app/documents/[id]/document-sections'
 
 export const documentListState = atom<number[]>([])
 
 export const documentDetailsDirtyAtom = atom(false)
 
+export const documentSectionAtom = atom<DocumentSection | null>(null)
+
+export const documentDetailFieldLayoutAtom = atom<string[]>([])
+export const documentDetailAvailableFieldsAtom = atom<Array<{ id: string; label: string }>>([])
+export const documentDetailFieldLayoutRevisionAtom = atom(0)
+
 // Version ID currently being previewed in the PDF viewer (null = latest)
 export const activeVersionIdAtom = atom<number | null>(null)
-
-// Which custom fields are globally visible in the details form
-export const visibleCustomFieldsAtom = atomWithStorage<number[]>('paperless-visible-custom-fields', [])
 
 // Active document list filters — persisted in localStorage
 export const filterParamsAtom = atomWithStorage<FilterParams>('paperless-filter-params', {})

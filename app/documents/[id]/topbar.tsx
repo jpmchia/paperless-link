@@ -1,46 +1,50 @@
 "use client"
 
 import { useConfirmationDialog } from "@/components/confirmation-dialog-provider"
-import { useAtom, useAtomValue } from "jotai"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
 import { OpenDocumentLink } from "@/components/open-document-link"
-import { documentListState, visibleCustomFieldsAtom } from "@/lib/store"
+import {
+    documentDetailAvailableFieldsAtom,
+    documentDetailFieldLayoutAtom,
+    documentDetailFieldLayoutRevisionAtom,
+    documentListState,
+    documentSectionAtom,
+} from "@/lib/store"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, MoreVertical, Trash2, RefreshCw, Save, ListChecks, Sparkles } from "lucide-react"
+import { ChevronLeft, ChevronRight, MoreVertical, Trash2, RefreshCw, Save, Sparkles } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import type { PermissionedObject } from "@/lib/permissions"
 import { deleteDocument, reprocessDocument } from "./actions"
-
-interface CustomFieldItem {
-    data_type: string
-    id: number
-    name: string
-}
+import { getDocumentSectionHref, type DocumentSection } from "./document-sections"
+import { DetailsFieldsPicker } from "./details-fields-picker"
 
 export function TopBar({
     children,
     title = "Document",
     permissionedDocument,
     documentId,
-    customFieldsList,
+    initialSection = "details",
 }: {
     children: React.ReactNode
     title?: React.ReactNode
     permissionedDocument?: PermissionedObject | null
     documentId?: number
-    customFieldsList?: CustomFieldItem[]
+    initialSection?: DocumentSection
 }) {
     const documentList = useAtomValue(documentListState)
-    const [visibleCustomFields, setVisibleCustomFields] = useAtom(visibleCustomFieldsAtom)
+    const currentSection = useAtomValue(documentSectionAtom) ?? initialSection
+    const [detailFieldLayout, setDetailFieldLayout] = useAtom(documentDetailFieldLayoutAtom)
+    const setDetailFieldLayoutRevision = useSetAtom(documentDetailFieldLayoutRevisionAtom)
+    const availableDetailFields = useAtomValue(documentDetailAvailableFieldsAtom)
     const router = useRouter()
     const { confirm } = useConfirmationDialog()
 
@@ -101,6 +105,7 @@ export function TopBar({
                             {prevId ? (
                                 <OpenDocumentLink
                                     documentId={prevId}
+                                    href={getDocumentSectionHref(prevId, currentSection)}
                                     title={`Document ${prevId}`}
                                 >
                                     <ChevronLeft className="h-4 w-4" />
@@ -114,6 +119,7 @@ export function TopBar({
                             {nextId ? (
                                 <OpenDocumentLink
                                     documentId={nextId}
+                                    href={getDocumentSectionHref(nextId, currentSection)}
                                     title={`Document ${nextId}`}
                                 >
                                     <ChevronRight className="h-4 w-4" />
@@ -123,39 +129,17 @@ export function TopBar({
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="secondary" className="h-8 hover:bg-accent">
-                                    <ListChecks className="mr-2 h-4 w-4" />
-                                    Custom Fields
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-[240px]">
-                                <div className="max-h-[80vh] overflow-y-auto">
-                                    {customFieldsList?.map((cf: CustomFieldItem) => (
-                                        <DropdownMenuCheckboxItem
-                                            key={cf.id}
-                                            checked={visibleCustomFields.includes(cf.id)}
-                                            onCheckedChange={(checked) => {
-                                                if (checked) {
-                                                    setVisibleCustomFields([...visibleCustomFields, cf.id])
-                                                } else {
-                                                    setVisibleCustomFields(visibleCustomFields.filter((id: number) => id !== cf.id))
-                                                }
-                                            }}
-                                        >
-                                            <div className="flex justify-between w-full items-center">
-                                                <span>{cf.name}</span>
-                                                <span className="text-xs text-muted-foreground ml-4">{cf.data_type}</span>
-                                            </div>
-                                        </DropdownMenuCheckboxItem>
-                                    ))}
-                                    {(!customFieldsList || customFieldsList.length === 0) && (
-                                        <DropdownMenuItem disabled>No custom fields</DropdownMenuItem>
-                                    )}
-                                </div>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        <DetailsFieldsPicker
+                            availableFields={availableDetailFields}
+                            displayFields={detailFieldLayout}
+                            disabled={availableDetailFields.length === 0}
+                            onDisplayFieldsChange={(value) => {
+                                setDetailFieldLayout((previous) =>
+                                    typeof value === "function" ? value(previous) : value
+                                )
+                                setDetailFieldLayoutRevision((revision) => revision + 1)
+                            }}
+                        />
 
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>

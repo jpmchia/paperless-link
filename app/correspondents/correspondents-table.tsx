@@ -79,8 +79,14 @@ const emptyCorrespondent = (): Partial<Correspondent> => ({
 
 export function CorrespondentsTable({
   initialCorrespondents,
+  onItemsChange,
+  onSelectCorrespondent,
+  selectLabel = "Use",
 }: {
   initialCorrespondents: Correspondent[]
+  onItemsChange?: (items: Correspondent[]) => void
+  onSelectCorrespondent?: (correspondent: Correspondent) => void
+  selectLabel?: string
 }) {
   const { can } = usePermissions()
   const [items, setItems] = React.useState<Correspondent[]>(initialCorrespondents)
@@ -93,6 +99,10 @@ export function CorrespondentsTable({
   const filtered = items.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase())
   )
+
+  React.useEffect(() => {
+    onItemsChange?.(items)
+  }, [items, onItemsChange])
 
   const openCreate = () => {
     setIsNew(true)
@@ -181,7 +191,7 @@ export function CorrespondentsTable({
               <TableHead>Match pattern</TableHead>
               <TableHead className="text-right">Docs</TableHead>
               <TableHead className="text-right">Last seen</TableHead>
-              <TableHead className="w-20 text-right">Actions</TableHead>
+              <TableHead className="w-28 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -211,6 +221,16 @@ export function CorrespondentsTable({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {onSelectCorrespondent && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={() => onSelectCorrespondent(item)}
+                        >
+                          {selectLabel}
+                        </Button>
+                      )}
                       <CanChange type="correspondent">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
                           <Pencil className="h-3.5 w-3.5" />
