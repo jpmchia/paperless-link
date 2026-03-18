@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useAtomValue } from "jotai"
+import { useAtomValue, useSetAtom } from "jotai"
 import {
   type PDFDocumentLoadingTask,
   type PDFDocumentProxy,
@@ -11,7 +11,11 @@ import {
   TextLayer,
   getDocument,
 } from "pdfjs-dist/legacy/build/pdf.mjs"
-import { activeVersionIdAtom } from "@/lib/store"
+import {
+  activeVersionIdAtom,
+  pdfViewerPasswordAtom,
+  pdfViewerRequiresPasswordAtom,
+} from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -296,6 +300,9 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
   const [copyingText, setCopyingText] = React.useState(false)
   const [viewerRef] = useElementSize<HTMLDivElement>()
   const passwordCallbackRef = React.useRef<((password: string) => void) | null>(null)
+  const currentPasswordRef = React.useRef("")
+  const setPdfPassword = useSetAtom(pdfViewerPasswordAtom)
+  const setPdfRequiresPassword = useSetAtom(pdfViewerRequiresPasswordAtom)
 
   const sourceUrl = React.useMemo(() => {
     const versionSuffix = activeVersionId != null ? `?version=${activeVersionId}` : ""
@@ -311,6 +318,9 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
     setPasswordValue("")
     setPdf(null)
     setPage(1)
+    setPdfPassword("")
+    setPdfRequiresPassword(false)
+    currentPasswordRef.current = ""
 
     const task: PDFDocumentLoadingTask = getDocument({
       url: sourceUrl,
@@ -324,6 +334,8 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
       passwordCallbackRef.current = callback
       setPasswordRequired(true)
       setLoading(false)
+      setPdfRequiresPassword(true)
+      setPdfPassword("")
       setPasswordMessage(
         reason === PasswordResponses.INCORRECT_PASSWORD
           ? "Incorrect password. Please try again."
@@ -338,6 +350,8 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
         setLoading(false)
         setPasswordRequired(false)
         setPasswordMessage(null)
+        setPdfRequiresPassword(false)
+        setPdfPassword(currentPasswordRef.current)
         if (nextPdf.numPages > 1) {
           setSpreadMode((current) => (current === "single" ? current : "two-up"))
         } else {
@@ -357,7 +371,7 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
       cancelled = true
       void task.destroy()
     }
-  }, [sourceUrl])
+  }, [setPdfPassword, setPdfRequiresPassword, sourceUrl])
 
   const pageCount = pdf?.numPages ?? totalPages
 
@@ -445,6 +459,7 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
     if (!passwordCallbackRef.current || passwordValue.trim().length === 0) return
     setLoading(true)
     setPasswordRequired(false)
+    currentPasswordRef.current = passwordValue.trim()
     passwordCallbackRef.current(passwordValue)
   }
 

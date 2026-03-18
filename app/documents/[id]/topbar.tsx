@@ -12,9 +12,11 @@ import {
     documentDetailFieldLayoutRevisionAtom,
     documentListState,
     documentSectionAtom,
+    pdfViewerPasswordAtom,
+    pdfViewerRequiresPasswordAtom,
 } from "@/lib/store"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronLeft, ChevronRight, Download, Mail, MoreVertical, Printer, Scissors, Trash2, RefreshCw, Save, Sparkles } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Download, KeyRound, Mail, MoreVertical, Printer, Scissors, Trash2, RefreshCw, Save, Sparkles } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuCheckboxItem,
@@ -26,11 +28,12 @@ import {
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import type { PermissionedObject } from "@/lib/permissions"
-import { deleteDocument, reprocessDocument } from "./actions"
+import { deleteDocument, removeDocumentPassword, reprocessDocument } from "./actions"
 import { getDocumentSectionHref, type DocumentSection } from "./document-sections"
 import { DetailsFieldsPicker } from "./details-fields-picker"
 import { EmailDocumentDialog } from "./email-document-dialog"
 import { PdfToolsDialog } from "./pdf-tools-dialog"
+import { RemovePasswordDialog } from "./remove-password-dialog"
 
 export function TopBar({
     children,
@@ -56,11 +59,15 @@ export function TopBar({
     const documentList = useAtomValue(documentListState)
     const currentSection = useAtomValue(documentSectionAtom) ?? initialSection
     const activeVersionId = useAtomValue(activeVersionIdAtom)
+    const pdfPassword = useAtomValue(pdfViewerPasswordAtom)
+    const pdfRequiresPassword = useAtomValue(pdfViewerRequiresPasswordAtom)
     const [detailFieldLayout, setDetailFieldLayout] = useAtom(documentDetailFieldLayoutAtom)
     const setDetailFieldLayoutRevision = useSetAtom(documentDetailFieldLayoutRevisionAtom)
     const availableDetailFields = useAtomValue(documentDetailAvailableFieldsAtom)
     const [emailDialogOpen, setEmailDialogOpen] = React.useState(false)
     const [pdfToolsOpen, setPdfToolsOpen] = React.useState(false)
+    const [removePasswordOpen, setRemovePasswordOpen] = React.useState(false)
+    const [removingPassword, setRemovingPassword] = React.useState(false)
     const [downloading, setDownloading] = React.useState(false)
     const [useFormattedFilename, setUseFormattedFilename] = React.useState(false)
     const router = useRouter()
@@ -200,6 +207,45 @@ export function TopBar({
         }
     }
 
+    const handleRemovePassword = async (options: {
+        updateDocument: boolean
+        deleteOriginal: boolean
+        includeMetadata: boolean
+    }) => {
+        if (!documentId) return
+        if (!pdfPassword || pdfRequiresPassword) {
+            toast.error("Please enter the current PDF password before attempting to remove it.")
+            return
+        }
+
+        const sourceDocumentId = activeVersionId ?? documentId
+
+        setRemovingPassword(true)
+        try {
+            await removeDocumentPassword(sourceDocumentId, {
+                password: pdfPassword,
+                update_document: options.updateDocument,
+                include_metadata: options.includeMetadata,
+                delete_original: options.deleteOriginal,
+                source_mode: "explicit_selection",
+            })
+            toast.success(`Password removal operation for "${typeof title === "string" ? title : "Document"}" will begin in the background.`)
+            setRemovePasswordOpen(false)
+
+            if (!options.updateDocument && options.deleteOriginal) {
+                router.push("/documents")
+            } else {
+                router.refresh()
+            }
+        } catch (error) {
+            toast.error("Failed to remove password", {
+                description: error instanceof Error ? error.message : "Unknown error",
+            })
+        } finally {
+            setRemovingPassword(false)
+        }
+    }
+
     return (
         <div className="flex items-center justify-between w-full">
             <div className="flex flex-col gap-2">
@@ -313,6 +359,20 @@ export function TopBar({
                                         PDF tools
                                     </DropdownMenuItem>
                                 )}
+                                {documentId && canEditPdf && (
+                                    <DropdownMenuItem
+                                        onClick={() => {
+                                            if (!pdfPassword || pdfRequiresPassword) {
+                                                toast.error("Please unlock the PDF with its current password first.")
+                                                return
+                                            }
+                                            setRemovePasswordOpen(true)
+                                        }}
+                                    >
+                                        <KeyRound className="mr-2 h-4 w-4" />
+                                        Remove password protection
+                                    </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem onClick={() => void handlePrint()}>
                                     <Printer className="mr-2 h-4 w-4" />
                                     Print
@@ -377,6 +437,14 @@ export function TopBar({
                     totalPages={totalPages}
                     open={pdfToolsOpen}
                     onOpenChange={setPdfToolsOpen}
+                />
+            )}
+            {documentId && canEditPdf && (
+                <RemovePasswordDialog
+                    open={removePasswordOpen}
+                    onOpenChange={setRemovePasswordOpen}
+                    onConfirm={handleRemovePassword}
+                    busy={removingPassword}
                 />
             )}
         </div>
