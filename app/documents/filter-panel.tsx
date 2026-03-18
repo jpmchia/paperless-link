@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useConfirmationDialog } from "@/components/confirmation-dialog-provider"
 import { CanCreate } from "@/components/permissions/can-create"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes"
@@ -182,6 +183,7 @@ export function FilterPanel({
   )
   const router = useRouter()
   const pathname = usePathname()
+  const { confirm } = useConfirmationDialog()
 
   const currentSavedViewState = getComparableSavedViewStateFromFilters(
     filters,
@@ -243,13 +245,15 @@ export function FilterPanel({
     [setLocalFilters, setAtomFilters, onFilterChange, router, pathname, activeViewId]
   )
 
-  const loadSavedView = (view: any) => {
-    if (
-      activeViewId &&
-      activeViewIsDirty &&
-      !window.confirm(`Discard unsaved changes to "${activeViewName}"?`)
-    ) {
-      return
+  const loadSavedView = async (view: any) => {
+    if (activeViewId && activeViewIsDirty) {
+      const confirmed = await confirm({
+        actionLabel: "Discard changes",
+        description: `Discard unsaved changes to "${activeViewName}"?`,
+        cancelLabel: "Keep editing",
+        title: "Switch saved view?",
+      })
+      if (!confirmed) return
     }
     router.push(`/documents?view=${view.id}`)
   }
@@ -396,13 +400,15 @@ export function FilterPanel({
     applyFilters({ ...filters, query: searchValue || undefined })
   }
 
-  const clearAll = () => {
-    if (
-      activeViewId &&
-      activeViewIsDirty &&
-      !window.confirm(`Discard unsaved changes to "${activeViewName}"?`)
-    ) {
-      return
+  const clearAll = async () => {
+    if (activeViewId && activeViewIsDirty) {
+      const confirmed = await confirm({
+        actionLabel: "Discard changes",
+        description: `Discard unsaved changes to "${activeViewName}"?`,
+        cancelLabel: "Keep editing",
+        title: "Clear filters?",
+      })
+      if (!confirmed) return
     }
 
     setLocalFilters({})

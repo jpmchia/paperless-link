@@ -4,6 +4,7 @@ import { useSetAtom } from "jotai"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { DetailsForm } from "@/app/documents/[id]/details-form"
 import { MetadataTab } from "@/app/documents/[id]/metadata-tab"
+import { ConfirmationDialogProvider } from "@/components/confirmation-dialog-provider"
 import { JotaiProvider } from "@/components/jotai-provider"
 import type { RealtimeEvent } from "@/lib/realtime/events"
 import { latestRealtimeEventAtom } from "@/lib/stores/realtime"
@@ -52,17 +53,19 @@ describe("document properties and metadata realtime updates", () => {
   it("updates properties when refreshed props arrive and the form is clean", async () => {
     const { rerender } = render(
       <JotaiProvider>
-        <DetailsForm
-          document={{
-            id: 42,
-            title: "Original title",
-          } as DetailsDocument}
-          correspondents={[]}
-          customFieldsList={[]}
-          documentTypes={[]}
-          storagePaths={[]}
-          tagsList={[]}
-        />
+        <ConfirmationDialogProvider>
+          <DetailsForm
+            document={{
+              id: 42,
+              title: "Original title",
+            } as DetailsDocument}
+            correspondents={[]}
+            customFieldsList={[]}
+            documentTypes={[]}
+            storagePaths={[]}
+            tagsList={[]}
+          />
+        </ConfirmationDialogProvider>
       </JotaiProvider>
     )
 
@@ -70,17 +73,19 @@ describe("document properties and metadata realtime updates", () => {
 
     rerender(
       <JotaiProvider>
-        <DetailsForm
-          document={{
-            id: 42,
-            title: "Realtime title",
-          } as DetailsDocument}
-          correspondents={[]}
-          customFieldsList={[]}
-          documentTypes={[]}
-          storagePaths={[]}
-          tagsList={[]}
-        />
+        <ConfirmationDialogProvider>
+          <DetailsForm
+            document={{
+              id: 42,
+              title: "Realtime title",
+            } as DetailsDocument}
+            correspondents={[]}
+            customFieldsList={[]}
+            documentTypes={[]}
+            storagePaths={[]}
+            tagsList={[]}
+          />
+        </ConfirmationDialogProvider>
       </JotaiProvider>
     )
 
@@ -92,17 +97,19 @@ describe("document properties and metadata realtime updates", () => {
   it("does not overwrite dirty property edits when refreshed props arrive", async () => {
     const { rerender } = render(
       <JotaiProvider>
-        <DetailsForm
-          document={{
-            id: 42,
-            title: "Original title",
-          } as DetailsDocument}
-          correspondents={[]}
-          customFieldsList={[]}
-          documentTypes={[]}
-          storagePaths={[]}
-          tagsList={[]}
-        />
+        <ConfirmationDialogProvider>
+          <DetailsForm
+            document={{
+              id: 42,
+              title: "Original title",
+            } as DetailsDocument}
+            correspondents={[]}
+            customFieldsList={[]}
+            documentTypes={[]}
+            storagePaths={[]}
+            tagsList={[]}
+          />
+        </ConfirmationDialogProvider>
       </JotaiProvider>
     )
 
@@ -115,17 +122,19 @@ describe("document properties and metadata realtime updates", () => {
 
     rerender(
       <JotaiProvider>
-        <DetailsForm
-          document={{
-            id: 42,
-            title: "Remote title",
-          } as DetailsDocument}
-          correspondents={[]}
-          customFieldsList={[]}
-          documentTypes={[]}
-          storagePaths={[]}
-          tagsList={[]}
-        />
+        <ConfirmationDialogProvider>
+          <DetailsForm
+            document={{
+              id: 42,
+              title: "Remote title",
+            } as DetailsDocument}
+            correspondents={[]}
+            customFieldsList={[]}
+            documentTypes={[]}
+            storagePaths={[]}
+            tagsList={[]}
+          />
+        </ConfirmationDialogProvider>
       </JotaiProvider>
     )
 

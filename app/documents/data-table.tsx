@@ -90,6 +90,7 @@ interface DataTableProps {
   usersList?: any[]
   groupsList?: any[]
   onDisplayFieldsChange?: React.Dispatch<React.SetStateAction<string[]>>
+  onPreviewDocument?: (document: { id: number; title?: string }) => void
 }
 
 const PAGE_SIZES = [10, 25, 50, 100]
@@ -222,6 +223,7 @@ export function DataTable({
   usersList = [],
   groupsList = [],
   onDisplayFieldsChange,
+  onPreviewDocument,
 }: DataTableProps) {
   const router = useRouter()
   const navigateToDocument = useOpenDocumentNavigation()
@@ -229,8 +231,6 @@ export function DataTable({
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
   const [saving, setSaving] = React.useState(false)
-  const [previewDocId, setPreviewDocId] = React.useState<number | null>(null)
-  const [previewDocTitle, setPreviewDocTitle] = React.useState<string | undefined>()
   const [columnResizeMode] = React.useState<ColumnResizeMode>("onChange")
 
   // Local display fields state — initialized from prop (view's settings) or default
@@ -298,8 +298,10 @@ export function DataTable({
           title="Quick preview"
           onClick={(e) => {
             e.stopPropagation()
-            setPreviewDocId(row.original.id)
-            setPreviewDocTitle(row.original.title)
+            onPreviewDocument?.({
+              id: row.original.id,
+              title: row.original.title,
+            })
           }}
         >
           <ScanEye className="h-3.5 w-3.5" />
@@ -307,7 +309,7 @@ export function DataTable({
       ),
     }
     return [...selectColumn, ...makeColumns(lookup, displayFields), previewColumn] as any[]
-  }, [lookup, displayFields])
+  }, [displayFields, lookup, onPreviewDocument])
 
   const table = useReactTable({
     data,
@@ -420,12 +422,6 @@ export function DataTable({
           </TableBody>
         </Table>
       </div>
-
-      <DocumentPreviewDialog
-        documentId={previewDocId}
-        documentTitle={previewDocTitle}
-        onClose={() => setPreviewDocId(null)}
-      />
     </div>
   )
 }

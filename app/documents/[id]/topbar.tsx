@@ -1,5 +1,6 @@
 "use client"
 
+import { useConfirmationDialog } from "@/components/confirmation-dialog-provider"
 import { useAtom, useAtomValue } from "jotai"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
 import { OpenDocumentLink } from "@/components/open-document-link"
@@ -41,6 +42,7 @@ export function TopBar({
     const documentList = useAtomValue(documentListState)
     const [visibleCustomFields, setVisibleCustomFields] = useAtom(visibleCustomFieldsAtom)
     const router = useRouter()
+    const { confirm } = useConfirmationDialog()
 
     // Find Next/Prev document IDs
     const currentIndex = documentId ? documentList.indexOf(documentId) : -1
@@ -56,14 +58,21 @@ export function TopBar({
 
     const handleDelete = async () => {
         if (!documentId) return
-        if (confirm("Are you sure you want to delete this document?")) {
-            try {
-                await deleteDocument(documentId)
-                toast.success("Document deleted")
-                router.push("/documents")
-            } catch {
-                toast.error("Failed to delete document")
-            }
+        const confirmed = await confirm({
+            actionLabel: "Delete",
+            cancelLabel: "Cancel",
+            description: "Are you sure you want to delete this document?",
+            tone: "destructive",
+            title: "Delete document?",
+        })
+        if (!confirmed) return
+
+        try {
+            await deleteDocument(documentId)
+            toast.success("Document deleted")
+            router.push("/documents")
+        } catch {
+            toast.error("Failed to delete document")
         }
     }
 

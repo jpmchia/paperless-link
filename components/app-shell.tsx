@@ -1,5 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import { GlobalSearch } from "@/components/global-search/global-search"
+import { ConfirmationDialogProvider } from "@/components/confirmation-dialog-provider"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import { NotificationPreferencesProvider } from "@/components/notifications/preferences-provider"
 import { ShellStatus } from "@/components/shell-status"
@@ -77,31 +78,33 @@ export async function AppShell({
       <NotificationPreferencesProvider
         initialPreferences={notificationPreferences}
       >
-        <SidebarProvider className="h-full">
-          <AppSidebar
-            appLogo={appLogo}
-            appTitle={appTitle}
-            initialPermissions={resolvedPermissions}
-            savedViews={savedViews}
-          />
-          <SidebarInset className="h-full">
-            <header className="sticky top-0 flex h-20 shrink-0 items-center justify-between gap-2 px-4 z-10 bg-transparent transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-              <div className="flex items-center gap-2 w-full min-w-0">
-                <SidebarTrigger className="-ml-1" />
-                <Separator orientation="vertical" className="mr-2 h-4" />
-                <div className="min-w-0 flex-1">{topbar}</div>
-                <div className="flex items-center gap-2">
-                  <GlobalSearch savedViews={savedViews} />
-                  <ShellStatus />
-                  <NotificationCenter />
+        <ConfirmationDialogProvider>
+          <SidebarProvider className="h-full">
+            <AppSidebar
+              appLogo={appLogo}
+              appTitle={appTitle}
+              initialPermissions={resolvedPermissions}
+              savedViews={savedViews}
+            />
+            <SidebarInset className="h-full">
+              <header className="sticky top-0 flex h-20 shrink-0 items-center justify-between gap-2 px-4 z-10 bg-transparent transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+                <div className="flex items-center gap-2 w-full min-w-0">
+                  <SidebarTrigger className="-ml-1" />
+                  <Separator orientation="vertical" className="mr-2 h-4" />
+                  <div className="min-w-0 flex-1">{topbar}</div>
+                  <div className="flex items-center gap-2">
+                    <GlobalSearch savedViews={savedViews} />
+                    <ShellStatus />
+                    <NotificationCenter />
+                  </div>
                 </div>
-              </div>
-            </header>
-            <main className="flex flex-1 flex-col min-h-0 overflow-hidden h-[calc(100%-1rem)] mb-[1rem] rounded-lg">
-              {children}
-            </main>
-          </SidebarInset>
-        </SidebarProvider>
+              </header>
+              <main className="flex flex-1 flex-col min-h-0 overflow-hidden h-[calc(100%-1rem)] mb-[1rem] rounded-lg">
+                {children}
+              </main>
+            </SidebarInset>
+          </SidebarProvider>
+        </ConfirmationDialogProvider>
       </NotificationPreferencesProvider>
     </PermissionsProvider>
   )

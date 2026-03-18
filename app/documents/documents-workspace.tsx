@@ -10,6 +10,7 @@ import { DataTable, DataTableHeaderBar } from "./data-table"
 import { ColumnsPicker } from "./columns-picker"
 import { CardGrid } from "./card-grid"
 import { DisplayModePicker } from "./display-mode-picker"
+import { DocumentPreviewDialog } from "./document-preview-dialog"
 import {
   DEFAULT_DOCUMENT_DISPLAY_MODE,
   type DocumentDisplayMode,
@@ -71,6 +72,10 @@ export function DocumentsWorkspace({
   )
   const [smallCardSize, setSmallCardSize] = React.useState(190)
   const [largeCardSize, setLargeCardSize] = React.useState(280)
+  const [previewDocument, setPreviewDocument] = React.useState<{
+    id: number
+    title?: string
+  } | null>(null)
 
   React.useEffect(() => {
     if (activeView?.display_fields?.length) {
@@ -97,6 +102,14 @@ export function DocumentsWorkspace({
   }, [activeView?.id, displayMode])
 
   const cardSize = displayMode === "largeCards" ? largeCardSize : smallCardSize
+  const previewDocuments = React.useMemo(
+    () =>
+      data.map((document) => ({
+        id: document.id,
+        title: document.title,
+      })),
+    [data]
+  )
 
   const handleCardSizeChange = React.useCallback(
     (value: number) => {
@@ -161,6 +174,7 @@ export function DocumentsWorkspace({
           currentFilters={currentFilters}
           usersList={users}
           groupsList={groupsList}
+          onPreviewDocument={setPreviewDocument}
         />
       ) : (
         <CardGrid
@@ -169,8 +183,16 @@ export function DocumentsWorkspace({
           displayMode={displayMode}
           displayFields={displayFields}
           cardSize={cardSize}
+          onPreviewDocument={setPreviewDocument}
         />
       )}
+      <DocumentPreviewDialog
+        documentId={previewDocument?.id ?? null}
+        documentTitle={previewDocument?.title}
+        documents={previewDocuments}
+        onClose={() => setPreviewDocument(null)}
+        onDocumentChange={setPreviewDocument}
+      />
     </div>
   )
 }

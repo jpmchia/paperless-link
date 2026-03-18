@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { FilterPanel } from "@/app/documents/filter-panel"
+import { ConfirmationDialogProvider } from "@/components/confirmation-dialog-provider"
 import { JotaiProvider } from "@/components/jotai-provider"
 import { PermissionsProvider } from "@/components/permissions/provider"
 
@@ -25,44 +26,46 @@ vi.mock("@/app/documents/saved-view-actions", () => ({
 function renderFilterPanel(initialFilters: Record<string, unknown>) {
   return render(
     <JotaiProvider>
-      <PermissionsProvider
-        initialPermissions={{
-          groupIds: [],
-          isAuthenticated: true,
-          isStaff: false,
-          isSuperuser: false,
-          permissionCodes: [
-            "view_savedview",
-            "change_savedview",
-            "add_savedview",
-          ],
-          userId: 1,
-        }}
-      >
-        <FilterPanel
-          correspondents={[]}
-          documentTypes={[]}
-          storagePaths={[]}
-          tags={[]}
-          savedViews={[]}
-          activeViewId={7}
-          activeViewName="Invoices"
-          activeView={{
-            id: 7,
-            name: "Invoices",
-            filter_rules: [],
-            sort_field: "created",
-            sort_reverse: true,
-            display_fields: ["title", "created"],
-            page_size: 25,
+      <ConfirmationDialogProvider>
+        <PermissionsProvider
+          initialPermissions={{
+            groupIds: [],
+            isAuthenticated: true,
+            isStaff: false,
+            isSuperuser: false,
+            permissionCodes: [
+              "view_savedview",
+              "change_savedview",
+              "add_savedview",
+            ],
+            userId: 1,
           }}
-          initialFilters={initialFilters}
-          currentUserId={1}
-          currentDisplayMode="smallCards"
-          currentDisplayFields={["title", "created"]}
-          currentPageSize={25}
-        />
-      </PermissionsProvider>
+        >
+          <FilterPanel
+            correspondents={[]}
+            documentTypes={[]}
+            storagePaths={[]}
+            tags={[]}
+            savedViews={[]}
+            activeViewId={7}
+            activeViewName="Invoices"
+            activeView={{
+              id: 7,
+              name: "Invoices",
+              filter_rules: [],
+              sort_field: "created",
+              sort_reverse: true,
+              display_fields: ["title", "created"],
+              page_size: 25,
+            }}
+            initialFilters={initialFilters}
+            currentUserId={1}
+            currentDisplayMode="smallCards"
+            currentDisplayFields={["title", "created"]}
+            currentPageSize={25}
+          />
+        </PermissionsProvider>
+      </ConfirmationDialogProvider>
     </JotaiProvider>
   )
 }
@@ -98,26 +101,28 @@ describe("FilterPanel saved-view dirty state", () => {
   it("shows a save-view action in the views menu on the plain document list", () => {
     render(
       <JotaiProvider>
-        <PermissionsProvider
-          initialPermissions={{
-            groupIds: [],
-            isAuthenticated: true,
-            isStaff: false,
-            isSuperuser: false,
-            permissionCodes: ["view_savedview", "add_savedview"],
-            userId: 1,
-          }}
-        >
-          <FilterPanel
-            correspondents={[]}
-            documentTypes={[]}
-            storagePaths={[]}
-            tags={[]}
-            savedViews={[]}
-            initialFilters={{ query: "invoices" }}
-            currentUserId={1}
-          />
-        </PermissionsProvider>
+        <ConfirmationDialogProvider>
+          <PermissionsProvider
+            initialPermissions={{
+              groupIds: [],
+              isAuthenticated: true,
+              isStaff: false,
+              isSuperuser: false,
+              permissionCodes: ["view_savedview", "add_savedview"],
+              userId: 1,
+            }}
+          >
+            <FilterPanel
+              correspondents={[]}
+              documentTypes={[]}
+              storagePaths={[]}
+              tags={[]}
+              savedViews={[]}
+              initialFilters={{ query: "invoices" }}
+              currentUserId={1}
+            />
+          </PermissionsProvider>
+        </ConfirmationDialogProvider>
       </JotaiProvider>
     )
 
@@ -127,26 +132,28 @@ describe("FilterPanel saved-view dirty state", () => {
   it("renders the views menu for plain document lists with create permission", () => {
     render(
       <JotaiProvider>
-        <PermissionsProvider
-          initialPermissions={{
-            groupIds: [],
-            isAuthenticated: true,
-            isStaff: false,
-            isSuperuser: false,
-            permissionCodes: ["view_savedview", "add_savedview"],
-            userId: 1,
-          }}
-        >
-          <FilterPanel
-            correspondents={[]}
-            documentTypes={[]}
-            storagePaths={[]}
-            tags={[]}
-            savedViews={[]}
-            initialFilters={{ query: "invoices" }}
-            currentUserId={1}
-          />
-        </PermissionsProvider>
+        <ConfirmationDialogProvider>
+          <PermissionsProvider
+            initialPermissions={{
+              groupIds: [],
+              isAuthenticated: true,
+              isStaff: false,
+              isSuperuser: false,
+              permissionCodes: ["view_savedview", "add_savedview"],
+              userId: 1,
+            }}
+          >
+            <FilterPanel
+              correspondents={[]}
+              documentTypes={[]}
+              storagePaths={[]}
+              tags={[]}
+              savedViews={[]}
+              initialFilters={{ query: "invoices" }}
+              currentUserId={1}
+            />
+          </PermissionsProvider>
+        </ConfirmationDialogProvider>
       </JotaiProvider>
     )
 
@@ -159,25 +166,27 @@ describe("FilterPanel saved-view dirty state", () => {
     try {
       render(
         <JotaiProvider>
-          <PermissionsProvider
-            initialPermissions={{
-              groupIds: [],
-              isAuthenticated: true,
-              isStaff: false,
-              isSuperuser: false,
-              permissionCodes: ["view_savedview"],
-              userId: 1,
-            }}
-          >
-            <FilterPanel
-              correspondents={[]}
-              documentTypes={[]}
-              storagePaths={[]}
-              tags={[]}
-              savedViews={[]}
-              currentUserId={1}
-            />
-          </PermissionsProvider>
+          <ConfirmationDialogProvider>
+            <PermissionsProvider
+              initialPermissions={{
+                groupIds: [],
+                isAuthenticated: true,
+                isStaff: false,
+                isSuperuser: false,
+                permissionCodes: ["view_savedview"],
+                userId: 1,
+              }}
+            >
+              <FilterPanel
+                correspondents={[]}
+                documentTypes={[]}
+                storagePaths={[]}
+                tags={[]}
+                savedViews={[]}
+                currentUserId={1}
+              />
+            </PermissionsProvider>
+          </ConfirmationDialogProvider>
         </JotaiProvider>
       )
 
@@ -197,26 +206,28 @@ describe("FilterPanel saved-view dirty state", () => {
   it("applies permissions presets with the correct query semantics", async () => {
     render(
       <JotaiProvider>
-        <PermissionsProvider
-          initialPermissions={{
-            groupIds: [],
-            isAuthenticated: true,
-            isStaff: false,
-            isSuperuser: false,
-            permissionCodes: ["view_savedview"],
-            userId: 1,
-          }}
-        >
-          <FilterPanel
-            correspondents={[]}
-            documentTypes={[]}
-            storagePaths={[]}
-            tags={[]}
-            savedViews={[]}
-            currentUserId={1}
-            users={[{ id: 1, username: "alice" }]}
-          />
-        </PermissionsProvider>
+        <ConfirmationDialogProvider>
+          <PermissionsProvider
+            initialPermissions={{
+              groupIds: [],
+              isAuthenticated: true,
+              isStaff: false,
+              isSuperuser: false,
+              permissionCodes: ["view_savedview"],
+              userId: 1,
+            }}
+          >
+            <FilterPanel
+              correspondents={[]}
+              documentTypes={[]}
+              storagePaths={[]}
+              tags={[]}
+              savedViews={[]}
+              currentUserId={1}
+              users={[{ id: 1, username: "alice" }]}
+            />
+          </PermissionsProvider>
+        </ConfirmationDialogProvider>
       </JotaiProvider>
     )
 
