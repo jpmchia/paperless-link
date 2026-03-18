@@ -559,6 +559,7 @@ export function FilterPanel({
             <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground z-10 pointer-events-none" />
             <Input
               type="search"
+              data-documents-hotkey="search-input"
               placeholder="Search documents…"
               className="pl-8 pr-20 h-8"
               value={searchValue}
@@ -707,6 +708,8 @@ export function FilterPanel({
             <Button
               variant="outline"
               size="sm"
+              data-documents-hotkey="dates-trigger"
+              title="Dates (Alt+F)"
               className={(filters.createdAfter || filters.createdBefore || filters.addedAfter || filters.addedBefore) ? "border-primary text-primary" : "h-8 min-h-8 border-muted-foreground/20 hover:border-accent/50 hover:bg-accent/20"}
             >
               <Calendar className="mr-2 h-4 w-4" />
@@ -876,7 +879,13 @@ export function FilterPanel({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className={activeViewId ? "border-primary text-primary" : ""}>
+            <Button
+              variant="outline"
+              size="sm"
+              data-documents-hotkey="views-trigger"
+              title="Views (Alt+V)"
+              className={activeViewId ? "border-primary text-primary" : ""}
+            >
               <LayoutList className="mr-2 h-4 w-4" />
               Views
               <ChevronDown className="ml-2 h-3 w-3" />

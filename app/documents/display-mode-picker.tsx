@@ -48,7 +48,7 @@ export function DisplayModePicker({
               "h-7 px-2 text-muted-foreground hover:text-foreground " +
               (active ? "bg-accent text-foreground shadow-sm" : "")
             }
-            title={label}
+            title={`${label}${mode === "table" ? " (Alt+1)" : mode === "smallCards" ? " (Alt+2)" : " (Alt+3)"}`}
           >
             <Icon className="h-4 w-4" />
           </Button>

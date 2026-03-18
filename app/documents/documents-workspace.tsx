@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { updateUiSettings } from "@/lib/ui-settings"
 import type { FilterParams } from "@/lib/api"
 import { RealtimeDocumentListSync } from "@/components/realtime-document-list-sync"
@@ -59,6 +60,8 @@ export function DocumentsWorkspace({
   currentUserId,
   initialDisplayMode,
 }: DocumentsWorkspaceProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const activeViewDisplayFieldsKey = React.useMemo(
     () => activeView?.display_fields?.join(",") ?? "",
     [activeView?.display_fields]
@@ -124,6 +127,116 @@ export function DocumentsWorkspace({
     },
     [displayMode]
   )
+
+  React.useEffect(() => {
+    const isEditableTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false
+
+      const tagName = target.tagName
+      return (
+        target.isContentEditable ||
+        tagName === "INPUT" ||
+        tagName === "TEXTAREA" ||
+        tagName === "SELECT"
+      )
+    }
+
+    const clickHotkeyTarget = (selector: string) => {
+      const target = document.querySelector<HTMLElement>(selector)
+      target?.click()
+    }
+
+    const navigatePage = (nextPage: number) => {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set("page", String(nextPage))
+      router.push(`?${params.toString()}`)
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (previewDocument) {
+        if (event.key === "ArrowLeft") {
+          const currentIndex = previewDocuments.findIndex(
+            (document) => document.id === previewDocument.id
+          )
+          if (currentIndex > 0) {
+            event.preventDefault()
+            setPreviewDocument(previewDocuments[currentIndex - 1])
+          }
+          return
+        }
+
+        if (event.key === "ArrowRight") {
+          const currentIndex = previewDocuments.findIndex(
+            (document) => document.id === previewDocument.id
+          )
+          if (currentIndex >= 0 && currentIndex < previewDocuments.length - 1) {
+            event.preventDefault()
+            setPreviewDocument(previewDocuments[currentIndex + 1])
+          }
+          return
+        }
+      }
+
+      if (isEditableTarget(event.target)) return
+
+      if (event.key === "/") {
+        event.preventDefault()
+        document
+          .querySelector<HTMLInputElement>('[data-documents-hotkey="search-input"]')
+          ?.focus()
+        return
+      }
+
+      if (!event.altKey) return
+
+      switch (event.key) {
+        case "1":
+          event.preventDefault()
+          setDisplayMode("table")
+          return
+        case "2":
+          event.preventDefault()
+          setDisplayMode("smallCards")
+          return
+        case "3":
+          event.preventDefault()
+          setDisplayMode("largeCards")
+          return
+        case "c":
+        case "C":
+          event.preventDefault()
+          clickHotkeyTarget('[data-documents-hotkey="columns-trigger"]')
+          return
+        case "f":
+        case "F":
+          event.preventDefault()
+          clickHotkeyTarget('[data-documents-hotkey="dates-trigger"]')
+          return
+        case "v":
+        case "V":
+          event.preventDefault()
+          clickHotkeyTarget('[data-documents-hotkey="views-trigger"]')
+          return
+        case "ArrowLeft":
+          if (currentPage > 1) {
+            event.preventDefault()
+            navigatePage(currentPage - 1)
+          }
+          return
+        case "ArrowRight":
+          if (currentPage < pageCount) {
+            event.preventDefault()
+            navigatePage(currentPage + 1)
+          }
+          return
+        default:
+          return
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [currentPage, pageCount, previewDocument, previewDocuments, router, searchParams])
 
   return (
     <div className="flex h-full flex-col gap-4 p-4">

@@ -88,7 +88,7 @@ export function ColumnsPicker({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" data-documents-hotkey="columns-trigger" title="Columns (Alt+C)">
           <Columns className="mr-2 h-4 w-4" />
           Columns
         </Button>
