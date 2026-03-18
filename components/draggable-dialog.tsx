@@ -113,7 +113,7 @@ const DialogContent = React.forwardRef<
       brightness = 1.5,
       contrast = 1,
       borderWidth = 1,
-      bgOpacity = 0.825,
+      bgOpacity = 0.975,
       overlay = true,
       onInteractOutside,
       onEscapeKeyDown,
@@ -289,7 +289,7 @@ const DialogHeader = ({
   return (
     <div
       className={cn(
-        "flex items-start space-x-1.5 gap-0 px-6 pt-6 pb-2 text-left select-none",
+        "flex items-start space-x-1.5 gap-6 px-6 pt-6 pb-2 text-left select-none",
         ctx && !ctx.isDragging && "cursor-grab",
         ctx?.isDragging && "cursor-grabbing",
         className,
@@ -321,7 +321,7 @@ const DialogBody = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn("flex-1 overflow-y-auto px-6 py-2", className)}
+    className={cn("flex-1 overflow-y-auto px-6 py-2 gap-8 sm:gap-2 pt-4 space-y-6", className)}
     data-no-drag
     {...props}
   />

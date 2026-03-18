@@ -149,11 +149,11 @@ export function DocumentTypesTable({
     <>
       <div className="flex items-center justify-between gap-3">
         <div className="relative max-w-xs flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search document types…" className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search document types…" className="pl-8 h-8" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <CanCreate type="documentType">
-          <Button onClick={openCreate} size="sm">
+          <Button onClick={openCreate} size="sm" className="h-8">
             <Plus className="mr-2 h-4 w-4" />Create Document Type
           </Button>
         </CanCreate>
@@ -161,13 +161,13 @@ export function DocumentTypesTable({
 
       <div className="rounded-md border overflow-hidden">
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Matching</TableHead>
-              <TableHead>Match pattern</TableHead>
-              <TableHead className="text-right">Docs</TableHead>
-              <TableHead className="w-28 text-right">Actions</TableHead>
+          <TableHeader className="max-h-8">
+            <TableRow className="bg-muted/50 text-xs max-h-8 p-0 m-0">
+              <TableHead className="!h-8">Name</TableHead>
+              <TableHead className="!h-8">Matching</TableHead>
+              <TableHead className="!h-8">Match pattern</TableHead>
+              <TableHead className="!h-8 text-right">Docs</TableHead>
+              <TableHead className="!h-8 text-right pr-[4.5rem]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -184,19 +184,19 @@ export function DocumentTypesTable({
                   <TableCell className="text-muted-foreground text-sm">
                     {MATCHING_ALGORITHMS.find((a) => a.id === item.matching_algorithm)?.label ?? "-"}
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm font-mono max-w-[200px] truncate">
+                  <TableCell className="text-muted-foreground text-xs font-mono max-w-[200px] truncate">
                     {item.match || "—"}
                   </TableCell>
-                  <TableCell className="text-right text-muted-foreground text-sm">
+                  <TableCell className="text-right text-muted-foreground text-xs">
                     {item.document_count ?? "—"}
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1 ml-5">
                       {onSelectDocumentType && (
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 px-2 text-xs"
+                          className="h-7 px-1.5 text-xs text-accent hover:text-accent-foreground border border-accent hover:bg-accent/10"
                           onClick={() => onSelectDocumentType(item)}
                         >
                           {selectLabel}

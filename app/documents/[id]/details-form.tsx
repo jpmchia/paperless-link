@@ -756,7 +756,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 text-xs text-muted-foreground"
+                      className="h-6 px-2 text-xs text-accent"
                       onClick={() => setDocumentTypesDialogOpen(true)}
                     >
                       <Plus className="mr-1 h-3 w-3" />
@@ -800,7 +800,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 text-xs text-muted-foreground"
+                      className="h-6 px-2 text-xs text-accent"
                       onClick={() => setTagsDialogOpen(true)}
                     >
                       <Plus className="mr-1 h-3 w-3" />

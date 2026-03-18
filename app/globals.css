@@ -126,3 +126,29 @@
     @apply font-sans;
     }
 }
+
+/* SaturatedBordersCard — backdrop-filter saturated glass effect */
+[data-saturated-borders] {
+  --_blur: var(--sb-blur, 8);
+  --_saturate: var(--sb-saturate, 2.8);
+  --_brightness: var(--sb-brightness, 1.25);
+  --_contrast: var(--sb-contrast, 1);
+  --_border: var(--sb-border, 2);
+  /* background: linear-gradient(var(--card) 0 100%) padding-box; */
+  background: linear-gradient(light-dark(hsl(0 0% 98%), hsl(0 0% 12%)) 0 100%) padding-box;
+  border: calc(var(--_border) * 1px) solid hsl(0 0% 0% / 0.1);
+  backdrop-filter:
+    blur(calc(var(--_blur) * 1px))
+    saturate(var(--_saturate))
+    brightness(var(--_brightness))
+    contrast(var(--_contrast));
+  box-shadow:
+    0px 0.5px 0.6px hsl(0 0% 0% / 0.06),
+    0px 1.8px 2.3px -0.5px hsl(0 0% 0% / 0.07),
+    0px 4.2px 5.3px -1.1px hsl(0 0% 0% / 0.09),
+    0px 9.7px 12.1px -1.6px hsl(0 0% 0% / 0.1);
+}
+
+.dark [data-saturated-borders] {
+  border-color: hsl(0 0% 100% / 0.2);
+}
