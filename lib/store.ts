@@ -19,6 +19,7 @@ export const documentDetailFieldLayoutRevisionAtom = atom(0)
 export const activeVersionIdAtom = atom<number | null>(null)
 export const pdfViewerPasswordAtom = atom("")
 export const pdfViewerRequiresPasswordAtom = atom(false)
+export const pdfViewerPageCountAtom = atom(1)
 
 // Active document list filters — persisted in localStorage
 export const filterParamsAtom = atomWithStorage<FilterParams>('paperless-filter-params', {})

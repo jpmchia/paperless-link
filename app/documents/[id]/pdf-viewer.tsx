@@ -14,6 +14,7 @@ import {
 import {
   activeVersionIdAtom,
   pdfViewerPasswordAtom,
+  pdfViewerPageCountAtom,
   pdfViewerRequiresPasswordAtom,
 } from "@/lib/store"
 import { Button } from "@/components/ui/button"
@@ -302,6 +303,7 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
   const passwordCallbackRef = React.useRef<((password: string) => void) | null>(null)
   const currentPasswordRef = React.useRef("")
   const setPdfPassword = useSetAtom(pdfViewerPasswordAtom)
+  const setPdfPageCount = useSetAtom(pdfViewerPageCountAtom)
   const setPdfRequiresPassword = useSetAtom(pdfViewerRequiresPasswordAtom)
 
   const sourceUrl = React.useMemo(() => {
@@ -319,6 +321,7 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
     setPdf(null)
     setPage(1)
     setPdfPassword("")
+    setPdfPageCount(totalPages)
     setPdfRequiresPassword(false)
     currentPasswordRef.current = ""
 
@@ -352,6 +355,7 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
         setPasswordMessage(null)
         setPdfRequiresPassword(false)
         setPdfPassword(currentPasswordRef.current)
+        setPdfPageCount(nextPdf.numPages)
         if (nextPdf.numPages > 1) {
           setSpreadMode((current) => (current === "single" ? current : "two-up"))
         } else {
@@ -371,7 +375,7 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
       cancelled = true
       void task.destroy()
     }
-  }, [setPdfPassword, setPdfRequiresPassword, sourceUrl])
+  }, [setPdfPageCount, setPdfPassword, setPdfRequiresPassword, sourceUrl, totalPages])
 
   const pageCount = pdf?.numPages ?? totalPages
 

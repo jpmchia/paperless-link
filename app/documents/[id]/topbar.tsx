@@ -13,6 +13,7 @@ import {
     documentListState,
     documentSectionAtom,
     pdfViewerPasswordAtom,
+    pdfViewerPageCountAtom,
     pdfViewerRequiresPasswordAtom,
 } from "@/lib/store"
 import { Button } from "@/components/ui/button"
@@ -60,6 +61,7 @@ export function TopBar({
     const currentSection = useAtomValue(documentSectionAtom) ?? initialSection
     const activeVersionId = useAtomValue(activeVersionIdAtom)
     const pdfPassword = useAtomValue(pdfViewerPasswordAtom)
+    const pdfViewerPageCount = useAtomValue(pdfViewerPageCountAtom)
     const pdfRequiresPassword = useAtomValue(pdfViewerRequiresPasswordAtom)
     const [detailFieldLayout, setDetailFieldLayout] = useAtom(documentDetailFieldLayoutAtom)
     const setDetailFieldLayoutRevision = useSetAtom(documentDetailFieldLayoutRevisionAtom)
@@ -434,7 +436,7 @@ export function TopBar({
                 <PdfToolsDialog
                     documentId={documentId}
                     documentTitle={typeof title === "string" ? title : "Document"}
-                    totalPages={totalPages}
+                    totalPages={Math.max(totalPages, pdfViewerPageCount)}
                     open={pdfToolsOpen}
                     onOpenChange={setPdfToolsOpen}
                 />
