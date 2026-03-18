@@ -104,6 +104,7 @@ export default async function DocumentsPage({
         correspondents={correspondentsList}
         currentFilters={initialFilters}
         currentPage={currentPage}
+        currentPageSize={pageSize}
         customFields={customFieldsList}
         data={documentsData.results}
         documentTypes={typesList}

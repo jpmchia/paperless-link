@@ -90,6 +90,7 @@ export default async function SavedViewPage({
         correspondents={correspondentsList}
         currentFilters={filters}
         currentPage={currentPage}
+        currentPageSize={pageSize}
         customFields={customFieldsList}
         data={documentsData.results}
         documentTypes={typesList}

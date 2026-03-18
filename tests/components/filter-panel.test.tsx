@@ -53,10 +53,14 @@ function renderFilterPanel(initialFilters: Record<string, unknown>) {
             filter_rules: [],
             sort_field: "created",
             sort_reverse: true,
+            display_fields: ["title", "created"],
+            page_size: 25,
           }}
           initialFilters={initialFilters}
           currentUserId={1}
           currentDisplayMode="smallCards"
+          currentDisplayFields={["title", "created"]}
+          currentPageSize={25}
         />
       </PermissionsProvider>
     </JotaiProvider>

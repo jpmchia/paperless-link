@@ -1,8 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { patchSavedView } from "./saved-view-actions"
-import { toast } from "sonner"
 import {
   CUSTOM_FIELD_PREFIX,
   DISPLAY_FIELD_ADDED,
@@ -46,20 +44,16 @@ const ALL_FIELDS: { id: string; label: string }[] = [
 ]
 
 interface ColumnsPickerProps {
-  activeViewId?: number | null
   customFields?: Array<{ id: number; name: string }>
   displayFields: string[]
   onDisplayFieldsChange: React.Dispatch<React.SetStateAction<string[]>>
 }
 
 export function ColumnsPicker({
-  activeViewId,
   customFields = [],
   displayFields,
   onDisplayFieldsChange,
 }: ColumnsPickerProps) {
-  const [saving, setSaving] = React.useState(false)
-
   const allAvailableFields = React.useMemo(
     () => [
       ...ALL_FIELDS,
@@ -89,20 +83,6 @@ export function ColumnsPicker({
         ? prev.filter((f) => f !== fieldId)
         : [...prev, fieldId]
     )
-  }
-
-  const saveColumns = async () => {
-    if (!activeViewId) return
-    setSaving(true)
-    try {
-      await patchSavedView(activeViewId, { display_fields: displayFields })
-      toast.success("Column layout saved to view")
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error"
-      toast.error("Failed to save columns", { description: message })
-    } finally {
-      setSaving(false)
-    }
   }
 
   return (
@@ -189,22 +169,6 @@ export function ColumnsPicker({
             </>
           )
         })()}
-
-        {activeViewId && (
-          <>
-            <DropdownMenuSeparator />
-            <div className="p-1">
-              <Button
-                size="sm"
-                className="h-7 w-full text-xs"
-                onClick={saveColumns}
-                disabled={saving}
-              >
-                {saving ? "Saving…" : "Save to view"}
-              </Button>
-            </div>
-          </>
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

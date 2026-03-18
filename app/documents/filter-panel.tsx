@@ -49,6 +49,9 @@ type ActiveSavedView = PermissionedObject & {
   name?: string
   sort_field?: string | null
   sort_reverse?: boolean | null
+  display_mode?: string | null
+  display_fields?: string[] | null
+  page_size?: number | null
 }
 
 interface FilterPanelProps {
@@ -65,6 +68,8 @@ interface FilterPanelProps {
   onFilterChange?: (params: FilterParams) => void
   currentUserId?: number | null
   currentDisplayMode?: DocumentDisplayMode
+  currentDisplayFields?: string[]
+  currentPageSize?: number
   trailingControls?: React.ReactNode
 }
 
@@ -155,6 +160,8 @@ export function FilterPanel({
   onFilterChange,
   currentUserId,
   currentDisplayMode,
+  currentDisplayFields = [],
+  currentPageSize = 25,
   trailingControls,
 }: FilterPanelProps) {
   // Use local state as the primary state driver (not the stale Jotai atom)
@@ -178,12 +185,16 @@ export function FilterPanel({
 
   const currentSavedViewState = getComparableSavedViewStateFromFilters(
     filters,
-    currentDisplayMode
+    currentDisplayMode,
+    currentDisplayFields,
+    currentPageSize
   )
   const activeViewIsDirty = isSavedViewDirty(
     filters,
     savedViewBaseline,
-    currentDisplayMode
+    currentDisplayMode,
+    currentDisplayFields,
+    currentPageSize
   )
 
   // Keep Jotai atom in sync for cross-component use (e.g. document detail Next/Prev)
@@ -446,6 +457,8 @@ export function FilterPanel({
         sort_field: sortParts.sortField,
         sort_reverse: sortParts.sortReverse,
         display_mode: currentSavedViewState.displayMode,
+        display_fields: currentSavedViewState.displayFields,
+        page_size: currentSavedViewState.pageSize,
       })
       setSavedViewBaseline(currentSavedViewState)
       toast.success(`View "${activeViewName}" saved`)
@@ -468,6 +481,8 @@ export function FilterPanel({
         sort_field: sortParts.sortField,
         sort_reverse: sortParts.sortReverse,
         display_mode: currentSavedViewState.displayMode,
+        display_fields: currentSavedViewState.displayFields,
+        page_size: currentSavedViewState.pageSize,
         show_on_dashboard: false,
         show_in_sidebar: false,
       })

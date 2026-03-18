@@ -21,6 +21,7 @@ interface DocumentsWorkspaceProps {
   correspondents: any[]
   currentFilters: FilterParams
   currentPage: number
+  currentPageSize: number
   customFields: Array<{ id: number; name: string }>
   data: any[]
   documentTypes: any[]
@@ -42,6 +43,7 @@ export function DocumentsWorkspace({
   correspondents,
   currentFilters,
   currentPage,
+  currentPageSize,
   customFields,
   data,
   documentTypes,
@@ -140,7 +142,6 @@ export function DocumentsWorkspace({
               onDisplayModeChange={setDisplayMode}
             />
             <ColumnsPicker
-              activeViewId={activeView?.id ?? null}
               customFields={customFields}
               displayFields={displayFields}
               onDisplayFieldsChange={setDisplayFields}
@@ -148,6 +149,8 @@ export function DocumentsWorkspace({
           </>
         )}
         currentDisplayMode={displayMode}
+        currentDisplayFields={displayFields}
+        currentPageSize={currentPageSize}
       />
       {displayMode === "table" ? (
         <DataTable

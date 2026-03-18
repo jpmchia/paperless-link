@@ -77,10 +77,12 @@ describe("saved view state helpers", () => {
     expect(
       getComparableSavedViewStateFromFilters({
         ordering: "title",
-      })
+      }, undefined, ["title", "created"], 50)
     ).toEqual({
       displayMode: "smallCards",
+      displayFields: ["title", "created"],
       filterRules: [],
+      pageSize: 50,
       sortField: "title",
       sortReverse: false,
     })
@@ -92,10 +94,27 @@ describe("saved view state helpers", () => {
       sort_field: "created",
       sort_reverse: true,
       display_mode: "table",
+      display_fields: ["title", "created"],
+      page_size: 25,
     })
 
-    expect(isSavedViewDirty({ ordering: "-created" }, baseline, "table")).toBe(false)
-    expect(isSavedViewDirty({ ordering: "-created" }, baseline, "smallCards")).toBe(true)
+    expect(isSavedViewDirty({ ordering: "-created" }, baseline, "table", ["title", "created"], 25)).toBe(false)
+    expect(isSavedViewDirty({ ordering: "-created" }, baseline, "smallCards", ["title", "created"], 25)).toBe(true)
+  })
+
+  it("includes display fields and page size in saved-view state comparisons", () => {
+    const baseline = getComparableSavedViewStateFromView({
+      filter_rules: [],
+      sort_field: "created",
+      sort_reverse: true,
+      display_mode: "table",
+      display_fields: ["title", "created"],
+      page_size: 25,
+    })
+
+    expect(isSavedViewDirty({ ordering: "-created" }, baseline, "table", ["title", "created"], 25)).toBe(false)
+    expect(isSavedViewDirty({ ordering: "-created" }, baseline, "table", ["title", "added"], 25)).toBe(true)
+    expect(isSavedViewDirty({ ordering: "-created" }, baseline, "table", ["title", "created"], 50)).toBe(true)
   })
 
   it("serializes permission filters into saved-view rules", () => {

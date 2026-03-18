@@ -16,6 +16,8 @@ type ComparableSavedViewState = {
   sortField: string
   sortReverse: boolean
   displayMode: DocumentDisplayMode
+  displayFields: string[]
+  pageSize: number
 }
 
 type SavedViewLike = {
@@ -23,6 +25,8 @@ type SavedViewLike = {
   sort_field?: string | null
   sort_reverse?: boolean | null
   display_mode?: string | null
+  display_fields?: string[] | null
+  page_size?: number | null
 }
 
 export const DEFAULT_SAVED_VIEW_ORDERING = "-created"
@@ -84,7 +88,9 @@ export function orderingToSavedViewSort(ordering?: string | null) {
 
 export function getComparableSavedViewStateFromFilters(
   filters: FilterParams,
-  displayMode?: unknown
+  displayMode?: unknown,
+  displayFields: string[] = [],
+  pageSize = 25
 ): ComparableSavedViewState {
   const sort = orderingToSavedViewSort(filters.ordering)
 
@@ -94,6 +100,8 @@ export function getComparableSavedViewStateFromFilters(
     sortReverse: sort.sortReverse,
     displayMode:
       normalizeDocumentDisplayMode(displayMode) ?? DEFAULT_DOCUMENT_DISPLAY_MODE,
+    displayFields,
+    pageSize,
   }
 }
 
@@ -105,7 +113,9 @@ export function getComparableSavedViewStateFromView(
   const comparableFilters = filterParamsFromSavedView(view)
   return getComparableSavedViewStateFromFilters(
     comparableFilters,
-    view.display_mode
+    view.display_mode,
+    view.display_fields ?? [],
+    view.page_size ?? 25
   )
 }
 
@@ -119,6 +129,8 @@ export function savedViewStatesEqual(
     left.sortField === right.sortField &&
     left.sortReverse === right.sortReverse &&
     left.displayMode === right.displayMode &&
+    left.pageSize === right.pageSize &&
+    JSON.stringify(left.displayFields) === JSON.stringify(right.displayFields) &&
     JSON.stringify(left.filterRules) === JSON.stringify(right.filterRules)
   )
 }
@@ -126,11 +138,13 @@ export function savedViewStatesEqual(
 export function isSavedViewDirty(
   filters: FilterParams,
   baseline: ComparableSavedViewState | null | undefined,
-  displayMode?: unknown
+  displayMode?: unknown,
+  displayFields: string[] = [],
+  pageSize = 25
 ) {
   if (!baseline) return false
   return !savedViewStatesEqual(
-    getComparableSavedViewStateFromFilters(filters, displayMode),
+    getComparableSavedViewStateFromFilters(filters, displayMode, displayFields, pageSize),
     baseline
   )
 }
