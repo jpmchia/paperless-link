@@ -11,6 +11,7 @@ import {
   getCustomFields,
   getDocumentHistory,
   getDocumentNotes,
+  getUiSettings,
   getUsers,
   getGroups,
 } from "@/lib/api"
@@ -23,6 +24,7 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable"
 import { Badge } from "@/components/ui/badge"
+import { SETTINGS_KEYS } from "@/data/ui-settings"
 import { Document } from "../columns"
 import { TopBar } from "./topbar"
 import { PdfViewer } from "./pdf-viewer"
@@ -59,6 +61,7 @@ export async function DocumentDetailsPageContent({
     storagePaths,
     tagsList,
     customFieldsList,
+    uiSettings,
     usersList,
     groupsList,
   ] = await Promise.all([
@@ -71,6 +74,7 @@ export async function DocumentDetailsPageContent({
     getStoragePaths(),
     getTags(),
     getCustomFields(),
+    getUiSettings(),
     getUsers(),
     getGroups(),
   ])
@@ -80,9 +84,29 @@ export async function DocumentDetailsPageContent({
   }
 
   const document = documentResp as Document
-  const doc = documentResp as any
+  const doc = documentResp as Document & {
+    versions?: unknown[]
+    duplicate_documents?: unknown[]
+    archived_file_name?: string | null
+    mime_type?: string | null
+  }
+  const uiSettingsRecord = uiSettings as { settings?: Record<string, unknown> }
+  const metadataRecord = metadata as
+    | {
+        has_archive_version?: boolean
+        pages?: number
+        original_mime_type?: string | null
+      }
+    | null
   const versions = Array.isArray(doc.versions) ? doc.versions : []
   const duplicates = Array.isArray(doc.duplicate_documents) ? doc.duplicate_documents : []
+  const emailEnabled = Boolean(uiSettingsRecord.settings?.[SETTINGS_KEYS.EMAIL_ENABLED])
+  const hasArchiveVersion = Boolean(
+    metadataRecord?.has_archive_version ?? doc.archived_file_name
+  )
+  const canEditPdf =
+    doc.mime_type === "application/pdf" ||
+    metadataRecord?.original_mime_type === "application/pdf"
   const canChangeDocument = canAccessObject(permissions, "change", document, "document")
   const canManageShareLinks =
     currentUserCan(permissions, "create", "shareLink") ||
@@ -110,6 +134,10 @@ export async function DocumentDetailsPageContent({
           permissionedDocument={document}
           documentId={document.id}
           initialSection={initialSection}
+          emailEnabled={emailEnabled}
+          hasArchiveVersion={hasArchiveVersion}
+          canEditPdf={canEditPdf}
+          totalPages={metadataRecord?.pages ?? 1}
         >
           <div className="flex items-center gap-2">
             <Badge variant="outline">ASN: {document.archive_serial_number || "None"}</Badge>
@@ -157,7 +185,7 @@ export async function DocumentDetailsPageContent({
           <ResizableHandle withHandle />
 
           <ResizablePanel defaultSize={60} minSize={30}>
-            <PdfViewer documentId={id} totalPages={(metadata as any)?.pages ?? 1} />
+            <PdfViewer documentId={id} totalPages={metadataRecord?.pages ?? 1} />
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>

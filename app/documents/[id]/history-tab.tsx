@@ -42,7 +42,7 @@ export function HistoryTab({ history = [], documentTypes = [], correspondents = 
 
   return (
     <ScrollArea className="h-full">
-      <div className="px-6 py-6 max-w-4xl pb-16">
+      <div className="px-6 pb-6">
         <div className="border border-border rounded-md divide-y divide-border bg-card">
           {history.map((item, index) => {
             const actionText = item.action?.replace(/_/g, " ") || "Unknown"

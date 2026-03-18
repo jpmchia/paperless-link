@@ -1,10 +1,12 @@
 "use client"
 
+import * as React from "react"
 import { useConfirmationDialog } from "@/components/confirmation-dialog-provider"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
 import { OpenDocumentLink } from "@/components/open-document-link"
 import {
+    activeVersionIdAtom,
     documentDetailAvailableFieldsAtom,
     documentDetailFieldLayoutAtom,
     documentDetailFieldLayoutRevisionAtom,
@@ -12,9 +14,10 @@ import {
     documentSectionAtom,
 } from "@/lib/store"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, MoreVertical, Trash2, RefreshCw, Save, Sparkles } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Download, Mail, MoreVertical, Printer, Scissors, Trash2, RefreshCw, Save, Sparkles } from "lucide-react"
 import {
     DropdownMenu,
+    DropdownMenuCheckboxItem,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
@@ -26,6 +29,8 @@ import type { PermissionedObject } from "@/lib/permissions"
 import { deleteDocument, reprocessDocument } from "./actions"
 import { getDocumentSectionHref, type DocumentSection } from "./document-sections"
 import { DetailsFieldsPicker } from "./details-fields-picker"
+import { EmailDocumentDialog } from "./email-document-dialog"
+import { PdfToolsDialog } from "./pdf-tools-dialog"
 
 export function TopBar({
     children,
@@ -33,18 +38,31 @@ export function TopBar({
     permissionedDocument,
     documentId,
     initialSection = "details",
+    emailEnabled = false,
+    hasArchiveVersion = false,
+    canEditPdf = false,
+    totalPages = 1,
 }: {
     children: React.ReactNode
     title?: React.ReactNode
     permissionedDocument?: PermissionedObject | null
     documentId?: number
     initialSection?: DocumentSection
+    emailEnabled?: boolean
+    hasArchiveVersion?: boolean
+    canEditPdf?: boolean
+    totalPages?: number
 }) {
     const documentList = useAtomValue(documentListState)
     const currentSection = useAtomValue(documentSectionAtom) ?? initialSection
+    const activeVersionId = useAtomValue(activeVersionIdAtom)
     const [detailFieldLayout, setDetailFieldLayout] = useAtom(documentDetailFieldLayoutAtom)
     const setDetailFieldLayoutRevision = useSetAtom(documentDetailFieldLayoutRevisionAtom)
     const availableDetailFields = useAtomValue(documentDetailAvailableFieldsAtom)
+    const [emailDialogOpen, setEmailDialogOpen] = React.useState(false)
+    const [pdfToolsOpen, setPdfToolsOpen] = React.useState(false)
+    const [downloading, setDownloading] = React.useState(false)
+    const [useFormattedFilename, setUseFormattedFilename] = React.useState(false)
     const router = useRouter()
     const { confirm } = useConfirmationDialog()
 
@@ -59,6 +77,97 @@ export function TopBar({
             window.sessionStorage.setItem("documentSaveAction", action)
         }
     }
+
+    const buildDownloadUrl = React.useCallback((original = false) => {
+        if (!documentId) return null
+
+        const params = new URLSearchParams()
+        if (original) {
+            params.set("original", "true")
+        }
+        if (activeVersionId != null) {
+            params.set("version", String(activeVersionId))
+        }
+        if (useFormattedFilename) {
+            params.set("follow_formatting", "true")
+        }
+
+        const query = params.toString()
+        return `/api/proxy/documents/${documentId}/download/${query ? `?${query}` : ""}`
+    }, [activeVersionId, documentId, useFormattedFilename])
+
+    const extractFilename = React.useCallback((response: Response, fallback: string) => {
+        const disposition = response.headers.get("content-disposition") ?? ""
+        const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+        if (utf8Match?.[1]) {
+            return decodeURIComponent(utf8Match[1])
+        }
+
+        const basicMatch = disposition.match(/filename="?([^"]+)"?/i)
+        if (basicMatch?.[1]) {
+            return basicMatch[1]
+        }
+
+        return fallback
+    }, [])
+
+    const handleDownload = React.useCallback(async (original = false) => {
+        const url = buildDownloadUrl(original)
+        if (!url) return
+
+        setDownloading(true)
+        try {
+            const response = await fetch(url)
+            if (!response.ok) {
+                throw new Error(await response.text())
+            }
+
+            const blob = await response.blob()
+            const filename = extractFilename(response, typeof title === "string" ? title : `document-${documentId}`)
+            const objectUrl = URL.createObjectURL(blob)
+            const anchor = window.document.createElement("a")
+            anchor.href = objectUrl
+            anchor.download = filename
+            anchor.click()
+            URL.revokeObjectURL(objectUrl)
+        } catch {
+            toast.error("Failed to download document")
+        } finally {
+            setDownloading(false)
+        }
+    }, [buildDownloadUrl, documentId, extractFilename, title])
+
+    const handlePrint = React.useCallback(async () => {
+        const url = buildDownloadUrl(false)
+        if (!url) return
+
+        try {
+            const response = await fetch(url)
+            if (!response.ok) {
+                throw new Error(await response.text())
+            }
+
+            const blob = await response.blob()
+            const blobUrl = URL.createObjectURL(blob)
+            const iframe = window.document.createElement("iframe")
+            iframe.style.display = "none"
+            iframe.src = blobUrl
+            window.document.body.appendChild(iframe)
+            iframe.onload = () => {
+                try {
+                    iframe.contentWindow?.focus()
+                    iframe.contentWindow?.print()
+                } finally {
+                    window.setTimeout(() => {
+                        window.document.body.removeChild(iframe)
+                        URL.revokeObjectURL(blobUrl)
+                    }, 500)
+                }
+            }
+        } catch {
+            toast.error("Failed to load document for printing")
+        }
+    }, [buildDownloadUrl])
 
     const handleDelete = async () => {
         if (!documentId) return
@@ -129,6 +238,44 @@ export function TopBar({
                     </div>
 
                     <div className="flex items-center gap-2">
+                        <div className="flex items-center">
+                            <Button
+                                variant="secondary"
+                                className="h-8 rounded-r-none border-r-0 hover:bg-accent"
+                                disabled={downloading || !documentId}
+                                onClick={() => void handleDownload(false)}
+                            >
+                                <Download className="mr-2 h-4 w-4" />
+                                {downloading ? "Downloading..." : "Download"}
+                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        variant="secondary"
+                                        size="icon"
+                                        className="h-8 w-8 rounded-l-none hover:bg-accent"
+                                        disabled={downloading || !documentId}
+                                    >
+                                        <ChevronDown className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    {hasArchiveVersion && (
+                                        <DropdownMenuItem onClick={() => void handleDownload(true)}>
+                                            <Download className="mr-2 h-4 w-4" />
+                                            Download original
+                                        </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuCheckboxItem
+                                        checked={useFormattedFilename}
+                                        onCheckedChange={(checked) => setUseFormattedFilename(checked === true)}
+                                    >
+                                        Use formatted filename
+                                    </DropdownMenuCheckboxItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+
                         <DetailsFieldsPicker
                             availableFields={availableDetailFields}
                             displayFields={detailFieldLayout}
@@ -154,6 +301,22 @@ export function TopBar({
                                         Reprocess
                                     </DropdownMenuItem>
                                 </HasObjectPermission>
+                                {documentId && emailEnabled && (
+                                    <DropdownMenuItem onClick={() => setEmailDialogOpen(true)}>
+                                        <Mail className="mr-2 h-4 w-4" />
+                                        Email document
+                                    </DropdownMenuItem>
+                                )}
+                                {documentId && canEditPdf && (
+                                    <DropdownMenuItem onClick={() => setPdfToolsOpen(true)}>
+                                        <Scissors className="mr-2 h-4 w-4" />
+                                        PDF tools
+                                    </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem onClick={() => void handlePrint()}>
+                                    <Printer className="mr-2 h-4 w-4" />
+                                    Print
+                                </DropdownMenuItem>
                                 {documentId && (
                                     <DropdownMenuItem onClick={() => router.push(`/documents?more_like_id=${documentId}`)}>
                                         <Sparkles className="mr-2 h-4 w-4" />
@@ -197,6 +360,25 @@ export function TopBar({
                     </div>
                 </div>
             </div>
+
+            {documentId && (
+                <EmailDocumentDialog
+                    documentId={documentId}
+                    documentTitle={typeof title === "string" ? title : "Document"}
+                    hasArchiveVersion={hasArchiveVersion}
+                    open={emailDialogOpen}
+                    onOpenChange={setEmailDialogOpen}
+                />
+            )}
+            {documentId && canEditPdf && (
+                <PdfToolsDialog
+                    documentId={documentId}
+                    documentTitle={typeof title === "string" ? title : "Document"}
+                    totalPages={totalPages}
+                    open={pdfToolsOpen}
+                    onOpenChange={setPdfToolsOpen}
+                />
+            )}
         </div>
     )
 }

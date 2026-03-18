@@ -238,7 +238,7 @@ export function PermissionsTab({ document, usersList, groupsList }: Props) {
   }
 
   return (
-    <div className="px-6 py-6 pb-20 h-full overflow-y-auto w-full outline-none">
+    <div className="px-6 pb-6 pb-20 h-full overflow-y-auto w-full outline-none">
       <HasObjectPermission
         action="change"
         object={document}

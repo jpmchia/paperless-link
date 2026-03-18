@@ -19,9 +19,9 @@ import {
   type DocumentSection,
   getDocumentSectionHref,
 } from "./document-sections"
-
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 const TAB_TRIGGER =
-  "relative rounded-none border-b-2 border-b-transparent bg-transparent px-3 pb-2 pt-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none whitespace-nowrap"
+  "relative rounded-none border-b-2 border-b-transparent border-t-none  bg-transparent px-3 pb-2 pt-2 text-xs font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-b-accent data-[state=active]:text-foreground data-[state=active]:shadow-none whitespace-nowrap rounded-t-lg"
 
 interface DocumentTabsProps {
   correspondents: any[]
@@ -89,10 +89,13 @@ export function DocumentTabs({
     <Tabs
       value={currentSection}
       onValueChange={updateSection}
-      className="flex h-full w-full flex-col bg-background"
+      className="flex h-full w-full flex-col bg-background border-none overflow-y-hidden"
     >
-      <div className="overflow-x-auto pt-2">
-        <TabsList className="h-auto w-max min-w-full justify-start border-b bg-transparent p-0 flex-nowrap">
+      <ScrollArea className="w-full rounded-md border-none whitespace-nowrap pb-2">
+        
+        <TabsList
+          className="h-auto w-max min-w-full h-8 justify-start border-b bg-transparent p-0 overflow-x-auto flex-nowrap scrollbar-thin scrollbar-track-transparent scrollbar-thumb-transparent data-[state=active]:border-b-accent"
+        >
           <TabsTrigger value="details" className={TAB_TRIGGER}>Details</TabsTrigger>
           <TabsTrigger value="content" className={TAB_TRIGGER}>Content</TabsTrigger>
           <TabsTrigger value="metadata" className={TAB_TRIGGER}>Metadata</TabsTrigger>
@@ -117,10 +120,11 @@ export function DocumentTabs({
             )}
           </TabsTrigger>
         </TabsList>
-      </div>
-
+      
+        <ScrollBar orientation="horizontal"  />
+      </ScrollArea>
       <div className="flex-1 overflow-hidden">
-        <TabsContent value="details" className="m-0 h-full overflow-y-auto px-6 py-6 outline-none">
+        <TabsContent value="details" className="m-0 h-full w-full overflow-y-auto px-6 outline-none">
           <div>
             <h3 className="mb-6 text-lg font-medium">Document Details</h3>
           </div>
@@ -134,7 +138,7 @@ export function DocumentTabs({
           />
         </TabsContent>
 
-        <TabsContent value="content" className="m-0 flex h-full flex-col space-y-4 overflow-y-auto px-6 py-6 outline-none">
+        <TabsContent value="content" className="m-0 flex h-full w-full flex-col space-y-4 overflow-y-auto px-6 pb-6 outline-none">
           <div>
             <h3 className="text-lg font-medium">Extracted Content</h3>
             <p className="text-sm text-muted-foreground">The raw text extracted by OCR.</p>
@@ -145,11 +149,11 @@ export function DocumentTabs({
           />
         </TabsContent>
 
-        <TabsContent value="metadata" className="m-0 h-full overflow-hidden outline-none">
+        <TabsContent value="metadata" className="m-0 h-full w-full overflow-hidden outline-none">
           <MetadataTab metadata={metadata} document={document} />
         </TabsContent>
 
-        <TabsContent value="history" className="m-0 h-full overflow-hidden outline-none">
+        <TabsContent value="history" className="m-0 h-full w-full overflow-hidden outline-none p-0">
           <HistoryTab
             history={history}
             documentTypes={documentTypes}
@@ -160,12 +164,12 @@ export function DocumentTabs({
         </TabsContent>
 
         {canChangeDocument && (
-          <TabsContent value="permissions" className="m-0 h-full overflow-hidden outline-none">
+          <TabsContent value="permissions" className="m-0 h-full w-full overflow-hidden outline-none p-0">
             <PermissionsTab document={document} usersList={usersList} groupsList={groupsList} />
           </TabsContent>
         )}
 
-        <TabsContent value="notes" className="m-0 h-full overflow-hidden outline-none">
+        <TabsContent value="notes" className="m-0 h-full w-full overflow-hidden outline-none">
           <NotesTab documentId={document.id} initialNotes={notes} />
         </TabsContent>
 

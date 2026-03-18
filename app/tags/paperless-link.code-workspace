@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../paperless-ngx"
+		},
+		{
+			"path": "../../../docs"
+		}
+	],
+	"settings": {}
+}
