@@ -34,7 +34,6 @@ export async function updateDocument(id: number | string, data: unknown) {
   if (!response.ok) {
     const responseText = await response.text()
     console.error(`Failed to patch document ${id}. Status: ${response.status}`, responseText)
-    console.error(`Document patch payload for ${id}:`, JSON.stringify(data, null, 2))
 
     let detail = response.statusText
     try {

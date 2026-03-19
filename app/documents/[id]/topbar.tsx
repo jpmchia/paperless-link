@@ -66,6 +66,7 @@ import { DetailsFieldsPicker } from "./details-fields-picker"
 import { EmailDocumentDialog } from "./email-document-dialog"
 import { PdfToolsDialog } from "./pdf-tools-dialog"
 import { RemovePasswordDialog } from "./remove-password-dialog"
+import { openDocumentsAtom } from "@/lib/stores/open-documents"
 
 if (typeof window !== "undefined" && !GlobalWorkerOptions.workerSrc) {
     GlobalWorkerOptions.workerSrc = new URL(
@@ -96,6 +97,7 @@ export function TopBar({
     totalPages?: number
 }) {
     const documentList = useAtomValue(documentListState)
+    const openDocuments = useAtomValue(openDocumentsAtom)
     const currentSection = useAtomValue(documentSectionAtom) ?? initialSection
     const activeVersionId = useAtomValue(activeVersionIdAtom)
     const pdfPassword = useAtomValue(pdfViewerPasswordAtom)
@@ -114,10 +116,23 @@ export function TopBar({
     const router = useRouter()
     const { confirm } = useConfirmationDialog()
 
+    const navigationDocumentList = React.useMemo(() => {
+        const openDocumentIds = openDocuments.map((document) => document.id)
+        const primaryList =
+            documentList.length > 0 && documentId != null && documentList.includes(documentId)
+                ? documentList
+                : openDocumentIds
+
+        return Array.from(new Set(primaryList))
+    }, [documentId, documentList, openDocuments])
+
     // Find Next/Prev document IDs
-    const currentIndex = documentId ? documentList.indexOf(documentId) : -1
-    const prevId = currentIndex > 0 ? documentList[currentIndex - 1] : null
-    const nextId = currentIndex >= 0 && currentIndex < documentList.length - 1 ? documentList[currentIndex + 1] : null
+    const currentIndex = documentId != null ? navigationDocumentList.indexOf(documentId) : -1
+    const prevId = currentIndex > 0 ? navigationDocumentList[currentIndex - 1] : null
+    const nextId =
+        currentIndex >= 0 && currentIndex < navigationDocumentList.length - 1
+            ? navigationDocumentList[currentIndex + 1]
+            : null
 
     const setSaveAction = (action: string) => {
         // Will be picked up by the details form
@@ -512,84 +527,31 @@ export function TopBar({
 
             <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                    <div className="flex items-center rounded-md border p-1 mr-2 bg-secondary">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!prevId} asChild={!!prevId}>
-                            {prevId ? (
-                                <OpenDocumentLink
-                                    documentId={prevId}
-                                    href={getDocumentSectionHref(prevId, currentSection)}
-                                    title={`Document ${prevId}`}
-                                >
-                                    <ChevronLeft className="h-4 w-4" />
-                                </OpenDocumentLink>
-                            ) : <ChevronLeft className="h-4 w-4" />}
-                        </Button>
-                        <span className="text-xs text-muted-foreground px-2">
-                            {currentIndex >= 0 ? `${currentIndex + 1} of ${documentList.length}` : '-'}
-                        </span>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!nextId} asChild={!!nextId}>
-                            {nextId ? (
-                                <OpenDocumentLink
-                                    documentId={nextId}
-                                    href={getDocumentSectionHref(nextId, currentSection)}
-                                    title={`Document ${nextId}`}
-                                >
-                                    <ChevronRight className="h-4 w-4" />
-                                </OpenDocumentLink>
-                            ) : <ChevronRight className="h-4 w-4" />}
-                        </Button>
-                    </div>
-
                     <div className="flex items-center gap-2">
-                        <div className="flex items-center">
-                            <Button
-                                variant="secondary"
-                                className="h-8 rounded-r-none border-r-0 hover:bg-accent"
-                                disabled={downloading || !documentId}
-                                onClick={() => void handleDownload(false)}
-                            >
-                                <Download className="mr-2 h-4 w-4" />
-                                {downloading ? "Downloading..." : "Download"}
+                        <HasObjectPermission action="change" object={permissionedDocument} type="document">
+                            {nextId && (
+                                <Button variant="secondary" type="submit" form="document-details-form" onClick={() => setSaveAction("next")} className="h-8 hover:bg-accent">
+                                    Save & Next
+                                </Button>
+                            )}
+                        </HasObjectPermission>
+                        <HasObjectPermission action="change" object={permissionedDocument} type="document">
+                            <Button variant="secondary" type="submit" form="document-details-form" onClick={() => setSaveAction("save")} className="h-8 hover:bg-accent">
+                                <Save className="mr-2 h-4 w-4" />
+                                Save
                             </Button>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button
-                                        variant="secondary"
-                                        size="icon"
-                                        className="h-8 w-8 rounded-l-none hover:bg-accent"
-                                        disabled={downloading || !documentId}
-                                    >
-                                        <ChevronDown className="h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    {hasArchiveVersion && (
-                                        <DropdownMenuItem onClick={() => void handleDownload(true)}>
-                                            <Download className="mr-2 h-4 w-4" />
-                                            Download original
-                                        </DropdownMenuItem>
-                                    )}
-                                    <DropdownMenuCheckboxItem
-                                        checked={useFormattedFilename}
-                                        onCheckedChange={(checked) => setUseFormattedFilename(checked === true)}
-                                    >
-                                        Use formatted filename
-                                    </DropdownMenuCheckboxItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        </div>
-
-                        <DetailsFieldsPicker
-                            availableFields={availableDetailFields}
-                            displayFields={detailFieldLayout}
-                            disabled={availableDetailFields.length === 0}
-                            onDisplayFieldsChange={(value) => {
-                                setDetailFieldLayout((previous) =>
-                                    typeof value === "function" ? value(previous) : value
-                                )
-                                setDetailFieldLayoutRevision((revision) => revision + 1)
-                            }}
-                        />
+                        </HasObjectPermission>
+                        <HasObjectPermission action="change" object={permissionedDocument} type="document">
+                            <Button variant="secondary" onClick={() => {
+                                const form = window.document.getElementById("document-details-form") as HTMLFormElement | null
+                                if (form) form.reset()
+                            }} className="h-8 hover:bg-accent">
+                                Discard
+                            </Button>
+                        </HasObjectPermission>
+                        <Button variant="secondary" onClick={() => router.push("/documents")} className="h-8 hover:bg-accent">
+                            Close
+                        </Button>
 
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -683,30 +645,83 @@ export function TopBar({
                             </DropdownMenuContent>
                         </DropdownMenu>
 
-                        <Button variant="secondary" onClick={() => router.push("/documents")} className="h-8 hover:bg-accent">
-                            Close
-                        </Button>
-                        <HasObjectPermission action="change" object={permissionedDocument} type="document">
-                            <Button variant="secondary" onClick={() => {
-                                const form = window.document.getElementById("document-details-form") as HTMLFormElement | null
-                                if (form) form.reset()
-                            }} className="h-8 hover:bg-accent">
-                                Discard
+                        <div className="flex items-center rounded-md border p-1 bg-secondary">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!prevId} asChild={!!prevId}>
+                                {prevId ? (
+                                    <OpenDocumentLink
+                                        documentId={prevId}
+                                        href={getDocumentSectionHref(prevId, currentSection)}
+                                        title={`Document ${prevId}`}
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </OpenDocumentLink>
+                                ) : <ChevronLeft className="h-4 w-4" />}
                             </Button>
-                        </HasObjectPermission>
-                        <HasObjectPermission action="change" object={permissionedDocument} type="document">
-                            {nextId && (
-                                <Button variant="secondary" type="submit" form="document-details-form" onClick={() => setSaveAction("next")} className="h-8 hover:bg-accent">
-                                    Save & Next
-                                </Button>
-                            )}
-                        </HasObjectPermission>
-                        <HasObjectPermission action="change" object={permissionedDocument} type="document">
-                            <Button variant="secondary" type="submit" form="document-details-form" onClick={() => setSaveAction("save")} className="h-8 hover:bg-accent">
-                                <Save className="mr-2 h-4 w-4" />
-                                Save
+                            <span className="text-xs text-muted-foreground px-2">
+                                {currentIndex >= 0 ? `${currentIndex + 1} of ${navigationDocumentList.length}` : '-'}
+                            </span>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!nextId} asChild={!!nextId}>
+                                {nextId ? (
+                                    <OpenDocumentLink
+                                        documentId={nextId}
+                                        href={getDocumentSectionHref(nextId, currentSection)}
+                                        title={`Document ${nextId}`}
+                                    >
+                                        <ChevronRight className="h-4 w-4" />
+                                    </OpenDocumentLink>
+                                ) : <ChevronRight className="h-4 w-4" />}
                             </Button>
-                        </HasObjectPermission>
+                        </div>
+
+                        <div className="flex items-center">
+                            <Button
+                                variant="secondary"
+                                className="h-8 rounded-r-none border-r-0 hover:bg-accent"
+                                disabled={downloading || !documentId}
+                                onClick={() => void handleDownload(false)}
+                            >
+                                <Download className="mr-2 h-4 w-4" />
+                                {downloading ? "Downloading..." : "Download"}
+                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        variant="secondary"
+                                        size="icon"
+                                        className="h-8 w-8 rounded-l-none hover:bg-accent"
+                                        disabled={downloading || !documentId}
+                                    >
+                                        <ChevronDown className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    {hasArchiveVersion && (
+                                        <DropdownMenuItem onClick={() => void handleDownload(true)}>
+                                            <Download className="mr-2 h-4 w-4" />
+                                            Download original
+                                        </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuCheckboxItem
+                                        checked={useFormattedFilename}
+                                        onCheckedChange={(checked) => setUseFormattedFilename(checked === true)}
+                                    >
+                                        Use formatted filename
+                                    </DropdownMenuCheckboxItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+
+                        <DetailsFieldsPicker
+                            availableFields={availableDetailFields}
+                            displayFields={detailFieldLayout}
+                            disabled={availableDetailFields.length === 0}
+                            onDisplayFieldsChange={(value) => {
+                                setDetailFieldLayout((previous) =>
+                                    typeof value === "function" ? value(previous) : value
+                                )
+                                setDetailFieldLayoutRevision((revision) => revision + 1)
+                            }}
+                        />
                     </div>
                 </div>
             </div>

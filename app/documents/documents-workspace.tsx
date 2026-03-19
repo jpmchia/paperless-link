@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { updateUiSettings } from "@/lib/ui-settings"
+import { updateUiSettings } from "@/app/actions/ui-settings"
 import type { FilterParams } from "@/lib/api"
 import { RealtimeDocumentListSync } from "@/components/realtime-document-list-sync"
 import { DEFAULT_DISPLAY_FIELDS, LookupMaps } from "./columns"
@@ -98,6 +98,8 @@ export function DocumentsWorkspace({
     const timeout = window.setTimeout(() => {
       void updateUiSettings({
         document_list_display_mode: displayMode,
+      }).catch(() => {
+        // Silently ignore workspace preference persistence failures.
       })
     }, 250)
 

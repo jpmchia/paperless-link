@@ -6,8 +6,9 @@ import { useUnsavedChanges } from "@/lib/use-unsaved-changes"
 import { usePermissions } from "@/hooks/use-permissions"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Check, ChevronsUpDown, Plus } from "lucide-react"
+import { Check, ChevronsUpDown, Plus, Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { format, parseISO } from "date-fns"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -36,9 +37,10 @@ import {
 } from "@/components/ui/command"
 import { Document } from "../columns"
 import { updateDocument } from "./actions"
+import { updateUiSettings } from "@/app/actions/ui-settings"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Calendar } from "@/components/ui/calendar"
 import {
   Dialog,
   DialogContent,
@@ -64,14 +66,13 @@ import {
   documentDetailsDirtyAtom,
   documentListState,
 } from "@/lib/store"
-import { fetchUiSettings, updateUiSettings } from "@/lib/ui-settings"
+import { fetchUiSettings } from "@/lib/ui-settings"
 import {
   updateCustomField,
 } from "@/lib/management-actions"
 import { CorrespondentsTable } from "@/app/correspondents/correspondents-table"
 import { TagsTable } from "@/app/tags/tags-table"
 import { DocumentTypesTable } from "@/app/document-types/document-types-table"
-import { TAG_COLOUR_OPTIONS } from "@/lib/tag-colors"
 import {
   areDetailFieldLayoutsEqual,
   buildAvailableDetailFields,
@@ -213,7 +214,6 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
   const [tagsDialogOpen, setTagsDialogOpen] = React.useState(false)
   const [documentTypesDialogOpen, setDocumentTypesDialogOpen] = React.useState(false)
   const [newEntityName, setNewEntityName] = React.useState("")
-  const [newTagColor, setNewTagColor] = React.useState(TAG_COLOUR_OPTIONS[0]?.hex ?? "#a6cee3")
   const [creatingEntity, setCreatingEntity] = React.useState(false)
   const router = useRouter()
   const { can } = usePermissions()
@@ -223,6 +223,8 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
   const layoutRevision = useAtomValue(documentDetailFieldLayoutRevisionAtom)
   const setDetailAvailableFields = useSetAtom(documentDetailAvailableFieldsAtom)
   const defaultValues = buildDefaultValues(document, customFieldDefinitions)
+  const defaultValuesSnapshot = React.useMemo(() => JSON.stringify(defaultValues), [defaultValues])
+  const lastResetSnapshotRef = React.useRef<string | null>(null)
   const availableDetailFields = React.useMemo(
     () => buildAvailableDetailFields(customFieldDefinitions),
     [customFieldDefinitions]
@@ -350,14 +352,16 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
 
   React.useEffect(() => {
     if (form.formState.isDirty || isSaving) return
-    form.reset(buildDefaultValues(document, customFieldDefinitions))
-  }, [customFieldDefinitions, document, form, isSaving])
+    if (lastResetSnapshotRef.current === defaultValuesSnapshot) return
+
+    form.reset(defaultValues)
+    lastResetSnapshotRef.current = defaultValuesSnapshot
+  }, [defaultValues, defaultValuesSnapshot, form, isSaving, form.formState.isDirty])
 
   const openCreateDialog = React.useCallback((state: NonNullable<CreateDialogState>) => {
     if (state.type === "selectOption") {
       setCreateDialog(state)
       setNewEntityName("")
-      setNewTagColor(TAG_COLOUR_OPTIONS[0]?.hex ?? "#a6cee3")
     }
   }, [])
 
@@ -437,7 +441,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
     } finally {
       setCreatingEntity(false)
     }
-  }, [createDialog, customFieldDefinitions, form, newEntityName, newTagColor])
+  }, [createDialog, customFieldDefinitions, form, newEntityName])
 
   async function onSubmit(values: any) {
     setIsSaving(true)
@@ -655,6 +659,124 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
     )
   }
 
+  const renderCustomSelectCombobox = (cf: any, field: any) => {
+    const options = cf.extra_data?.select_options ?? []
+    const selectedOption = options.find((option: any, index: number) => {
+      const optionValue = getSelectOptionValue(option, index)
+      return optionValue === String(field.value ?? "")
+    })
+
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <FormControl>
+            <Button
+              variant="outline"
+              role="combobox"
+              className={cn(
+                "w-full justify-between",
+                !field.value && "text-muted-foreground"
+              )}
+            >
+              {selectedOption ? getSelectOptionLabel(selectedOption) : "Select an option"}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </FormControl>
+        </PopoverTrigger>
+        <PopoverContent className="w-[300px] p-0" align="start">
+          <Command>
+            <CommandInput placeholder={`Search ${cf.name.toLowerCase()}...`} />
+            <CommandList>
+              <CommandEmpty>No options found.</CommandEmpty>
+              <CommandGroup>
+                <CommandItem
+                  value="-- Clear --"
+                  onSelect={() => field.onChange(null)}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      field.value === null || field.value === "" ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  -- Clear --
+                </CommandItem>
+                {options.map((option: any, index: number) => {
+                  const optionValue = getSelectOptionValue(option, index)
+                  const optionLabel = getSelectOptionLabel(option)
+
+                  return (
+                    <CommandItem
+                      key={`${cf.id}-${optionValue}`}
+                      value={optionLabel}
+                      onSelect={() => field.onChange(optionValue)}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          optionValue === String(field.value ?? "") ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {optionLabel}
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    )
+  }
+
+  const renderDatePicker = (field: any, placeholder = "Pick a date") => {
+    const selectedDate =
+      typeof field.value === "string" && field.value
+        ? parseISO(field.value)
+        : undefined
+
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <FormControl>
+            <Button
+              variant="outline"
+              className={cn(
+                "w-full justify-between text-left font-normal",
+                !field.value && "text-muted-foreground"
+              )}
+            >
+              {selectedDate ? format(selectedDate, "dd/MM/yyyy") : placeholder}
+              <CalendarIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </FormControl>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={(date) => field.onChange(date ? format(date, "yyyy-MM-dd") : "")}
+            initialFocus
+            captionLayout="dropdown"
+          />
+          {field.value ? (
+            <div className="border-t p-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                onClick={() => field.onChange("")}
+              >
+                Clear
+              </Button>
+            </div>
+          ) : null}
+        </PopoverContent>
+      </Popover>
+    )
+  }
+
   // Custom Field renderer
   function renderCustomFieldInput(cf: any, field: any) {
     switch (cf.data_type) {
@@ -668,7 +790,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
           </div>
         )
       case "date":
-        return <Input type="date" {...field} value={field.value || ""} />
+        return renderDatePicker(field)
       case "integer":
         return <Input type="number" {...field} value={field.value ?? ""} />
       case "float":
@@ -680,26 +802,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
       case "documentlink":
         return <Input type="text" placeholder="e.g. 100, 101, 102" {...field} value={field.value || ""} />
       case "select":
-        return (
-          <Select
-            onValueChange={(value) => field.onChange(value === "__none__" ? null : value)}
-            value={field.value ? String(field.value) : "__none__"}
-          >
-            <FormControl>
-              <SelectTrigger>
-                <SelectValue placeholder="Select an option" />
-              </SelectTrigger>
-            </FormControl>
-            <SelectContent>
-              <SelectItem value="__none__">None</SelectItem>
-              {cf.extra_data?.select_options?.map((opt: any, index: number) => {
-                const optId = getSelectOptionValue(opt, index)
-                const optLabel = getSelectOptionLabel(opt)
-                return <SelectItem key={index} value={optId}>{optLabel}</SelectItem>
-              })}
-            </SelectContent>
-          </Select>
-        )
+        return renderCustomSelectCombobox(cf, field)
       case "long_text":
         return <Textarea rows={4} {...field} value={field.value || ""} />
       case "string":
@@ -757,9 +860,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
             render={({ field }: any) => (
               <FormItem>
                 <FormLabel>Created Date</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} />
-                </FormControl>
+                {renderDatePicker(field, "Pick created date")}
                 <FormMessage />
               </FormItem>
             )}

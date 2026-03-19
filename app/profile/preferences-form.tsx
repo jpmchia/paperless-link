@@ -17,7 +17,7 @@ import { useSetAtom } from "jotai"
 import { useAsyncAction } from "@/hooks/use-async-action"
 import { mapNotificationPreferences } from "@/lib/notifications"
 import { setNotificationPreferencesAtom } from "@/lib/stores/notifications"
-import { updateUiSettings } from "@/lib/ui-settings"
+import { updateUiSettings } from "@/app/actions/ui-settings"
 
 const DATE_LOCALE_OPTIONS = [
   { value: "", label: "Browser default" },

@@ -5,7 +5,7 @@ import { useSetAtom } from "jotai"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { documentSectionAtom } from "@/lib/store"
+import { documentDetailAvailableFieldsAtom, documentSectionAtom } from "@/lib/store"
 import type { Document } from "../columns"
 import { DetailsForm } from "./details-form"
 import { MetadataTab } from "./metadata-tab"
@@ -19,6 +19,7 @@ import {
   type DocumentSection,
   getDocumentSectionHref,
 } from "./document-sections"
+import { buildAvailableDetailFields } from "./detail-field-layout"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 const TAB_TRIGGER =
   "relative rounded-none border-b-2 border-b-transparent border-t-none min-h-16 bg-transparent px-3 pb-2 pt-2 text-xs font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-b-accent data-[state=active]:text-foreground data-[state=active]:shadow-none whitespace-nowrap rounded-t-lg"
@@ -63,12 +64,21 @@ export function DocumentTabs({
   canManageShareLinks,
 }: DocumentTabsProps) {
   const setDocumentSection = useSetAtom(documentSectionAtom)
+  const setDetailAvailableFields = useSetAtom(documentDetailAvailableFieldsAtom)
   const [currentSection, setCurrentSection] = React.useState<DocumentSection>(initialSection)
 
   React.useEffect(() => {
     setCurrentSection(initialSection)
     setDocumentSection(initialSection)
   }, [initialSection, setDocumentSection])
+
+  React.useEffect(() => {
+    setDetailAvailableFields(buildAvailableDetailFields(customFieldsList))
+
+    return () => {
+      setDetailAvailableFields([])
+    }
+  }, [customFieldsList, setDetailAvailableFields])
 
   const updateSection = React.useCallback(
     (nextSection: string) => {

@@ -81,7 +81,7 @@ import {
   setPendingTaskCountAtom,
   pendingTaskCountAtom,
 } from "@/lib/stores/tasks"
-import { updateUiSettings } from "@/lib/ui-settings"
+import { updateUiSettings } from "@/app/actions/ui-settings"
 import type { CurrentUserPermissions } from "@/lib/permissions"
 
 interface SavedViewEntry {
