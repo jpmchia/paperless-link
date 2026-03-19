@@ -177,7 +177,9 @@ export async function deleteStoragePath(id: number) {
 export async function createCustomField(data: {
   name: string
   data_type: string
-  extra_data?: { select_options?: string[] }
+  extra_data?: {
+    select_options?: Array<string | { label: string; id?: string }>
+  }
 }) {
   const result = await apiRequest("POST", "custom_fields/", data)
   revalidatePath("/custom-fields")
@@ -186,7 +188,9 @@ export async function createCustomField(data: {
 
 export async function updateCustomField(id: number, data: Partial<{
   name: string
-  extra_data: { select_options?: string[] }
+  extra_data: {
+    select_options?: Array<string | { label: string; id?: string }>
+  }
 }>) {
   const result = await apiRequest("PATCH", `custom_fields/${id}/`, data)
   revalidatePath("/custom-fields")

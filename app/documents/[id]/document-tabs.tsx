@@ -21,7 +21,7 @@ import {
 } from "./document-sections"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 const TAB_TRIGGER =
-  "relative rounded-none border-b-2 border-b-transparent border-t-none  bg-transparent px-3 pb-2 pt-2 text-xs font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-b-accent data-[state=active]:text-foreground data-[state=active]:shadow-none whitespace-nowrap rounded-t-lg"
+  "relative rounded-none border-b-2 border-b-transparent border-t-none min-h-16 bg-transparent px-3 pb-2 pt-2 text-xs font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-b-accent data-[state=active]:text-foreground data-[state=active]:shadow-none whitespace-nowrap rounded-t-lg"
 
 interface DocumentTabsProps {
   correspondents: any[]
@@ -94,7 +94,7 @@ export function DocumentTabs({
       <ScrollArea className="w-full rounded-md border-none whitespace-nowrap pb-2">
         
         <TabsList
-          className="h-auto w-max min-w-full h-8 justify-start border-b bg-transparent p-0 overflow-x-auto flex-nowrap scrollbar-thin scrollbar-track-transparent scrollbar-thumb-transparent data-[state=active]:border-b-accent"
+          className="h-auto w-max min-w-full justify-start border-b bg-transparent p-0 overflow-x-auto flex-nowrap scrollbar-thin scrollbar-track-transparent scrollbar-thumb-transparent data-[state=active]:border-b-accent"
         >
           <TabsTrigger value="details" className={TAB_TRIGGER}>Details</TabsTrigger>
           <TabsTrigger value="content" className={TAB_TRIGGER}>Content</TabsTrigger>

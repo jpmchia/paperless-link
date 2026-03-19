@@ -43,7 +43,7 @@ type CustomField = {
   id: number
   name: string
   data_type: string
-  extra_data?: { select_options?: string[] }
+  extra_data?: { select_options?: Array<string | { label: string; id?: string }> }
   document_count?: number
 }
 
@@ -71,14 +71,18 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
 
       const data: {
         data_type: string
-        extra_data?: { select_options?: string[] }
+        extra_data?: {
+          select_options?: Array<{ label: string }>
+        }
         name: string
       } = {
         name: newName,
         data_type: newType,
       }
       if (newType === "select" && selectOptions.length > 0) {
-        data.extra_data = { select_options: selectOptions }
+        data.extra_data = {
+          select_options: selectOptions.map((label) => ({ label })),
+        }
       }
       const created = await createCustomField(data)
       setItems((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
@@ -182,7 +186,9 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
                     {item.data_type === "select" && item.extra_data?.select_options ? (
                       <div className="flex flex-wrap gap-1">
                         {item.extra_data.select_options.map((o, i) => (
-                          <Badge key={i} variant="outline" className="text-xs">{o}</Badge>
+                          <Badge key={i} variant="outline" className="text-xs">
+                            {typeof o === "string" ? o : o.label}
+                          </Badge>
                         ))}
                       </div>
                     ) : "—"}

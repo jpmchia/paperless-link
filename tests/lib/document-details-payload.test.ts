@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   buildUpdateDocumentPayload,
   normalizeCustomFieldValue,
+  normalizeCustomFieldSelectValue,
 } from "@/app/documents/[id]/details-payload"
 
 describe("document details payload", () => {
@@ -13,7 +14,7 @@ describe("document details payload", () => {
     expect(normalizeCustomFieldValue({ data_type: "boolean", id: 5 }, undefined)).toBe(false)
   })
 
-  it("maps select labels back to option ids", () => {
+  it("normalizes object-based select labels to ids for submission", () => {
     expect(
       normalizeCustomFieldValue(
         {
@@ -29,6 +30,72 @@ describe("document details payload", () => {
         "Option 2"
       )
     ).toBe("def-456")
+  })
+
+  it("maps string-based select labels to numeric indexes for submission", () => {
+    expect(
+      normalizeCustomFieldValue(
+        {
+          data_type: "select",
+          extra_data: {
+            select_options: ["Alpha", "Beta"],
+          },
+          id: 7,
+        },
+        "Beta"
+      )
+    ).toBe(1)
+  })
+
+  it("preserves legacy numeric select indexes for string option arrays", () => {
+    expect(
+      normalizeCustomFieldValue(
+        {
+          data_type: "select",
+          extra_data: {
+            select_options: ["Alpha", "Beta"],
+          },
+          id: 9,
+        },
+        1
+      )
+    ).toBe(1)
+  })
+
+  it("maps numeric select indexes to option ids for object option arrays", () => {
+    expect(
+      normalizeCustomFieldValue(
+        {
+          data_type: "select",
+          extra_data: {
+            select_options: [
+              { id: "abc-123", label: "Option 1" },
+              { id: "def-456", label: "Option 2" },
+            ],
+          },
+          id: 9,
+        },
+        1
+      )
+    ).toBe("def-456")
+  })
+
+  it("normalizes stored select labels back to ids for the form value", () => {
+    expect(
+      normalizeCustomFieldSelectValue(
+        {
+          data_type: "select",
+          extra_data: {
+            select_options: [
+              { id: "choice-1", label: "Choice 1" },
+              { id: "choice-2", label: "Choice 2" },
+            ],
+          },
+          id: 8,
+        },
+        "Choice 2"
+      )
+    ).toBe("choice-2")
   })
 
   it("always includes a value key for visible custom fields", () => {

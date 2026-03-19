@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { useAtom } from "jotai"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -26,8 +27,13 @@ export function SidebarOpenDocuments() {
   const [openDocuments] = useAtom(openDocumentsAtom)
   const [, closeDocument] = useAtom(closeOpenDocumentAtom)
   const [, closeAll] = useAtom(closeAllOpenDocumentsAtom)
+  const [hasMounted, setHasMounted] = React.useState(false)
 
-  if (openDocuments.length === 0) {
+  React.useEffect(() => {
+    setHasMounted(true)
+  }, [])
+
+  if (!hasMounted || openDocuments.length === 0) {
     return null
   }
 

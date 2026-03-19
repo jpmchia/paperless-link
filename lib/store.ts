@@ -4,6 +4,7 @@ import { atom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 import type { FilterParams } from './api'
 import type { DocumentSection } from '@/app/documents/[id]/document-sections'
+import type { PluginRegistry } from '@embedpdf/react-pdf-viewer'
 
 export const documentListState = atom<number[]>([])
 
@@ -20,6 +21,7 @@ export const activeVersionIdAtom = atom<number | null>(null)
 export const pdfViewerPasswordAtom = atom("")
 export const pdfViewerRequiresPasswordAtom = atom(false)
 export const pdfViewerPageCountAtom = atom(1)
+export const pdfViewerRegistryAtom = atom<PluginRegistry | null>(null)
 
 // Active document list filters — persisted in localStorage
 export const filterParamsAtom = atomWithStorage<FilterParams>('paperless-filter-params', {})

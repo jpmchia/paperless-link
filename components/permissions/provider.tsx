@@ -1,9 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { useSetAtom } from "jotai"
+import { useHydrateAtoms } from "jotai/utils"
 import type { CurrentUserPermissions } from "@/lib/permissions"
-import { setCurrentUserPermissionsAtom } from "@/lib/stores/permissions"
+import { currentUserPermissionsAtom } from "@/lib/stores/permissions"
 
 export function PermissionsProvider({
   children,
@@ -12,11 +12,7 @@ export function PermissionsProvider({
   children: React.ReactNode
   initialPermissions: CurrentUserPermissions
 }) {
-  const setCurrentUserPermissions = useSetAtom(setCurrentUserPermissionsAtom)
-
-  React.useEffect(() => {
-    setCurrentUserPermissions(initialPermissions)
-  }, [initialPermissions, setCurrentUserPermissions])
+  useHydrateAtoms([[currentUserPermissionsAtom, initialPermissions]])
 
   return <>{children}</>
 }

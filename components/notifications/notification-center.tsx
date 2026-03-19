@@ -72,6 +72,11 @@ export function NotificationCenter() {
   const setSuppressNotificationToasts = useSetAtom(suppressNotificationToastsAtom)
   const navigateToDocument = useOpenDocumentNavigation()
   const router = useRouter()
+  const [hasMounted, setHasMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setHasMounted(true)
+  }, [])
 
   const handleOpenNotification = (notification: UiNotification) => {
     markNotificationRead(notification.id)
@@ -94,7 +99,7 @@ export function NotificationCenter() {
     <DropdownMenu
       onOpenChange={(open) => {
         setSuppressNotificationToasts(open)
-        if (open) {
+        if (open && hasMounted) {
           markAllRead()
         }
       }}
@@ -107,7 +112,7 @@ export function NotificationCenter() {
           aria-label="Open notifications"
         >
           <Bell className="size-4" />
-          {unreadCount > 0 && (
+          {hasMounted && unreadCount > 0 && (
             <Badge
               variant="destructive"
               className="absolute -right-1 -top-1 h-5 min-w-[20px] px-1 text-[10px] leading-none"
@@ -146,7 +151,7 @@ export function NotificationCenter() {
           </div>
         </div>
         <DropdownMenuSeparator />
-        {notifications.length === 0 ? (
+        {!hasMounted || notifications.length === 0 ? (
           <div className="px-3 py-6 text-center text-sm text-muted-foreground">
             No notifications yet.
           </div>

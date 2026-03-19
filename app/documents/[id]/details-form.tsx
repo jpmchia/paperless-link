@@ -56,7 +56,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { buildUpdateDocumentPayload } from "./details-payload"
+import { buildUpdateDocumentPayload, normalizeCustomFieldSelectValue } from "./details-payload"
 import {
   documentDetailAvailableFieldsAtom,
   documentDetailFieldLayoutAtom,
@@ -105,6 +105,33 @@ type Props = {
 type CreateDialogState =
   | { type: "selectOption"; fieldId: number }
   | null
+
+function getSelectOptionLabel(option: any): string {
+  if (typeof option === "string") return option
+  if (option?.label !== undefined && option?.label !== null) return String(option.label)
+  if (option?.id !== undefined && option?.id !== null) return String(option.id)
+  return ""
+}
+
+function getSelectOptionId(option: any): string {
+  if (typeof option === "string") return option
+  if (option?.id !== undefined && option?.id !== null) return String(option.id)
+  return getSelectOptionLabel(option)
+}
+
+function getSelectOptionValue(option: any, index: number): string {
+  return typeof option === "string" ? String(index) : getSelectOptionId(option)
+}
+
+function normalizeSelectOptionsForApi(selectOptions: any[] | undefined) {
+  return (selectOptions ?? [])
+    .map((option) => {
+      const label = getSelectOptionLabel(option)
+      const id = typeof option === "string" ? undefined : option?.id
+      return label ? { label, ...(id ? { id: String(id) } : {}) } : null
+    })
+    .filter((option): option is { label: string; id?: string } => option !== null)
+}
 
 function readCachedDetailLayouts() {
   if (typeof window === "undefined") return {}
@@ -158,6 +185,14 @@ function buildDefaultValues(
     }
     if (cf.data_type === "documentlink" && existing !== undefined && Array.isArray(existing.value)) {
       defaultValues[`cf_${cf.id}`] = existing.value.join(", ")
+    }
+    if (cf.data_type === "select") {
+      const rawValue = existing !== undefined ? existing.value : null
+      const normalizedValue = normalizeCustomFieldSelectValue(cf, rawValue)
+      const matchingOption = (cf.extra_data?.select_options ?? []).find(
+        (option: any) => getSelectOptionId(option) === normalizedValue || getSelectOptionLabel(option) === String(rawValue ?? "")
+      )
+      defaultValues[`cf_${cf.id}`] = matchingOption ? getSelectOptionId(matchingOption) : normalizedValue
     }
   })
 
@@ -358,20 +393,37 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
           const existingOptions = Array.isArray(customField.extra_data?.select_options)
             ? [...customField.extra_data.select_options]
             : []
-          if (existingOptions.includes(trimmedName)) {
-            form.setValue(`cf_${customField.id}`, trimmedName, { shouldDirty: true })
+
+          const existingOption = existingOptions.find((option: any) => {
+            if (typeof option === "string") {
+              return option === trimmedName
+            }
+
+            return option?.label === trimmedName || option?.id === trimmedName
+          })
+
+          if (existingOption) {
+            form.setValue(
+              `cf_${customField.id}`,
+              normalizeCustomFieldSelectValue(customField, trimmedName),
+              { shouldDirty: true }
+            )
             toast.success(`Option "${trimmedName}" selected`)
             break
           }
           const updated = await updateCustomField(customField.id, {
             extra_data: {
-              select_options: [...existingOptions, trimmedName],
+              select_options: normalizeSelectOptionsForApi([...existingOptions, { label: trimmedName }]),
             },
           })
           setCustomFieldDefinitions((prev) =>
             prev.map((field) => (field.id === updated.id ? updated : field))
           )
-          form.setValue(`cf_${customField.id}`, trimmedName, { shouldDirty: true })
+          form.setValue(
+            `cf_${customField.id}`,
+            normalizeCustomFieldSelectValue(updated, trimmedName),
+            { shouldDirty: true }
+          )
           toast.success(`Option "${trimmedName}" added`)
           break
         }
@@ -390,9 +442,35 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
   async function onSubmit(values: any) {
     setIsSaving(true)
     try {
+      let normalizedCustomFieldDefinitions = customFieldDefinitions
+      const legacySelectFields = customFieldDefinitions.filter(
+        (field: any) =>
+          field.data_type === "select" &&
+          Array.isArray(field.extra_data?.select_options) &&
+          field.extra_data.select_options.some((option: any) => typeof option === "string")
+      )
+
+      if (legacySelectFields.length > 0) {
+        const normalizedFields = await Promise.all(
+          legacySelectFields.map((field: any) =>
+            updateCustomField(field.id, {
+              extra_data: {
+                select_options: normalizeSelectOptionsForApi(field.extra_data?.select_options),
+              },
+            })
+          )
+        )
+
+        normalizedCustomFieldDefinitions = customFieldDefinitions.map((field: any) => {
+          const normalizedField = normalizedFields.find((item) => item.id === field.id)
+          return normalizedField ?? field
+        })
+        setCustomFieldDefinitions(normalizedCustomFieldDefinitions)
+      }
+
       const payload = buildUpdateDocumentPayload(
         values,
-        customFieldDefinitions,
+        normalizedCustomFieldDefinitions,
         detailFieldLayout
           .map(parseDetailCustomFieldId)
           .filter((fieldId): fieldId is number => fieldId !== null)
@@ -615,8 +693,8 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
             <SelectContent>
               <SelectItem value="__none__">None</SelectItem>
               {cf.extra_data?.select_options?.map((opt: any, index: number) => {
-                const optId = opt?.id !== undefined ? String(opt.id) : String(opt)
-                const optLabel = opt?.label !== undefined ? opt.label : String(opt)
+                const optId = getSelectOptionValue(opt, index)
+                const optLabel = getSelectOptionLabel(opt)
                 return <SelectItem key={index} value={optId}>{optLabel}</SelectItem>
               })}
             </SelectContent>

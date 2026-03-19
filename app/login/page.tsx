@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { signIn } from "next-auth/react"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -12,6 +13,7 @@ import { Label } from "@/components/ui/label"
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -21,20 +23,47 @@ export default function LoginPage() {
     const formData = new FormData(event.currentTarget)
     const username = formData.get("username") as string
     const password = formData.get("password") as string
+    const requestedCallbackUrl = searchParams.get("callbackUrl") || "/"
 
     try {
       const res = await signIn("credentials", {
         username,
         password,
-        redirect: true,
-        callbackUrl: "/",
+        redirect: false,
+        callbackUrl: requestedCallbackUrl,
       })
 
       if (res?.error) {
         toast.error("Authentication Failed", {
           description: "Invalid username or password.",
         })
+        return
       }
+
+      if (res?.ok) {
+        let nextUrl = requestedCallbackUrl
+
+        if (res.url) {
+          try {
+            const parsed = new URL(res.url, window.location.origin)
+            nextUrl = `${parsed.pathname}${parsed.search}${parsed.hash}` || "/"
+          } catch {
+            nextUrl = res.url
+          }
+        }
+
+        if (!nextUrl.startsWith("/")) {
+          nextUrl = "/"
+        }
+
+        router.push(nextUrl)
+        router.refresh()
+        return
+      }
+
+      toast.error("Authentication Failed", {
+        description: "Unable to complete sign in.",
+      })
     } catch {
       toast.error("Error", {
         description: "An unexpected error occurred.",

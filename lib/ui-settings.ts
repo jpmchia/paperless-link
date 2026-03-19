@@ -13,7 +13,7 @@ export async function updateUiSettings(
 ) {
   const current = await fetchUiSettings()
   const merged = {
-    ...(current.settings ?? {}),
+    ...((current?.settings as Record<string, unknown> | undefined) ?? {}),
     ...patch,
   }
 

@@ -1,6 +1,17 @@
 "use client"
 
 import * as React from "react"
+import type {
+    CommandsCapability,
+    PrintCapability,
+    SelectionCapability,
+} from "@embedpdf/react-pdf-viewer"
+import {
+    type PDFDocumentLoadingTask,
+    type PDFDocumentProxy,
+    GlobalWorkerOptions,
+    getDocument,
+} from "pdfjs-dist/legacy/build/pdf.mjs"
 import { useConfirmationDialog } from "@/components/confirmation-dialog-provider"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
@@ -14,10 +25,30 @@ import {
     documentSectionAtom,
     pdfViewerPasswordAtom,
     pdfViewerPageCountAtom,
+    pdfViewerRegistryAtom,
     pdfViewerRequiresPasswordAtom,
 } from "@/lib/store"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronLeft, ChevronRight, Download, KeyRound, Mail, MoreVertical, Printer, Scissors, Trash2, RefreshCw, Save, Sparkles } from "lucide-react"
+import {
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    Columns2,
+    Copy,
+    Download,
+    Expand,
+    KeyRound,
+    Mail,
+    MoreVertical,
+    Printer,
+    RefreshCw,
+    RotateCcw,
+    RotateCw,
+    Save,
+    Scissors,
+    Sparkles,
+    Trash2,
+} from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuCheckboxItem,
@@ -35,6 +66,13 @@ import { DetailsFieldsPicker } from "./details-fields-picker"
 import { EmailDocumentDialog } from "./email-document-dialog"
 import { PdfToolsDialog } from "./pdf-tools-dialog"
 import { RemovePasswordDialog } from "./remove-password-dialog"
+
+if (typeof window !== "undefined" && !GlobalWorkerOptions.workerSrc) {
+    GlobalWorkerOptions.workerSrc = new URL(
+        "pdfjs-dist/build/pdf.worker.min.mjs",
+        import.meta.url
+    ).toString()
+}
 
 export function TopBar({
     children,
@@ -62,6 +100,7 @@ export function TopBar({
     const activeVersionId = useAtomValue(activeVersionIdAtom)
     const pdfPassword = useAtomValue(pdfViewerPasswordAtom)
     const pdfViewerPageCount = useAtomValue(pdfViewerPageCountAtom)
+    const pdfViewerRegistry = useAtomValue(pdfViewerRegistryAtom)
     const pdfRequiresPassword = useAtomValue(pdfViewerRequiresPasswordAtom)
     const [detailFieldLayout, setDetailFieldLayout] = useAtom(documentDetailFieldLayoutAtom)
     const setDetailFieldLayoutRevision = useSetAtom(documentDetailFieldLayoutRevisionAtom)
@@ -102,7 +141,7 @@ export function TopBar({
         }
 
         const query = params.toString()
-        return `/api/proxy/documents/${documentId}/download/${query ? `?${query}` : ""}`
+        return `/api/proxy/documents/${documentId}/download${query ? `?${query}` : ""}`
     }, [activeVersionId, documentId, useFormattedFilename])
 
     const extractFilename = React.useCallback((response: Response, fallback: string) => {
@@ -150,33 +189,249 @@ export function TopBar({
         const url = buildDownloadUrl(false)
         if (!url) return
 
+        if (pdfViewerRegistry) {
+            try {
+                const printPlugin = pdfViewerRegistry.getPlugin("print")
+                const printCapability = printPlugin?.provides?.() as PrintCapability | undefined
+                if (printCapability) {
+                    await printCapability.print().toPromise()
+                    return
+                }
+            } catch (error) {
+                toast.error("Viewer print failed", {
+                    description: error instanceof Error ? error.message : "Unknown error",
+                })
+            }
+        }
+
+        let printWindow: Window | null = null
+        let loadTask: PDFDocumentLoadingTask | null = null
+        let pdfDocument: PDFDocumentProxy | null = null
+
         try {
+            printWindow = window.open("about:blank", "_blank")
+            if (!printWindow) {
+                throw new Error("Please allow pop-ups to print this document.")
+            }
+
+            const bootstrapDocument = printWindow.document
+            bootstrapDocument.open()
+            bootstrapDocument.write(`
+                <!doctype html>
+                <html>
+                  <head>
+                    <title>Preparing print…</title>
+                    <style>
+                      html, body {
+                        margin: 0;
+                        min-height: 100%;
+                        background: #fff;
+                        color: #111;
+                        font-family: sans-serif;
+                      }
+                      body {
+                        display: grid;
+                        place-items: center;
+                      }
+                    </style>
+                  </head>
+                  <body>Preparing document for print…</body>
+                </html>
+            `)
+            bootstrapDocument.close()
+
             const response = await fetch(url)
             if (!response.ok) {
                 throw new Error(await response.text())
             }
 
-            const blob = await response.blob()
-            const blobUrl = URL.createObjectURL(blob)
-            const iframe = window.document.createElement("iframe")
-            iframe.style.display = "none"
-            iframe.src = blobUrl
-            window.document.body.appendChild(iframe)
-            iframe.onload = () => {
+            const contentType = response.headers.get("content-type") ?? ""
+            if (!contentType.toLowerCase().includes("application/pdf")) {
+                const body = (await response.text()).slice(0, 200)
+                throw new Error(body || `Unexpected content type: ${contentType || "unknown"}`)
+            }
+
+            const pdfBytes = await response.arrayBuffer()
+            if (pdfBytes.byteLength < 1) {
+                throw new Error("Printable PDF was empty")
+            }
+
+            if (pdfRequiresPassword && !pdfPassword) {
+                throw new Error("Please unlock the PDF before printing.")
+            }
+
+            loadTask = getDocument({
+                data: pdfBytes.slice(0),
+                password: pdfPassword || undefined,
+            })
+
+            let cleanedUp = false
+            const cleanup = () => {
+                if (cleanedUp) return
+                cleanedUp = true
+                if (pdfDocument) {
+                    void pdfDocument.destroy()
+                }
+                if (loadTask) {
+                    void loadTask.destroy()
+                }
                 try {
-                    iframe.contentWindow?.focus()
-                    iframe.contentWindow?.print()
-                } finally {
-                    window.setTimeout(() => {
-                        window.document.body.removeChild(iframe)
-                        URL.revokeObjectURL(blobUrl)
-                    }, 500)
+                    printWindow?.close()
+                } catch {
+                    // Ignore close failures.
                 }
             }
-        } catch {
-            toast.error("Failed to load document for printing")
+
+            pdfDocument = await loadTask.promise
+            const printDocument = printWindow.document
+
+            if (!printDocument) {
+                cleanup()
+                throw new Error("Unable to open print window")
+            }
+
+            printDocument.open()
+            printDocument.write(`
+                <!doctype html>
+                <html>
+                  <head>
+                    <title>Print ${typeof title === "string" ? title : "Document"}</title>
+                    <style>
+                      @page { margin: 12mm; }
+                      html, body { margin: 0; padding: 0; background: #fff; }
+                      body { font-family: sans-serif; }
+                      .print-page {
+                        break-after: page;
+                        page-break-after: always;
+                        display: flex;
+                        justify-content: center;
+                        align-items: flex-start;
+                        margin: 0;
+                        padding: 0;
+                      }
+                      .print-page:last-child {
+                        break-after: auto;
+                        page-break-after: auto;
+                      }
+                      canvas {
+                        display: block;
+                        max-width: 100%;
+                        height: auto;
+                        background: #fff;
+                      }
+                    </style>
+                  </head>
+                  <body></body>
+                </html>
+            `)
+            printDocument.close()
+
+            for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+                const page = await pdfDocument.getPage(pageNumber)
+                const viewport = page.getViewport({ scale: 2 })
+                const canvas = printDocument.createElement("canvas")
+                canvas.width = Math.ceil(viewport.width)
+                canvas.height = Math.ceil(viewport.height)
+                const context = canvas.getContext("2d")
+
+                if (!context) {
+                    cleanup()
+                    throw new Error("Canvas rendering context unavailable for printing")
+                }
+
+                await page.render({
+                    canvasContext: context,
+                    canvas,
+                    viewport,
+                }).promise
+
+                const pageWrapper = printDocument.createElement("div")
+                pageWrapper.className = "print-page"
+                pageWrapper.appendChild(canvas)
+                printDocument.body.appendChild(pageWrapper)
+            }
+
+            const activePrintWindow = printWindow
+            activePrintWindow.onafterprint = cleanup
+            window.setTimeout(() => {
+                try {
+                    activePrintWindow.focus()
+                    activePrintWindow.print()
+                } catch (printError) {
+                    const isAfterPrintAccessError =
+                        printError instanceof DOMException &&
+                        printError.message.includes("onafterprint")
+
+                    if (!isAfterPrintAccessError) {
+                        toast.error("Print failed", {
+                            description:
+                                printError instanceof Error ? printError.message : "Unknown error",
+                        })
+                    }
+
+                    window.setTimeout(cleanup, 100)
+                }
+            }, 100)
+        } catch (error) {
+            if (pdfDocument) {
+                void pdfDocument.destroy()
+            }
+            if (loadTask) {
+                void loadTask.destroy()
+            }
+            try {
+                printWindow?.close()
+            } catch {
+                // Ignore close failures.
+            }
+            toast.error("Failed to load printable PDF", {
+                description: error instanceof Error ? error.message : "Unknown error",
+            })
         }
-    }, [buildDownloadUrl])
+    }, [buildDownloadUrl, pdfPassword, pdfRequiresPassword, pdfViewerRegistry, title])
+
+    const executeViewerCommand = React.useCallback((commandId: string, successMessage?: string) => {
+        if (!pdfViewerRegistry) return false
+
+        try {
+            const commandsPlugin = pdfViewerRegistry.getPlugin("commands")
+            const commandsCapability = commandsPlugin?.provides?.() as CommandsCapability | undefined
+            if (!commandsCapability) {
+                return false
+            }
+
+            commandsCapability.execute(commandId, undefined, "ui")
+            if (successMessage) {
+                toast.success(successMessage)
+            }
+            return true
+        } catch (error) {
+            toast.error("Viewer action failed", {
+                description: error instanceof Error ? error.message : "Unknown error",
+            })
+            return false
+        }
+    }, [pdfViewerRegistry])
+
+    const handleCopySelectedText = React.useCallback(() => {
+        if (!pdfViewerRegistry) return
+
+        try {
+            const selectionPlugin = pdfViewerRegistry.getPlugin("selection")
+            const selectionCapability = selectionPlugin?.provides?.() as SelectionCapability | undefined
+            if (!selectionCapability) {
+                toast.error("Copy is not available for this document.")
+                return
+            }
+
+            selectionCapability.copyToClipboard()
+            toast.success("Selected text copied")
+        } catch (error) {
+            toast.error("Failed to copy selected text", {
+                description: error instanceof Error ? error.message : "Unknown error",
+            })
+        }
+    }, [pdfViewerRegistry])
 
     const handleDelete = async () => {
         if (!documentId) return
@@ -379,6 +634,39 @@ export function TopBar({
                                     <Printer className="mr-2 h-4 w-4" />
                                     Print
                                 </DropdownMenuItem>
+                                {pdfViewerRegistry && (
+                                    <>
+                                        <DropdownMenuItem onClick={handleCopySelectedText}>
+                                            <Copy className="mr-2 h-4 w-4" />
+                                            Copy selected text
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem onClick={() => executeViewerCommand("zoom:fit-page")}>
+                                            <Expand className="mr-2 h-4 w-4" />
+                                            Fit page
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => executeViewerCommand("zoom:fit-width")}>
+                                            <Columns2 className="mr-2 h-4 w-4" />
+                                            Fit width
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => executeViewerCommand("spread:none")}>
+                                            <Columns2 className="mr-2 h-4 w-4" />
+                                            Single page
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => executeViewerCommand("spread:odd")}>
+                                            <Columns2 className="mr-2 h-4 w-4" />
+                                            Two-up
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => executeViewerCommand("rotate:counter-clockwise")}>
+                                            <RotateCcw className="mr-2 h-4 w-4" />
+                                            Rotate left
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => executeViewerCommand("rotate:clockwise")}>
+                                            <RotateCw className="mr-2 h-4 w-4" />
+                                            Rotate right
+                                        </DropdownMenuItem>
+                                    </>
+                                )}
                                 {documentId && (
                                     <DropdownMenuItem onClick={() => router.push(`/documents?more_like_id=${documentId}`)}>
                                         <Sparkles className="mr-2 h-4 w-4" />

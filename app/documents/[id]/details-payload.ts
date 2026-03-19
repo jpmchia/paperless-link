@@ -2,10 +2,13 @@ type CustomFieldDefinition = {
   id: number
   data_type: string
   extra_data?: {
-    select_options?: Array<{
-      id?: string
-      label?: string
-    }>
+    select_options?: Array<
+      | string
+      | {
+          id?: string
+          label?: string
+        }
+    >
   }
 }
 
@@ -31,6 +34,75 @@ function normalizeNullableNumber(value: unknown): number | null | undefined {
   if (typeof value === "string") {
     const parsed = Number(value)
     return Number.isFinite(parsed) ? parsed : null
+  }
+
+  return null
+}
+
+function getSelectOptionId(option: string | { id?: string; label?: string }): string {
+  if (typeof option === "string") {
+    return option
+  }
+
+  if (typeof option.id !== "undefined" && option.id !== null) {
+    return String(option.id)
+  }
+
+  return option.label ? String(option.label) : ""
+}
+
+function getSelectOptionLabel(option: string | { id?: string; label?: string }): string {
+  if (typeof option === "string") {
+    return option
+  }
+
+  if (typeof option.label !== "undefined" && option.label !== null) {
+    return String(option.label)
+  }
+
+  return typeof option.id !== "undefined" && option.id !== null ? String(option.id) : ""
+}
+
+export function normalizeCustomFieldSelectValue(
+  field: CustomFieldDefinition,
+  rawValue: unknown
+): string | number | null {
+  // Support both legacy string-option backends and newer id/label option objects.
+  if (rawValue === "" || rawValue === null || typeof rawValue === "undefined") {
+    return null
+  }
+
+  const normalized = String(rawValue)
+  const selectOptions = field.extra_data?.select_options ?? []
+  const usesLegacyStringOptions = selectOptions.some((option) => typeof option === "string")
+
+  const numericIndex = Number.parseInt(normalized, 10)
+  if (
+    Number.isFinite(numericIndex) &&
+    String(numericIndex) === normalized &&
+    numericIndex >= 0 &&
+    numericIndex < selectOptions.length
+  ) {
+    return usesLegacyStringOptions
+      ? numericIndex
+      : getSelectOptionId(selectOptions[numericIndex])
+  }
+
+  if (usesLegacyStringOptions) {
+    const labelIndex = selectOptions.findIndex(
+      (option) => getSelectOptionLabel(option) === normalized
+    )
+    return labelIndex >= 0 ? labelIndex : null
+  }
+
+  const exactIdMatch = selectOptions.find((option) => getSelectOptionId(option) === normalized)
+  if (exactIdMatch) {
+    return getSelectOptionId(exactIdMatch)
+  }
+
+  const labelMatch = selectOptions.find((option) => getSelectOptionLabel(option) === normalized)
+  if (labelMatch) {
+    return getSelectOptionId(labelMatch)
   }
 
   return null
@@ -88,23 +160,7 @@ export function normalizeCustomFieldValue(
       return rawValue === true
 
     case "select": {
-      if (rawValue === "" || rawValue === null || typeof rawValue === "undefined") {
-        return null
-      }
-
-      const normalized = String(rawValue)
-      const selectOptions = field.extra_data?.select_options ?? []
-      const exactIdMatch = selectOptions.find((option) => option?.id === normalized)
-      if (exactIdMatch) {
-        return normalized
-      }
-
-      const labelMatch = selectOptions.find((option) => option?.label === normalized)
-      if (labelMatch?.id) {
-        return labelMatch.id
-      }
-
-      return normalized
+      return normalizeCustomFieldSelectValue(field, rawValue)
     }
 
     case "date":
