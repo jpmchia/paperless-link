@@ -28,12 +28,17 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
-import { Trash2, Search, GripVertical } from "lucide-react"
+import { Trash2, Search, GripVertical, Pencil, Plus, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { toErrorMessage } from "@/lib/errors"
-import { deleteJson, patchJson } from "@/lib/paperless-client"
+import { deleteJson, patchJson, postJson } from "@/lib/paperless-client"
 import type { PermissionedObject } from "@/lib/permissions"
 
 interface Workflow extends PermissionedObject {
@@ -45,15 +50,45 @@ interface Workflow extends PermissionedObject {
   actions?: unknown[]
 }
 
+interface WorkflowLookups {
+  tags: Array<{ id: number; name: string }>
+  correspondents: Array<{ id: number; name: string }>
+  documentTypes: Array<{ id: number; name: string }>
+  storagePaths: Array<{ id: number; name: string }>
+  customFields: Array<{ id: number; name: string }>
+  users: Array<{ id: number; username?: string }>
+  groups: Array<{ id: number; name: string }>
+}
+
+type WorkflowDraft = {
+  name: string
+  enabled: boolean
+  order: string
+  triggersJson: string
+  actionsJson: string
+}
+
+function createWorkflowDraft(workflow?: Workflow | null): WorkflowDraft {
+  return {
+    name: workflow?.name ?? "",
+    enabled: workflow?.enabled ?? true,
+    order: workflow?.order != null ? String(workflow.order) : "",
+    triggersJson: JSON.stringify(workflow?.triggers ?? [{ type: 2 }], null, 2),
+    actionsJson: JSON.stringify(workflow?.actions ?? [{ type: 1 }], null, 2),
+  }
+}
+
 function SortableRow({
   wf,
   onToggle,
   onDelete,
+  onEdit,
   isDragDisabled,
 }: {
   wf: Workflow
   onToggle: (wf: Workflow) => void
   onDelete: (id: number) => void
+  onEdit: (wf: Workflow) => void
   isDragDisabled: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -103,6 +138,9 @@ function SortableRow({
         </Badge>
       </TableCell>
       <TableCell className="text-right">
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(wf)}>
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
         <HasObjectPermission action="delete" object={wf} type="workflow">
           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => onDelete(wf.id)}>
             <Trash2 className="h-3.5 w-3.5" />
@@ -113,12 +151,22 @@ function SortableRow({
   )
 }
 
-export function WorkflowsTable({ initialItems }: { initialItems: Workflow[] }) {
+export function WorkflowsTable({
+  initialItems,
+  lookups,
+}: {
+  initialItems: Workflow[]
+  lookups: WorkflowLookups
+}) {
   const [items, setItems] = React.useState<Workflow[]>(
     [...initialItems].sort((a, b) => a.order - b.order)
   )
   const [search, setSearch] = React.useState("")
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
+  const [workflowDialogOpen, setWorkflowDialogOpen] = React.useState(false)
+  const [editingWorkflow, setEditingWorkflow] = React.useState<Workflow | null>(null)
+  const [workflowDraft, setWorkflowDraft] = React.useState<WorkflowDraft>(createWorkflowDraft())
+  const [savingWorkflow, setSavingWorkflow] = React.useState(false)
 
   const isSearching = search.trim().length > 0
   const filtered = isSearching
@@ -143,6 +191,79 @@ export function WorkflowsTable({ initialItems }: { initialItems: Workflow[] }) {
       toast.error("Failed to update workflow", {
         description: toErrorMessage(error),
       })
+    }
+  }
+
+  const openCreateWorkflowDialog = React.useCallback(() => {
+    setEditingWorkflow(null)
+    setWorkflowDraft(createWorkflowDraft())
+    setWorkflowDialogOpen(true)
+  }, [])
+
+  const openEditWorkflowDialog = React.useCallback((workflow: Workflow) => {
+    setEditingWorkflow(workflow)
+    setWorkflowDraft(createWorkflowDraft(workflow))
+    setWorkflowDialogOpen(true)
+  }, [])
+
+  const handleWorkflowDraftChange = React.useCallback(
+    <K extends keyof WorkflowDraft>(key: K, value: WorkflowDraft[K]) => {
+      setWorkflowDraft((prev) => ({ ...prev, [key]: value }))
+    },
+    []
+  )
+
+  const handleSaveWorkflow = async () => {
+    if (!workflowDraft.name.trim()) {
+      toast.error("Workflow name is required")
+      return
+    }
+
+    let triggers: unknown[]
+    let actions: unknown[]
+    try {
+      const parsedTriggers = JSON.parse(workflowDraft.triggersJson)
+      const parsedActions = JSON.parse(workflowDraft.actionsJson)
+      if (!Array.isArray(parsedTriggers) || !Array.isArray(parsedActions)) {
+        throw new Error("Triggers and actions must both be JSON arrays")
+      }
+      triggers = parsedTriggers
+      actions = parsedActions
+    } catch (error) {
+      toast.error("Workflow JSON is invalid", {
+        description: toErrorMessage(error),
+      })
+      return
+    }
+
+    setSavingWorkflow(true)
+    try {
+      const payload = {
+        name: workflowDraft.name.trim(),
+        enabled: workflowDraft.enabled,
+        order: workflowDraft.order ? Number(workflowDraft.order) : items.length + 1,
+        triggers,
+        actions,
+      }
+
+      const saved = editingWorkflow
+        ? await patchJson<Workflow>(`/api/proxy/workflows/${editingWorkflow.id}/`, payload)
+        : await postJson<Workflow>("/api/proxy/workflows/", payload)
+
+      setItems((prev) => {
+        const next = editingWorkflow
+          ? prev.map((workflow) => (workflow.id === saved.id ? saved : workflow))
+          : [...prev, saved]
+        return [...next].sort((a, b) => a.order - b.order)
+      })
+      toast.success(`Workflow ${editingWorkflow ? "updated" : "created"}`)
+      setWorkflowDialogOpen(false)
+    } catch (error) {
+      toast.error(`Failed to ${editingWorkflow ? "update" : "create"} workflow`, {
+        description: toErrorMessage(error),
+      })
+    } finally {
+      setSavingWorkflow(false)
     }
   }
 
@@ -196,10 +317,16 @@ export function WorkflowsTable({ initialItems }: { initialItems: Workflow[] }) {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search workflows…" className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <p className="text-sm text-muted-foreground">
-          {filtered.length} of {items.length} workflows
-          {!isSearching && <span className="ml-2 text-xs opacity-60">· drag to reorder</span>}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-muted-foreground">
+            {filtered.length} of {items.length} workflows
+            {!isSearching && <span className="ml-2 text-xs opacity-60">· drag to reorder</span>}
+          </p>
+          <Button size="sm" className="h-8 gap-1.5" onClick={openCreateWorkflowDialog}>
+            <Plus className="h-3.5 w-3.5" />
+            New workflow
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-md border overflow-hidden">
@@ -238,6 +365,7 @@ export function WorkflowsTable({ initialItems }: { initialItems: Workflow[] }) {
                       wf={wf}
                       onToggle={toggleEnabled}
                       onDelete={setDeleteId}
+                      onEdit={openEditWorkflowDialog}
                       isDragDisabled={isSearching}
                     />
                   ))
@@ -262,6 +390,59 @@ export function WorkflowsTable({ initialItems }: { initialItems: Workflow[] }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={workflowDialogOpen} onOpenChange={setWorkflowDialogOpen}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>{editingWorkflow ? "Edit workflow" : "New workflow"}</DialogTitle>
+            <DialogDescription>
+              Define the workflow basics here and edit triggers/actions as JSON using the Paperless API shape.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Name</Label>
+              <Input value={workflowDraft.name} onChange={(e) => handleWorkflowDraftChange("name", e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Order</Label>
+              <Input value={workflowDraft.order} onChange={(e) => handleWorkflowDraftChange("order", e.target.value)} inputMode="numeric" />
+            </div>
+            <div className="md:col-span-2 flex items-center justify-between rounded-md border px-3 py-2">
+              <div>
+                <p className="text-sm font-medium">Enabled</p>
+                <p className="text-xs text-muted-foreground">Disabled workflows remain saved but do not run.</p>
+              </div>
+              <Switch checked={workflowDraft.enabled} onCheckedChange={(checked) => handleWorkflowDraftChange("enabled", checked)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Triggers JSON</Label>
+              <Textarea className="min-h-72 font-mono text-xs" value={workflowDraft.triggersJson} onChange={(e) => handleWorkflowDraftChange("triggersJson", e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Actions JSON</Label>
+              <Textarea className="min-h-72 font-mono text-xs" value={workflowDraft.actionsJson} onChange={(e) => handleWorkflowDraftChange("actionsJson", e.target.value)} />
+            </div>
+            <div className="md:col-span-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">Available lookup ids</p>
+              <p className="mt-2">Tags: {lookups.tags.map((tag) => `${tag.id}:${tag.name}`).join(", ") || "none"}</p>
+              <p>Correspondents: {lookups.correspondents.map((item) => `${item.id}:${item.name}`).join(", ") || "none"}</p>
+              <p>Document types: {lookups.documentTypes.map((item) => `${item.id}:${item.name}`).join(", ") || "none"}</p>
+              <p>Storage paths: {lookups.storagePaths.map((item) => `${item.id}:${item.name}`).join(", ") || "none"}</p>
+              <p>Custom fields: {lookups.customFields.map((item) => `${item.id}:${item.name}`).join(", ") || "none"}</p>
+              <p>Users: {lookups.users.map((item) => `${item.id}:${item.username ?? "user"}`).join(", ") || "none"}</p>
+              <p>Groups: {lookups.groups.map((item) => `${item.id}:${item.name}`).join(", ") || "none"}</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWorkflowDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => void handleSaveWorkflow()} disabled={savingWorkflow}>
+              {savingWorkflow ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {editingWorkflow ? "Save workflow" : "Create workflow"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

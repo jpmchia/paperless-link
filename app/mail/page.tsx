@@ -1,48 +1,60 @@
 import { AppShell } from "@/components/app-shell"
 import { TopBar } from "@/app/documents/topbar"
-import { getPaperlessApi, getUiSettings } from "@/lib/api"
+import { getCorrespondents, getDocumentTypes, getPaperlessApi, getTags, getUiSettings } from "@/lib/api"
 import { requireRoutePermission } from "@/lib/server-permissions"
 import { MailTable } from "./mail-table"
 
+type MailAccountRecord = React.ComponentProps<typeof MailTable>["accounts"][number]
+type MailRuleRecord = React.ComponentProps<typeof MailTable>["rules"][number]
+type ProcessedMailRecord = NonNullable<React.ComponentProps<typeof MailTable>["processedMail"]>[number]
+type PaginatedList<T> = { results?: T[] } | T[]
+type UiSettingsPayload = {
+  gmail_oauth_url?: string | null
+  outlook_oauth_url?: string | null
+}
+
 async function getMailAccounts() {
   try {
-    const data = await getPaperlessApi("mail_accounts/?page_size=100000") as any
-    return (data.results || data || []) as any[]
+    const data = (await getPaperlessApi("mail_accounts/?page_size=100000")) as PaginatedList<MailAccountRecord>
+    return Array.isArray(data) ? data : data.results ?? []
   } catch {
-    return []
+    return [] as MailAccountRecord[]
   }
 }
 
 async function getMailRules() {
   try {
-    const data = await getPaperlessApi("mail_rules/?page_size=100000") as any
-    return (data.results || data || []) as any[]
+    const data = (await getPaperlessApi("mail_rules/?page_size=100000")) as PaginatedList<MailRuleRecord>
+    return Array.isArray(data) ? data : data.results ?? []
   } catch {
-    return []
+    return [] as MailRuleRecord[]
   }
 }
 
 async function getProcessedMail() {
   try {
-    const data = await getPaperlessApi("processed_mail/?page_size=100&ordering=-received") as any
-    return (data.results || data || []) as any[]
+    const data = (await getPaperlessApi("processed_mail/?page_size=100&ordering=-received")) as PaginatedList<ProcessedMailRecord>
+    return Array.isArray(data) ? data : data.results ?? []
   } catch {
-    return []
+    return [] as ProcessedMailRecord[]
   }
 }
 
 export default async function MailPage() {
   const permissions = await requireRoutePermission("/mail")
 
-  const [accounts, rules, processedMail, uiSettings] = await Promise.all([
+  const [accounts, rules, processedMail, uiSettings, tags, correspondents, documentTypes] = await Promise.all([
     getMailAccounts(),
     getMailRules(),
     getProcessedMail(),
     getUiSettings(),
+    getTags(),
+    getCorrespondents(),
+    getDocumentTypes(),
   ])
 
-  const gmailOAuthUrl = (uiSettings as any)?.gmail_oauth_url ?? null
-  const outlookOAuthUrl = (uiSettings as any)?.outlook_oauth_url ?? null
+  const gmailOAuthUrl = (uiSettings as UiSettingsPayload)?.gmail_oauth_url ?? null
+  const outlookOAuthUrl = (uiSettings as UiSettingsPayload)?.outlook_oauth_url ?? null
 
   return (
     <AppShell initialPermissions={permissions} topbar={<TopBar title="Mail Configuration" />}>
@@ -53,6 +65,9 @@ export default async function MailPage() {
           processedMail={processedMail}
           gmailOAuthUrl={gmailOAuthUrl}
           outlookOAuthUrl={outlookOAuthUrl}
+          tags={tags}
+          correspondents={correspondents}
+          documentTypes={documentTypes}
         />
       </div>
     </AppShell>
