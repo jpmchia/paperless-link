@@ -24,6 +24,12 @@ function idx<T extends { id: number }>(arr: T[]): Record<number, T> {
   return Object.fromEntries(arr.map((x) => [x.id, x])) as Record<number, T>
 }
 
+type UiSettingsRecord = {
+  settings?: {
+    document_list_display_mode?: string | null
+  }
+}
+
 export default async function DocumentsPage({
   searchParams,
 }: {
@@ -34,7 +40,7 @@ export default async function DocumentsPage({
   const params = await searchParams
 
   // ---- If ?view=<id> is present, load the saved view config ----
-  let activeView: any = null
+  let activeView: Awaited<ReturnType<typeof getSavedView>> = null
   let initialFilters: FilterParams = {}
 
   if (params.view) {
@@ -82,7 +88,10 @@ export default async function DocumentsPage({
       getUiSettings(),
     ])
 
-  const currentUserId: number | null = (profile as any)?.id ?? null
+  const currentUserId: number | null =
+    profile && typeof profile === "object" && "id" in profile && typeof profile.id === "number"
+      ? profile.id
+      : null
 
   const pageCount = Math.ceil((documentsData.count || 0) / pageSize)
 
@@ -117,7 +126,7 @@ export default async function DocumentsPage({
         totalCount={documentsData.count || 0}
         users={usersList}
         currentUserId={currentUserId}
-        initialDisplayMode={(uiSettings as any)?.settings?.document_list_display_mode ?? null}
+        initialDisplayMode={(uiSettings as UiSettingsRecord)?.settings?.document_list_display_mode ?? null}
       />
     </AppShell>
   )

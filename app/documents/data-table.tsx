@@ -20,19 +20,7 @@ import {
   makeColumns,
   LookupMaps,
   DEFAULT_DISPLAY_FIELDS,
-  DISPLAY_FIELD_TITLE,
-  DISPLAY_FIELD_CREATED,
-  DISPLAY_FIELD_ADDED,
-  DISPLAY_FIELD_MODIFIED,
-  DISPLAY_FIELD_TAGS,
-  DISPLAY_FIELD_CORRESPONDENT,
-  DISPLAY_FIELD_DOCUMENT_TYPE,
-  DISPLAY_FIELD_STORAGE_PATH,
-  DISPLAY_FIELD_ASN,
-  DISPLAY_FIELD_NOTES,
-  DISPLAY_FIELD_OWNER,
-  DISPLAY_FIELD_SHARED,
-  DISPLAY_FIELD_PAGE_COUNT,
+  type Document,
 } from "./columns"
 
 import {
@@ -59,36 +47,18 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import Link from "next/link"
 import { BulkActionBar } from "./bulk-action-bar"
-import { DocumentPreviewDialog } from "./document-preview-dialog"
 import { Slider } from "@/components/ui/slider"
 import type { DocumentDisplayMode } from "./display-mode"
 
-// All available display fields users can toggle
-const ALL_FIELDS: { id: string; label: string }[] = [
-  { id: DISPLAY_FIELD_TITLE,         label: "Title" },
-  { id: DISPLAY_FIELD_CREATED,       label: "Created" },
-  { id: DISPLAY_FIELD_ADDED,         label: "Added" },
-  { id: DISPLAY_FIELD_MODIFIED,      label: "Modified" },
-  { id: DISPLAY_FIELD_CORRESPONDENT, label: "Correspondent" },
-  { id: DISPLAY_FIELD_DOCUMENT_TYPE, label: "Document Type" },
-  { id: DISPLAY_FIELD_STORAGE_PATH,  label: "Storage Path" },
-  { id: DISPLAY_FIELD_TAGS,          label: "Tags" },
-  { id: DISPLAY_FIELD_NOTES,         label: "Notes" },
-  { id: DISPLAY_FIELD_OWNER,         label: "Owner" },
-  { id: DISPLAY_FIELD_SHARED,        label: "Shared" },
-  { id: DISPLAY_FIELD_ASN,           label: "ASN" },
-  { id: DISPLAY_FIELD_PAGE_COUNT,    label: "Pages" },
-]
-
 interface DataTableProps {
   lookup: LookupMaps
-  data: any[]
+  data: Document[]
   pageCount: number
   displayFields?: string[]
   currentFilters?: FilterParams
   onFilterChange?: (params: FilterParams) => void
-  usersList?: any[]
-  groupsList?: any[]
+  usersList?: Array<{ id: number; username?: string }>
+  groupsList?: Array<{ id: number; name?: string }>
   onDisplayFieldsChange?: React.Dispatch<React.SetStateAction<string[]>>
   onPreviewDocument?: (document: { id: number; title?: string }) => void
 }
@@ -218,8 +188,6 @@ export function DataTable({
   data,
   pageCount,
   displayFields: initialDisplayFields,
-  currentFilters = {},
-  onFilterChange,
   usersList = [],
   groupsList = [],
   onDisplayFieldsChange,
@@ -230,7 +198,6 @@ export function DataTable({
   const setDocList = useSetAtom(documentListState)
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
-  const [saving, setSaving] = React.useState(false)
   const [columnResizeMode] = React.useState<ColumnResizeMode>("onChange")
 
   // Local display fields state — initialized from prop (view's settings) or default
@@ -240,7 +207,6 @@ export function DataTable({
       : DEFAULT_DISPLAY_FIELDS
   )
   const displayFields = onDisplayFieldsChange ? (initialDisplayFields ?? DEFAULT_DISPLAY_FIELDS) : localDisplayFields
-  const setDisplayFields = onDisplayFieldsChange ?? setLocalDisplayFields
 
   // Re-sync when prop changes (e.g. navigating between views)
   React.useEffect(() => {
@@ -255,11 +221,11 @@ export function DataTable({
 
   // Keep document ID list in Jotai for Next/Prev navigation in detail view
   React.useEffect(() => {
-    setDocList(data.map((d: any) => d.id))
+    setDocList(data.map((document) => document.id))
   }, [data, setDocList])
 
   const columns = React.useMemo(() => {
-    const selectColumn: ColumnDef<any>[] = [{
+    const selectColumn: ColumnDef<Document>[] = [{
       id: "select",
       header: ({ table }) => (
         <Checkbox
@@ -284,7 +250,7 @@ export function DataTable({
       minSize: 36,
       maxSize: 36,
     }]
-    const previewColumn: ColumnDef<any> = {
+    const previewColumn: ColumnDef<Document> = {
       id: "preview",
       enableSorting: false,
       enableResizing: false,
@@ -308,7 +274,7 @@ export function DataTable({
         </button>
       ),
     }
-    return [...selectColumn, ...makeColumns(lookup, displayFields), previewColumn] as any[]
+    return [...selectColumn, ...makeColumns(lookup, displayFields), previewColumn]
   }, [displayFields, lookup, onPreviewDocument])
 
   const table = useReactTable({
@@ -347,13 +313,17 @@ export function DataTable({
           selectedIds={selectedIds}
           onClearSelection={() => setRowSelection({})}
           onComplete={handleBulkComplete}
-          tags={Object.values(lookup.tags ?? {}).map((t: any) => ({ id: t.id, name: t.name, color: t.color }))}
-          correspondents={Object.values(lookup.correspondents ?? {}).map((c: any) => ({ id: c.id, name: c.name }))}
-          documentTypes={Object.values(lookup.documentTypes ?? {}).map((dt: any) => ({ id: dt.id, name: dt.name }))}
-          storagePaths={Object.values(lookup.storagePaths ?? {}).map((sp: any) => ({ id: sp.id, name: sp.name }))}
-          customFields={Object.values(lookup.customFields ?? {}).map((cf: any) => ({ id: cf.id, name: cf.name, data_type: cf.data_type }))}
-          usersList={usersList}
-          groupsList={groupsList}
+          tags={Object.values(lookup.tags ?? {}).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color }))}
+          correspondents={Object.values(lookup.correspondents ?? {}).map((correspondent) => ({ id: correspondent.id, name: correspondent.name }))}
+          documentTypes={Object.values(lookup.documentTypes ?? {}).map((documentType) => ({ id: documentType.id, name: documentType.name }))}
+          storagePaths={Object.values(lookup.storagePaths ?? {}).map((storagePath) => ({ id: storagePath.id, name: storagePath.name }))}
+          customFields={Object.values(lookup.customFields ?? {}).map((customField) => ({ id: customField.id, name: customField.name, data_type: customField.data_type }))}
+          usersList={usersList
+            .filter((user): user is { id: number; username: string } => typeof user.username === "string")
+            .map((user) => ({ id: user.id, username: user.username }))}
+          groupsList={groupsList
+            .filter((group): group is { id: number; name: string } => typeof group.name === "string")
+            .map((group) => ({ id: group.id, name: group.name }))}
         />
       )}
       {/* Table */}

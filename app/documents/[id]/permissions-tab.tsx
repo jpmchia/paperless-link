@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import type { ControllerRenderProps } from "react-hook-form"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
 import { useForm } from "react-hook-form"
 import { Loader2, Check, ChevronsUpDown } from "lucide-react"
@@ -34,16 +35,36 @@ import { Document } from "../columns"
 import { updateDocument } from "./actions"
 import { toast } from "sonner"
 
+type AccessPrincipal = {
+  id: number
+  name?: string
+  username?: string
+}
+
+type DocumentPermissionsFormValues = {
+  owner: number | null
+  view_users: number[]
+  view_groups: number[]
+  change_users: number[]
+  change_groups: number[]
+}
+
 type Props = {
-  document: Document & { owner?: number | null, permissions?: { view?: { users?: number[], groups?: number[] }, change?: { users?: number[], groups?: number[] } } }
-  usersList: any[]
-  groupsList: any[]
+  document: Document & {
+    owner?: number | null
+    permissions?: {
+      view?: { users?: number[]; groups?: number[] }
+      change?: { users?: number[]; groups?: number[] }
+    }
+  }
+  usersList: AccessPrincipal[]
+  groupsList: AccessPrincipal[]
 }
 
 export function PermissionsTab({ document, usersList, groupsList }: Props) {
   const [isSaving, setIsSaving] = useState(false)
 
-  const defaultValues = {
+  const defaultValues: DocumentPermissionsFormValues = {
     owner: document.owner ?? null,
     view_users: document.permissions?.view?.users ?? [],
     view_groups: document.permissions?.view?.groups ?? [],
@@ -51,11 +72,9 @@ export function PermissionsTab({ document, usersList, groupsList }: Props) {
     change_groups: document.permissions?.change?.groups ?? [],
   }
 
-  const form = useForm({
-    defaultValues
-  })
+  const form = useForm<DocumentPermissionsFormValues>({ defaultValues })
 
-  async function onSubmit(values: any) {
+  async function onSubmit(values: DocumentPermissionsFormValues) {
     setIsSaving(true)
     try {
       const payload = {
@@ -85,8 +104,8 @@ export function PermissionsTab({ document, usersList, groupsList }: Props) {
 
   // Helper for single select user
   const renderCombobox = (
-    field: any,
-    items: any[],
+    field: ControllerRenderProps<DocumentPermissionsFormValues, "owner">,
+    items: AccessPrincipal[],
     placeholder: string,
     emptyText: string
   ) => {
@@ -151,7 +170,14 @@ export function PermissionsTab({ document, usersList, groupsList }: Props) {
   }
 
   // Multi-select for users/groups
-  const renderMultiCombobox = (field: any, items: any[], placeholder: string) => {
+  const renderMultiCombobox = (
+    field: ControllerRenderProps<
+      DocumentPermissionsFormValues,
+      "view_users" | "view_groups" | "change_users" | "change_groups"
+    >,
+    items: AccessPrincipal[],
+    placeholder: string
+  ) => {
     const selectedIds = field.value || []
 
     return (
@@ -259,7 +285,7 @@ export function PermissionsTab({ document, usersList, groupsList }: Props) {
             <FormField
             control={form.control}
             name="owner"
-            render={({ field }: any) => (
+            render={({ field }) => (
                 <FormItem className="flex flex-col">
                 <FormLabel>Document Owner</FormLabel>
                 {renderCombobox(field, usersList, "Select Owner", "No user found.")}
@@ -277,7 +303,7 @@ export function PermissionsTab({ document, usersList, groupsList }: Props) {
                     <FormField
                     control={form.control}
                     name="view_users"
-                    render={({ field }: any) => (
+                    render={({ field }) => (
                         <FormItem>
                         <FormLabel>Users</FormLabel>
                         {renderMultiCombobox(field, usersList, "Select Users...")}
@@ -288,7 +314,7 @@ export function PermissionsTab({ document, usersList, groupsList }: Props) {
                     <FormField
                     control={form.control}
                     name="view_groups"
-                    render={({ field }: any) => (
+                    render={({ field }) => (
                         <FormItem>
                         <FormLabel>Groups</FormLabel>
                         {renderMultiCombobox(field, groupsList, "Select Groups...")}
@@ -305,7 +331,7 @@ export function PermissionsTab({ document, usersList, groupsList }: Props) {
                     <FormField
                     control={form.control}
                     name="change_users"
-                    render={({ field }: any) => (
+                    render={({ field }) => (
                         <FormItem>
                         <FormLabel>Users</FormLabel>
                         {renderMultiCombobox(field, usersList, "Select Users...")}
@@ -316,7 +342,7 @@ export function PermissionsTab({ document, usersList, groupsList }: Props) {
                     <FormField
                     control={form.control}
                     name="change_groups"
-                    render={({ field }: any) => (
+                    render={({ field }) => (
                         <FormItem>
                         <FormLabel>Groups</FormLabel>
                         {renderMultiCombobox(field, groupsList, "Select Groups...")}

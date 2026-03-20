@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { updateUiSettings } from "@/app/actions/ui-settings"
 import type { FilterParams } from "@/lib/api"
 import { RealtimeDocumentListSync } from "@/components/realtime-document-list-sync"
-import { DEFAULT_DISPLAY_FIELDS, LookupMaps } from "./columns"
+import { DEFAULT_DISPLAY_FIELDS, type Document, type LookupMaps } from "./columns"
 import { FilterPanel } from "./filter-panel"
 import { DataTable, DataTableHeaderBar } from "./data-table"
 import { ColumnsPicker } from "./columns-picker"
@@ -18,24 +18,29 @@ import {
   resolveDocumentDisplayMode,
 } from "./display-mode"
 
+type LookupItem = { id: number; name: string }
+type UserOption = { id: number; username?: string; first_name?: string; last_name?: string }
+type TagOption = { id: number; name: string; color: string | number }
+type CustomFieldOption = { id: number; name: string }
+
 interface DocumentsWorkspaceProps {
-  activeView?: any
-  correspondents: any[]
+  activeView?: React.ComponentProps<typeof FilterPanel>["activeView"]
+  correspondents: LookupItem[]
   currentFilters: FilterParams
   currentPage: number
   currentPageSize: number
-  customFields: Array<{ id: number; name: string }>
-  data: any[]
-  documentTypes: any[]
-  groupsList?: any[]
+  customFields: CustomFieldOption[]
+  data: Document[]
+  documentTypes: LookupItem[]
+  groupsList?: LookupItem[]
   lookup: LookupMaps
   pageCount: number
-  savedViews: any[]
-  storagePaths: any[]
-  tags: any[]
+  savedViews: React.ComponentProps<typeof FilterPanel>["savedViews"]
+  storagePaths: LookupItem[]
+  tags: TagOption[]
   title?: string | null
   totalCount: number
-  users?: Array<{ id: number; username?: string; first_name?: string; last_name?: string }>
+  users?: UserOption[]
   currentUserId?: number | null
   initialDisplayMode?: string | null
 }
@@ -62,9 +67,10 @@ export function DocumentsWorkspace({
 }: DocumentsWorkspaceProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const activeViewDisplayFields = activeView?.display_fields
   const activeViewDisplayFieldsKey = React.useMemo(
-    () => activeView?.display_fields?.join(",") ?? "",
-    [activeView?.display_fields]
+    () => activeViewDisplayFields?.join(",") ?? "",
+    [activeViewDisplayFields]
   )
 
   const [displayFields, setDisplayFields] = React.useState<string[]>(
@@ -81,12 +87,12 @@ export function DocumentsWorkspace({
   } | null>(null)
 
   React.useEffect(() => {
-    if (activeView?.display_fields?.length) {
-      setDisplayFields(activeView.display_fields)
+    if (activeViewDisplayFields?.length) {
+      setDisplayFields(activeViewDisplayFields)
     } else {
       setDisplayFields(DEFAULT_DISPLAY_FIELDS)
     }
-  }, [activeView?.id, activeViewDisplayFieldsKey])
+  }, [activeView?.id, activeViewDisplayFields, activeViewDisplayFieldsKey])
 
   React.useEffect(() => {
     setDisplayMode(resolveDocumentDisplayMode(activeView?.display_mode, initialDisplayMode))
