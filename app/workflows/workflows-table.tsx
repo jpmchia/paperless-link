@@ -29,8 +29,14 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog"
+  Dialog as DraggableDialog,
+  DialogBody as DraggableDialogBody,
+  DialogContent as DraggableDialogContent,
+  DialogDescription as DraggableDialogDescription,
+  DialogFooter as DraggableDialogFooter,
+  DialogHeader as DraggableDialogHeader,
+  DialogTitle as DraggableDialogTitle,
+} from "@/components/draggable-dialog"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
 import { Trash2, Search, GripVertical, Pencil, Plus, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -391,14 +397,15 @@ export function WorkflowsTable({
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={workflowDialogOpen} onOpenChange={setWorkflowDialogOpen}>
-        <DialogContent className="max-w-5xl">
-          <DialogHeader>
-            <DialogTitle>{editingWorkflow ? "Edit workflow" : "New workflow"}</DialogTitle>
-            <DialogDescription>
+      <DraggableDialog open={workflowDialogOpen} onOpenChange={setWorkflowDialogOpen}>
+        <DraggableDialogContent initialWidth={1120} initialHeight={900} maxWidth={1320} maxHeight={1040}>
+          <DraggableDialogHeader>
+            <DraggableDialogTitle>{editingWorkflow ? "Edit workflow" : "New workflow"}</DraggableDialogTitle>
+            <DraggableDialogDescription>
               Define the workflow basics here and edit triggers/actions as JSON using the Paperless API shape.
-            </DialogDescription>
-          </DialogHeader>
+            </DraggableDialogDescription>
+          </DraggableDialogHeader>
+          <DraggableDialogBody>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Name</Label>
@@ -434,15 +441,16 @@ export function WorkflowsTable({
               <p>Groups: {lookups.groups.map((item) => `${item.id}:${item.name}`).join(", ") || "none"}</p>
             </div>
           </div>
-          <DialogFooter>
+          </DraggableDialogBody>
+          <DraggableDialogFooter>
             <Button variant="outline" onClick={() => setWorkflowDialogOpen(false)}>Cancel</Button>
             <Button onClick={() => void handleSaveWorkflow()} disabled={savingWorkflow}>
               {savingWorkflow ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {editingWorkflow ? "Save workflow" : "Create workflow"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </DraggableDialogFooter>
+        </DraggableDialogContent>
+      </DraggableDialog>
     </>
   )
 }

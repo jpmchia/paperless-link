@@ -11,8 +11,14 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog"
+  Dialog as DraggableDialog,
+  DialogBody as DraggableDialogBody,
+  DialogContent as DraggableDialogContent,
+  DialogDescription as DraggableDialogDescription,
+  DialogFooter as DraggableDialogFooter,
+  DialogHeader as DraggableDialogHeader,
+  DialogTitle as DraggableDialogTitle,
+} from "@/components/draggable-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
@@ -38,6 +44,7 @@ interface MailAccount extends PermissionedObject {
   is_token?: boolean
   character_set?: string
   account_type?: number
+  expiration?: string | null
 }
 
 interface MailRule extends PermissionedObject {
@@ -93,7 +100,7 @@ const SECURITY_LABELS: Record<number, string> = {
 }
 
 const ACCOUNT_TYPE_LABELS: Record<number, string> = {
-  1: "Generic IMAP",
+  1: "IMAP",
   2: "Gmail OAuth",
   3: "Outlook OAuth",
 }
@@ -174,6 +181,10 @@ function createMailAccountDraft(account?: MailAccount | null): MailAccountDraft 
   }
 }
 
+function isOAuthAccountType(accountType: string) {
+  return accountType === "2" || accountType === "3"
+}
+
 function createMailRuleDraft(rule?: MailRule | null): MailRuleDraft {
   return {
     name: rule?.name ?? "",
@@ -221,6 +232,21 @@ export function MailTable({
   const [savingAccount, setSavingAccount] = React.useState(false)
   const [savingRule, setSavingRule] = React.useState(false)
   const [processingAccountId, setProcessingAccountId] = React.useState<number | null>(null)
+  const oauthAccountSelected = isOAuthAccountType(accountDraft.account_type)
+  const selectedOAuthUrl =
+    accountDraft.account_type === "2"
+      ? gmailOAuthUrl
+      : accountDraft.account_type === "3"
+        ? outlookOAuthUrl
+        : null
+  const selectedOAuthLabel =
+    accountDraft.account_type === "2"
+      ? "Gmail OAuth"
+      : accountDraft.account_type === "3"
+        ? "Outlook OAuth"
+        : "OAuth"
+  const selectedOAuthConnectLabel =
+    accountDraft.account_type === "2" ? "Connect Gmail" : "Connect Outlook"
 
   const accountMap: Record<number, string> = {}
   accountList.forEach((a) => { accountMap[a.id] = a.name })
@@ -296,18 +322,42 @@ export function MailTable({
   )
 
   const handleSaveAccount = async () => {
-    if (!accountDraft.name.trim() || !accountDraft.imap_server.trim() || !accountDraft.username.trim()) {
-      toast.error("Name, IMAP server, and username are required")
+    if (!accountDraft.name.trim()) {
+      toast.error("Account name is required")
       return
     }
-    if (!editingAccount && !accountDraft.password.trim()) {
-      toast.error("Password is required for a new mail account")
+    if (oauthAccountSelected && !editingAccount) {
+      toast.error(
+        selectedOAuthUrl
+          ? `Create ${selectedOAuthLabel} accounts using the provider connect button`
+          : `${selectedOAuthLabel} is not currently configured on this server`
+      )
+      return
+    }
+    if (!oauthAccountSelected && (!accountDraft.imap_server.trim() || !accountDraft.username.trim())) {
+      toast.error("IMAP server and username are required")
+      return
+    }
+    if (!editingAccount && !oauthAccountSelected && !accountDraft.password.trim()) {
+      toast.error("Password is required for a new IMAP mail account")
       return
     }
 
     setSavingAccount(true)
     try {
-      const payload = {
+      const fallbackExistingAccount = editingAccount ?? null
+      const payload = oauthAccountSelected
+        ? {
+            name: accountDraft.name.trim(),
+            account_type: Number(accountDraft.account_type),
+            imap_server: fallbackExistingAccount?.imap_server ?? "",
+            imap_port: fallbackExistingAccount?.imap_port ?? null,
+            imap_security: fallbackExistingAccount?.imap_security ?? 2,
+            username: fallbackExistingAccount?.username ?? "",
+            character_set: fallbackExistingAccount?.character_set ?? "UTF-8",
+            is_token: fallbackExistingAccount?.is_token ?? true,
+          }
+        : {
         name: accountDraft.name.trim(),
         imap_server: accountDraft.imap_server.trim(),
         imap_port: accountDraft.imap_port ? Number(accountDraft.imap_port) : null,
@@ -317,7 +367,7 @@ export function MailTable({
         character_set: accountDraft.character_set.trim() || "UTF-8",
         is_token: accountDraft.is_token,
         account_type: Number(accountDraft.account_type),
-      }
+          }
 
       const saved = editingAccount
         ? await patchJson<MailAccount>(`/api/proxy/mail_accounts/${editingAccount.id}/`, payload)
@@ -485,7 +535,9 @@ export function MailTable({
                       <TableCell className="text-muted-foreground">{acct.imap_port || "—"}</TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="text-xs font-normal">
-                          {SECURITY_LABELS[acct.imap_security ?? 1] ?? "None"}
+                          {ACCOUNT_TYPE_LABELS[acct.account_type ?? 1] === "IMAP"
+                            ? SECURITY_LABELS[acct.imap_security ?? 1] ?? "None"
+                            : ACCOUNT_TYPE_LABELS[acct.account_type ?? 1]}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{acct.username || "—"}</TableCell>
@@ -663,14 +715,15 @@ export function MailTable({
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={accountDialogOpen} onOpenChange={setAccountDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{editingAccount ? "Edit mail account" : "New mail account"}</DialogTitle>
-            <DialogDescription>
+      <DraggableDialog open={accountDialogOpen} onOpenChange={setAccountDialogOpen}>
+        <DraggableDialogContent initialWidth={720} initialHeight={720} maxWidth={920} maxHeight={900}>
+          <DraggableDialogHeader>
+            <DraggableDialogTitle>{editingAccount ? "Edit mail account" : "New mail account"}</DraggableDialogTitle>
+            <DraggableDialogDescription>
               Configure how Paperless connects to and consumes a mailbox.
-            </DialogDescription>
-          </DialogHeader>
+            </DraggableDialogDescription>
+          </DraggableDialogHeader>
+          <DraggableDialogBody>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Name</Label>
@@ -682,68 +735,124 @@ export function MailTable({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(ACCOUNT_TYPE_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                    <SelectItem
+                      key={value}
+                      value={value}
+                      disabled={
+                        !editingAccount &&
+                        ((value === "2" && !gmailOAuthUrl) || (value === "3" && !outlookOAuthUrl))
+                      }
+                    >
+                      {label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>IMAP server</Label>
-              <Input value={accountDraft.imap_server} onChange={(e) => handleAccountDraftChange("imap_server", e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Port</Label>
-              <Input value={accountDraft.imap_port} onChange={(e) => handleAccountDraftChange("imap_port", e.target.value)} inputMode="numeric" />
-            </div>
-            <div className="space-y-2">
-              <Label>Security</Label>
-              <Select value={accountDraft.imap_security} onValueChange={(value) => handleAccountDraftChange("imap_security", value)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(SECURITY_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Character set</Label>
-              <Input value={accountDraft.character_set} onChange={(e) => handleAccountDraftChange("character_set", e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Username</Label>
-              <Input value={accountDraft.username} onChange={(e) => handleAccountDraftChange("username", e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>{editingAccount ? "Password or token (leave blank to keep)" : "Password or token"}</Label>
-              <Input type="password" value={accountDraft.password} onChange={(e) => handleAccountDraftChange("password", e.target.value)} />
-            </div>
-            <div className="md:col-span-2 flex items-center gap-3 rounded-md border px-3 py-2">
-              <Checkbox checked={accountDraft.is_token} onCheckedChange={(checked) => handleAccountDraftChange("is_token", Boolean(checked))} />
-              <div>
-                <p className="text-sm font-medium">Use token authentication</p>
-                <p className="text-xs text-muted-foreground">Enable this for OAuth/app-password style credentials.</p>
-              </div>
-            </div>
+            {oauthAccountSelected ? (
+              <>
+                <div className="md:col-span-2 rounded-md border bg-muted/30 p-4">
+                  <p className="text-sm font-medium">
+                    {accountDraft.account_type === "2" ? "Gmail OAuth account" : "Outlook OAuth account"}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {editingAccount
+                      ? "OAuth accounts are connected through the provider flow. You can update the display name here, but provider credentials and IMAP settings are managed by the OAuth connection."
+                      : selectedOAuthUrl
+                        ? "Use the provider connect button below to create this account. Manual creation is disabled for OAuth providers because the credentials and refresh token are established via the provider flow."
+                        : `This server does not currently expose a ${selectedOAuthLabel} connect URL. Configure that provider in Paperless first, or use IMAP instead.`}
+                  </p>
+                  {!editingAccount && selectedOAuthUrl ? (
+                    <div className="mt-3">
+                      <Button size="sm" variant="outline" className="h-8 gap-1.5" asChild>
+                        <a href={selectedOAuthUrl}>
+                          {accountDraft.account_type === "2" ? (
+                            <ChromeIcon className="h-3.5 w-3.5" />
+                          ) : (
+                            <Mail className="h-3.5 w-3.5" />
+                          )}
+                          {selectedOAuthConnectLabel}
+                        </a>
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+                {editingAccount ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Connected username</Label>
+                      <Input value={editingAccount.username ?? ""} disabled />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Token expiry</Label>
+                      <Input value={editingAccount.expiration ? new Date(editingAccount.expiration).toLocaleString() : "Not provided"} disabled />
+                    </div>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>IMAP server</Label>
+                  <Input value={accountDraft.imap_server} onChange={(e) => handleAccountDraftChange("imap_server", e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Port</Label>
+                  <Input value={accountDraft.imap_port} onChange={(e) => handleAccountDraftChange("imap_port", e.target.value)} inputMode="numeric" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Security</Label>
+                  <Select value={accountDraft.imap_security} onValueChange={(value) => handleAccountDraftChange("imap_security", value)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(SECURITY_LABELS).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Character set</Label>
+                  <Input value={accountDraft.character_set} onChange={(e) => handleAccountDraftChange("character_set", e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Username</Label>
+                  <Input value={accountDraft.username} onChange={(e) => handleAccountDraftChange("username", e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>{editingAccount ? "Password or token (leave blank to keep)" : "Password or token"}</Label>
+                  <Input type="password" value={accountDraft.password} onChange={(e) => handleAccountDraftChange("password", e.target.value)} />
+                </div>
+                <div className="md:col-span-2 flex items-center gap-3 rounded-md border px-3 py-2">
+                  <Checkbox checked={accountDraft.is_token} onCheckedChange={(checked) => handleAccountDraftChange("is_token", Boolean(checked))} />
+                  <div>
+                    <p className="text-sm font-medium">Use token authentication</p>
+                    <p className="text-xs text-muted-foreground">Enable this for app-password or token-style IMAP credentials.</p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-          <DialogFooter>
+          </DraggableDialogBody>
+          <DraggableDialogFooter>
             <Button variant="outline" onClick={() => setAccountDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => void handleSaveAccount()} disabled={savingAccount}>
+            <Button onClick={() => void handleSaveAccount()} disabled={savingAccount || (oauthAccountSelected && !editingAccount)}>
               {savingAccount ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {editingAccount ? "Save account" : "Create account"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </DraggableDialogFooter>
+        </DraggableDialogContent>
+      </DraggableDialog>
 
-      <Dialog open={ruleDialogOpen} onOpenChange={setRuleDialogOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>{editingRule ? "Edit mail rule" : "New mail rule"}</DialogTitle>
-            <DialogDescription>
+      <DraggableDialog open={ruleDialogOpen} onOpenChange={setRuleDialogOpen}>
+        <DraggableDialogContent initialWidth={980} initialHeight={860} maxWidth={1200} maxHeight={980}>
+          <DraggableDialogHeader>
+            <DraggableDialogTitle>{editingRule ? "Edit mail rule" : "New mail rule"}</DraggableDialogTitle>
+            <DraggableDialogDescription>
               Set mailbox filters and default classification for matching mail.
-            </DialogDescription>
-          </DialogHeader>
+            </DraggableDialogDescription>
+          </DraggableDialogHeader>
+          <DraggableDialogBody>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Name</Label>
@@ -896,15 +1005,16 @@ export function MailTable({
               <Switch checked={ruleDraft.assign_owner_from_rule} onCheckedChange={(checked) => handleRuleDraftChange("assign_owner_from_rule", checked)} />
             </div>
           </div>
-          <DialogFooter>
+          </DraggableDialogBody>
+          <DraggableDialogFooter>
             <Button variant="outline" onClick={() => setRuleDialogOpen(false)}>Cancel</Button>
             <Button onClick={() => void handleSaveRule()} disabled={savingRule}>
               {savingRule ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {editingRule ? "Save rule" : "Create rule"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </DraggableDialogFooter>
+        </DraggableDialogContent>
+      </DraggableDialog>
     </>
   )
 }
