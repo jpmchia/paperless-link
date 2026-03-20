@@ -9,12 +9,14 @@ import type { PluginRegistry } from '@embedpdf/react-pdf-viewer'
 export const documentListState = atom<number[]>([])
 
 export const documentDetailsDirtyAtom = atom(false)
+export const documentDetailsChangedFieldsAtom = atom<string[]>([])
 
 export const documentSectionAtom = atom<DocumentSection | null>(null)
 
 export const documentDetailFieldLayoutAtom = atom<string[]>([])
 export const documentDetailAvailableFieldsAtom = atom<Array<{ id: string; label: string }>>([])
 export const documentDetailFieldLayoutRevisionAtom = atom(0)
+export const documentDetailsResetRevisionAtom = atom(0)
 
 // Version ID currently being previewed in the PDF viewer (null = latest)
 export const activeVersionIdAtom = atom<number | null>(null)

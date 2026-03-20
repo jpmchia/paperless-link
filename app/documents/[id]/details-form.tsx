@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes"
 import { usePermissions } from "@/hooks/use-permissions"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -63,7 +63,9 @@ import {
   documentDetailAvailableFieldsAtom,
   documentDetailFieldLayoutAtom,
   documentDetailFieldLayoutRevisionAtom,
+  documentDetailsChangedFieldsAtom,
   documentDetailsDirtyAtom,
+  documentDetailsResetRevisionAtom,
   documentListState,
 } from "@/lib/store"
 import { fetchUiSettings } from "@/lib/ui-settings"
@@ -124,11 +126,19 @@ function getSelectOptionValue(option: any, index: number): string {
   return typeof option === "string" ? String(index) : getSelectOptionId(option)
 }
 
+function createSelectOptionId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID().replace(/-/g, "").slice(0, 16)
+  }
+
+  return Math.random().toString(36).slice(2, 18)
+}
+
 function normalizeSelectOptionsForApi(selectOptions: any[] | undefined) {
   return (selectOptions ?? [])
     .map((option) => {
       const label = getSelectOptionLabel(option)
-      const id = typeof option === "string" ? undefined : option?.id
+      const id = typeof option === "string" ? createSelectOptionId() : option?.id ?? createSelectOptionId()
       return label ? { label, ...(id ? { id: String(id) } : {}) } : null
     })
     .filter((option): option is { label: string; id?: string } => option !== null)
@@ -219,10 +229,13 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
   const { can } = usePermissions()
   const documentList = useAtomValue(documentListState)
   const setDocumentDetailsDirty = useSetAtom(documentDetailsDirtyAtom)
+  const setDocumentDetailsChangedFields = useSetAtom(documentDetailsChangedFieldsAtom)
   const [detailFieldLayout, setDetailFieldLayout] = useAtom(documentDetailFieldLayoutAtom)
   const layoutRevision = useAtomValue(documentDetailFieldLayoutRevisionAtom)
+  const resetRevision = useAtomValue(documentDetailsResetRevisionAtom)
   const setDetailAvailableFields = useSetAtom(documentDetailAvailableFieldsAtom)
   const defaultValues = buildDefaultValues(document, customFieldDefinitions)
+  const [baselineValues, setBaselineValues] = React.useState(defaultValues)
   const defaultValuesSnapshot = React.useMemo(() => JSON.stringify(defaultValues), [defaultValues])
   const lastResetSnapshotRef = React.useRef<string | null>(null)
   const availableDetailFields = React.useMemo(
@@ -244,17 +257,99 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
     defaultValues: defaultValues as any
   })
   const currentDocumentTypeId = form.watch("document_type")
+  const watchedValues = useWatch({ control: form.control })
 
-  // Warn user before navigating away with unsaved changes
-  useUnsavedChanges(form.formState.isDirty)
+  const changedFieldLabels = React.useMemo(() => {
+    const normalizeValue = (value: unknown): unknown => {
+      if (value == null || value === "") return null
+      if (Array.isArray(value)) {
+        return [...value]
+          .map((item) => normalizeValue(item))
+          .sort((a, b) => String(a).localeCompare(String(b)))
+      }
+      return value
+    }
+
+    const areEqual = (left: unknown, right: unknown) =>
+      JSON.stringify(normalizeValue(left)) === JSON.stringify(normalizeValue(right))
+
+    const labels = detailFieldLayout.flatMap((fieldId) => {
+      let label: string | null = null
+      let currentValue: unknown
+      let initialValue: unknown
+
+      switch (fieldId) {
+        case "title":
+          label = "Title"
+          currentValue = watchedValues?.title
+          initialValue = baselineValues.title
+          break
+        case "created":
+          label = "Created Date"
+          currentValue = watchedValues?.created
+          initialValue = baselineValues.created
+          break
+        case "archive_serial_number":
+          label = "ASN"
+          currentValue = watchedValues?.archive_serial_number
+          initialValue = baselineValues.archive_serial_number
+          break
+        case "correspondent":
+          label = "Correspondent"
+          currentValue = watchedValues?.correspondent
+          initialValue = baselineValues.correspondent
+          break
+        case "document_type":
+          label = "Document Type"
+          currentValue = watchedValues?.document_type
+          initialValue = baselineValues.document_type
+          break
+        case "storage_path":
+          label = "Storage Path"
+          currentValue = watchedValues?.storage_path
+          initialValue = baselineValues.storage_path
+          break
+        case "tags":
+          label = "Tags"
+          currentValue = watchedValues?.tags
+          initialValue = baselineValues.tags
+          break
+        default: {
+          const customFieldId = parseDetailCustomFieldId(fieldId)
+          if (customFieldId === null) return []
+
+          const customField = customFieldDefinitions.find((item: any) => item.id === customFieldId)
+          if (!customField) return []
+
+          const valueKey = `cf_${customField.id}`
+          label = customField.name
+          currentValue = watchedValues?.[valueKey]
+          initialValue = baselineValues[valueKey as keyof typeof baselineValues]
+          break
+        }
+      }
+
+      if (!label || areEqual(currentValue, initialValue)) {
+        return []
+      }
+
+      return [label]
+    })
+
+    return Array.from(new Set(labels))
+  }, [baselineValues, customFieldDefinitions, detailFieldLayout, watchedValues])
 
   React.useEffect(() => {
-    setDocumentDetailsDirty(form.formState.isDirty)
+    const isDirty = changedFieldLabels.length > 0
+
+    setDocumentDetailsDirty(isDirty)
+    setDocumentDetailsChangedFields(changedFieldLabels)
 
     return () => {
       setDocumentDetailsDirty(false)
+      setDocumentDetailsChangedFields([])
     }
-  }, [form.formState.isDirty, setDocumentDetailsDirty])
+  }, [changedFieldLabels, setDocumentDetailsChangedFields, setDocumentDetailsDirty])
 
   React.useEffect(() => {
     setCorrespondentItems(correspondents)
@@ -355,8 +450,16 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
     if (lastResetSnapshotRef.current === defaultValuesSnapshot) return
 
     form.reset(defaultValues)
+    setBaselineValues(defaultValues)
     lastResetSnapshotRef.current = defaultValuesSnapshot
   }, [defaultValues, defaultValuesSnapshot, form, isSaving, form.formState.isDirty])
+
+  React.useEffect(() => {
+    if (resetRevision === 0) return
+
+    form.reset(baselineValues)
+    lastResetSnapshotRef.current = JSON.stringify(baselineValues)
+  }, [baselineValues, form, resetRevision])
 
   const openCreateDialog = React.useCallback((state: NonNullable<CreateDialogState>) => {
     if (state.type === "selectOption") {
@@ -443,38 +546,12 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
     }
   }, [createDialog, customFieldDefinitions, form, newEntityName])
 
-  async function onSubmit(values: any) {
+  const persistDocument = React.useCallback(async (values: any) => {
     setIsSaving(true)
     try {
-      let normalizedCustomFieldDefinitions = customFieldDefinitions
-      const legacySelectFields = customFieldDefinitions.filter(
-        (field: any) =>
-          field.data_type === "select" &&
-          Array.isArray(field.extra_data?.select_options) &&
-          field.extra_data.select_options.some((option: any) => typeof option === "string")
-      )
-
-      if (legacySelectFields.length > 0) {
-        const normalizedFields = await Promise.all(
-          legacySelectFields.map((field: any) =>
-            updateCustomField(field.id, {
-              extra_data: {
-                select_options: normalizeSelectOptionsForApi(field.extra_data?.select_options),
-              },
-            })
-          )
-        )
-
-        normalizedCustomFieldDefinitions = customFieldDefinitions.map((field: any) => {
-          const normalizedField = normalizedFields.find((item) => item.id === field.id)
-          return normalizedField ?? field
-        })
-        setCustomFieldDefinitions(normalizedCustomFieldDefinitions)
-      }
-
       const payload = buildUpdateDocumentPayload(
         values,
-        normalizedCustomFieldDefinitions,
+        customFieldDefinitions,
         detailFieldLayout
           .map(parseDetailCustomFieldId)
           .filter((fieldId): fieldId is number => fieldId !== null)
@@ -482,6 +559,8 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
 
       await updateDocument(document.id!, payload)
       form.reset(values)
+      setBaselineValues(values)
+      lastResetSnapshotRef.current = JSON.stringify(values)
       toast.success("Document updated successfully")
 
       // Handle custom top bar button navigation
@@ -500,13 +579,39 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
           }
       }
 
+      return true
     } catch (error) {
       toast.error("Failed to update document")
       console.error(error)
+      return false
     } finally {
       setIsSaving(false)
     }
+  }, [
+    customFieldDefinitions,
+    detailFieldLayout,
+    document.id,
+    documentList,
+    form,
+    router,
+  ])
+
+  async function onSubmit(values: any) {
+    await persistDocument(values)
   }
+
+  const saveCurrentChanges = React.useCallback(async () => {
+    let saved = false
+
+    await form.handleSubmit(async (values) => {
+      saved = await persistDocument(values)
+    })()
+
+    return saved
+  }, [form, persistDocument])
+
+  // Warn user before navigating away with unsaved changes
+  useUnsavedChanges(changedFieldLabels.length > 0, changedFieldLabels, saveCurrentChanges)
 
   // Helper for single select combobox (standard fields)
   const renderCombobox = (

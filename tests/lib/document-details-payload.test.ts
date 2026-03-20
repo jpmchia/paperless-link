@@ -136,4 +136,26 @@ describe("document details payload", () => {
       { field: 12, value: false },
     ])
   })
+
+  it("preserves hidden custom fields in the payload", () => {
+    const payload = buildUpdateDocumentPayload(
+      {
+        title: "Invoice",
+        cf_20: "shown",
+        cf_21: "hidden-value",
+      },
+      [
+        { data_type: "string", id: 20 },
+        { data_type: "string", id: 21 },
+      ],
+      [20]
+    ) as {
+      custom_fields: Array<{ field: number; value: unknown }>
+    }
+
+    expect(payload.custom_fields).toEqual([
+      { field: 20, value: "shown" },
+      { field: 21, value: "hidden-value" },
+    ])
+  })
 })

@@ -21,6 +21,9 @@ import {
     documentDetailAvailableFieldsAtom,
     documentDetailFieldLayoutAtom,
     documentDetailFieldLayoutRevisionAtom,
+    documentDetailsChangedFieldsAtom,
+    documentDetailsDirtyAtom,
+    documentDetailsResetRevisionAtom,
     documentListState,
     documentSectionAtom,
     pdfViewerPasswordAtom,
@@ -98,6 +101,8 @@ export function TopBar({
 }) {
     const documentList = useAtomValue(documentListState)
     const openDocuments = useAtomValue(openDocumentsAtom)
+    const isDocumentDirty = useAtomValue(documentDetailsDirtyAtom)
+    const changedFieldLabels = useAtomValue(documentDetailsChangedFieldsAtom)
     const currentSection = useAtomValue(documentSectionAtom) ?? initialSection
     const activeVersionId = useAtomValue(activeVersionIdAtom)
     const pdfPassword = useAtomValue(pdfViewerPasswordAtom)
@@ -106,6 +111,7 @@ export function TopBar({
     const pdfRequiresPassword = useAtomValue(pdfViewerRequiresPasswordAtom)
     const [detailFieldLayout, setDetailFieldLayout] = useAtom(documentDetailFieldLayoutAtom)
     const setDetailFieldLayoutRevision = useSetAtom(documentDetailFieldLayoutRevisionAtom)
+    const setDocumentDetailsResetRevision = useSetAtom(documentDetailsResetRevisionAtom)
     const availableDetailFields = useAtomValue(documentDetailAvailableFieldsAtom)
     const [emailDialogOpen, setEmailDialogOpen] = React.useState(false)
     const [pdfToolsOpen, setPdfToolsOpen] = React.useState(false)
@@ -115,6 +121,37 @@ export function TopBar({
     const [useFormattedFilename, setUseFormattedFilename] = React.useState(false)
     const router = useRouter()
     const { confirm } = useConfirmationDialog()
+
+    const buildUnsavedChangesDescription = React.useCallback(() => {
+        if (changedFieldLabels.length === 0) {
+            return "You have unsaved changes. Are you sure you want to continue?"
+        }
+
+        const visibleFields = changedFieldLabels.slice(0, 8)
+        const remainingCount = changedFieldLabels.length - visibleFields.length
+
+        return (
+            <div className="space-y-2 text-left">
+                <p>You have unsaved changes. The following edits will be lost:</p>
+                <ul className="list-disc space-y-1 pl-5">
+                    {visibleFields.map((field) => (
+                        <li key={field}>{field}</li>
+                    ))}
+                    {remainingCount > 0 ? (
+                        <li>{`and ${remainingCount} more change${remainingCount === 1 ? "" : "s"}`}</li>
+                    ) : null}
+                </ul>
+            </div>
+        )
+    }, [changedFieldLabels])
+
+    const submitDetailsForm = React.useCallback((action: "save" | "close") => {
+        const form = window.document.getElementById("document-details-form") as HTMLFormElement | null
+        if (!form) return
+
+        setSaveAction(action)
+        form.requestSubmit()
+    }, [])
 
     const navigationDocumentList = React.useMemo(() => {
         const openDocumentIds = openDocuments.map((document) => document.id)
@@ -468,6 +505,48 @@ export function TopBar({
         }
     }
 
+    const handleDiscard = React.useCallback(async () => {
+        if (isDocumentDirty) {
+            const confirmed = await confirm({
+                actionLabel: "Discard changes",
+                cancelLabel: "Keep editing",
+                description: buildUnsavedChangesDescription(),
+                onSave: async () => {
+                    submitDetailsForm("save")
+                },
+                saveLabel: "Save",
+                title: "Discard unsaved changes?",
+            })
+
+            if (!confirmed) {
+                return
+            }
+        }
+
+        setDocumentDetailsResetRevision((revision) => revision + 1)
+    }, [buildUnsavedChangesDescription, confirm, isDocumentDirty, setDocumentDetailsResetRevision, submitDetailsForm])
+
+    const handleClose = React.useCallback(async () => {
+        if (isDocumentDirty) {
+            const confirmed = await confirm({
+                actionLabel: "Discard changes",
+                cancelLabel: "Keep editing",
+                description: buildUnsavedChangesDescription(),
+                onSave: async () => {
+                    submitDetailsForm("close")
+                },
+                saveLabel: "Save",
+                title: "Leave this page?",
+            })
+
+            if (!confirmed) {
+                return
+            }
+        }
+
+        router.push("/documents")
+    }, [buildUnsavedChangesDescription, confirm, isDocumentDirty, router, submitDetailsForm])
+
     const handleReprocess = async () => {
         if (!documentId) return
         try {
@@ -530,26 +609,23 @@ export function TopBar({
                     <div className="flex items-center gap-2">
                         <HasObjectPermission action="change" object={permissionedDocument} type="document">
                             {nextId && (
-                                <Button variant="secondary" type="submit" form="document-details-form" onClick={() => setSaveAction("next")} className="h-8 hover:bg-accent">
+                                <Button variant="secondary" type="submit" form="document-details-form" onClick={() => setSaveAction("next")} className="h-8 hover:bg-accent" disabled={!isDocumentDirty}>
                                     Save & Next
                                 </Button>
                             )}
                         </HasObjectPermission>
                         <HasObjectPermission action="change" object={permissionedDocument} type="document">
-                            <Button variant="secondary" type="submit" form="document-details-form" onClick={() => setSaveAction("save")} className="h-8 hover:bg-accent">
+                            <Button variant="secondary" type="submit" form="document-details-form" onClick={() => setSaveAction("save")} className="h-8 hover:bg-accent" disabled={!isDocumentDirty}>
                                 <Save className="mr-2 h-4 w-4" />
                                 Save
                             </Button>
                         </HasObjectPermission>
                         <HasObjectPermission action="change" object={permissionedDocument} type="document">
-                            <Button variant="secondary" onClick={() => {
-                                const form = window.document.getElementById("document-details-form") as HTMLFormElement | null
-                                if (form) form.reset()
-                            }} className="h-8 hover:bg-accent">
+                            <Button variant="secondary" onClick={() => void handleDiscard()} className="h-8 hover:bg-accent" disabled={!isDocumentDirty}>
                                 Discard
                             </Button>
                         </HasObjectPermission>
-                        <Button variant="secondary" onClick={() => router.push("/documents")} className="h-8 hover:bg-accent">
+                        <Button variant="secondary" onClick={() => void handleClose()} className="h-8 hover:bg-accent">
                             Close
                         </Button>
 

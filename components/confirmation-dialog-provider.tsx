@@ -18,6 +18,8 @@ type ConfirmOptions = {
   actionLabel?: string
   cancelLabel?: string
   description?: React.ReactNode
+  onSave?: (() => void | Promise<void>) | undefined
+  saveLabel?: string
   tone?: "default" | "destructive"
   title?: React.ReactNode
 }
@@ -26,13 +28,19 @@ type ConfirmationDialogContextValue = {
   confirm: (options?: ConfirmOptions) => Promise<boolean>
 }
 
+type ResolvedConfirmOptions = Omit<Required<ConfirmOptions>, "onSave"> & {
+  onSave: ConfirmOptions["onSave"]
+}
+
 const ConfirmationDialogContext =
   React.createContext<ConfirmationDialogContextValue | null>(null)
 
-const DEFAULT_OPTIONS: Required<ConfirmOptions> = {
+const DEFAULT_OPTIONS: ResolvedConfirmOptions = {
   actionLabel: "Continue",
   cancelLabel: "Cancel",
   description: "You have unsaved changes. Are you sure you want to continue?",
+  onSave: undefined,
+  saveLabel: "Save",
   tone: "default",
   title: "Discard changes?",
 }
@@ -43,11 +51,13 @@ export function ConfirmationDialogProvider({
   children: React.ReactNode
 }) {
   const [open, setOpen] = React.useState(false)
-  const [options, setOptions] = React.useState<Required<ConfirmOptions>>(DEFAULT_OPTIONS)
+  const [options, setOptions] = React.useState<ResolvedConfirmOptions>(DEFAULT_OPTIONS)
+  const [savePending, setSavePending] = React.useState(false)
   const resolverRef = React.useRef<((value: boolean) => void) | null>(null)
 
   const closeWithResult = React.useCallback((result: boolean) => {
     setOpen(false)
+    setSavePending(false)
     const resolver = resolverRef.current
     resolverRef.current = null
     resolver?.(result)
@@ -103,6 +113,25 @@ export function ConfirmationDialogProvider({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{options.cancelLabel}</AlertDialogCancel>
+            {options.onSave ? (
+              <AlertDialogAction
+                onClick={async (event) => {
+                  event.preventDefault()
+                  if (!options.onSave || savePending) return
+
+                  try {
+                    setSavePending(true)
+                    await options.onSave()
+                    closeWithResult(false)
+                  } finally {
+                    setSavePending(false)
+                  }
+                }}
+                variant="secondary"
+              >
+                {savePending ? "Saving…" : options.saveLabel}
+              </AlertDialogAction>
+            ) : null}
             <AlertDialogAction
               onClick={() => closeWithResult(true)}
               variant={options.tone === "destructive" ? "destructive" : "default"}

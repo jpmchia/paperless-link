@@ -47,6 +47,14 @@ type CustomField = {
   document_count?: number
 }
 
+function createSelectOptionId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID().replace(/-/g, "").slice(0, 16)
+  }
+
+  return Math.random().toString(36).slice(2, 18)
+}
+
 export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[] }) {
   const [items, setItems] = React.useState<CustomField[]>(initialItems)
   const [search, setSearch] = React.useState("")
@@ -81,7 +89,7 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
       }
       if (newType === "select" && selectOptions.length > 0) {
         data.extra_data = {
-          select_options: selectOptions.map((label) => ({ label })),
+          select_options: selectOptions.map((label) => ({ label, id: createSelectOptionId() })),
         }
       }
       const created = await createCustomField(data)

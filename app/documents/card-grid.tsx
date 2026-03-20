@@ -18,6 +18,7 @@ import {
   DISPLAY_FIELD_STORAGE_PATH,
   DISPLAY_FIELD_TAGS,
   DISPLAY_FIELD_TITLE,
+  getCustomFieldDisplayValue,
   type Document,
   type LookupMaps,
 } from "./columns"
@@ -96,11 +97,8 @@ function getCustomFieldText(document: Document, fieldId: number, lookup: LookupM
   if (!customField) return null
   if (value === undefined || value === null || value === "") return `${customField.name}: -`
 
-  if (Array.isArray(value)) {
-    return `${customField.name}: ${value.join(", ")}`
-  }
-
-  return `${customField.name}: ${String(value)}`
+  const displayValue = getCustomFieldDisplayValue(customField, value)
+  return `${customField.name}: ${displayValue ?? "-"}`
 }
 
 function buildOverlayFields(

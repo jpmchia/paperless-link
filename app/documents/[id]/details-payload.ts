@@ -180,7 +180,7 @@ export function normalizeCustomFieldValue(
 export function buildUpdateDocumentPayload(
   values: DocumentFormValues,
   customFieldsList: CustomFieldDefinition[],
-  visibleCustomFields: number[]
+  _visibleCustomFields: number[]
 ) {
   const payload: Record<string, unknown> = {
     title: values.title,
@@ -188,12 +188,12 @@ export function buildUpdateDocumentPayload(
     document_type: normalizeNullableNumber(values.document_type),
     storage_path: normalizeNullableNumber(values.storage_path),
     tags: values.tags ?? [],
-    custom_fields: customFieldsList
-      .filter((cf) => visibleCustomFields.includes(cf.id))
-      .map((cf) => ({
-        field: cf.id,
-        value: normalizeCustomFieldValue(cf, values[`cf_${cf.id}`]),
-      })),
+    // Paperless treats custom_fields as a replacement set on PATCH.
+    // Always include every known field so hidden fields are preserved.
+    custom_fields: customFieldsList.map((cf) => ({
+      field: cf.id,
+      value: normalizeCustomFieldValue(cf, values[`cf_${cf.id}`]),
+    })),
   }
 
   if (values.created) {

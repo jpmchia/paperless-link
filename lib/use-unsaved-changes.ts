@@ -1,7 +1,33 @@
 "use client"
 
-import { useEffect } from "react"
+import * as React from "react"
 import { useConfirmationDialog } from "@/components/confirmation-dialog-provider"
+
+function buildUnsavedChangesDescription(
+  message: string,
+  changedFields: string[]
+): React.ReactNode {
+  if (changedFields.length === 0) {
+    return message
+  }
+
+  const visibleFields = changedFields.slice(0, 8)
+  const remainingCount = changedFields.length - visibleFields.length
+
+  return React.createElement(
+    React.Fragment,
+    null,
+    React.createElement("p", null, message),
+    React.createElement(
+      "ul",
+      { className: "mt-2 list-disc space-y-1 pl-5 text-left" },
+      ...visibleFields.map((field) => React.createElement("li", { key: field }, field)),
+      ...(remainingCount > 0
+        ? [React.createElement("li", { key: "__more" }, `and ${remainingCount} more change${remainingCount === 1 ? "" : "s"}`)]
+        : [])
+    )
+  )
+}
 
 /**
  * Hook that warns the user when they try to navigate away from a page
@@ -9,10 +35,24 @@ import { useConfirmationDialog } from "@/components/confirmation-dialog-provider
  *
  * @param isDirty - Whether there are unsaved changes
  */
-export function useUnsavedChanges(isDirty: boolean) {
+export function useUnsavedChanges(
+  isDirty: boolean,
+  changedFields: string[] = [],
+  saveChanges?: () => Promise<boolean>
+) {
   const { confirm } = useConfirmationDialog()
+  const changedFieldsRef = React.useRef(changedFields)
+  const saveChangesRef = React.useRef(saveChanges)
 
-  useEffect(() => {
+  React.useEffect(() => {
+    changedFieldsRef.current = changedFields
+  }, [changedFields])
+
+  React.useEffect(() => {
+    saveChangesRef.current = saveChanges
+  }, [saveChanges])
+
+  React.useEffect(() => {
     if (!isDirty) return
 
     const message = "You have unsaved changes. Are you sure you want to leave?"
@@ -67,7 +107,16 @@ export function useUnsavedChanges(isDirty: boolean) {
       void confirm({
         actionLabel: "Discard changes",
         cancelLabel: "Stay on page",
-        description: message,
+        description: buildUnsavedChangesDescription(message, changedFieldsRef.current),
+        onSave: saveChangesRef.current
+          ? async () => {
+              const saved = await saveChangesRef.current?.()
+              if (!saved) return
+              allowBrowserUnload = true
+              window.location.assign(nextUrl.href)
+            }
+          : undefined,
+        saveLabel: "Save",
         title: "Leave this page?",
       }).then((confirmed) => {
         if (confirmed) {
@@ -91,7 +140,17 @@ export function useUnsavedChanges(isDirty: boolean) {
       void confirm({
         actionLabel: "Discard changes",
         cancelLabel: "Stay on page",
-        description: message,
+        description: buildUnsavedChangesDescription(message, changedFieldsRef.current),
+        onSave: saveChangesRef.current
+          ? async () => {
+              const saved = await saveChangesRef.current?.()
+              if (!saved) return
+              allowBrowserUnload = true
+              bypassNextPop = true
+              window.history.back()
+            }
+          : undefined,
+        saveLabel: "Save",
         title: "Leave this page?",
       }).then((confirmed) => {
         if (!confirmed) {

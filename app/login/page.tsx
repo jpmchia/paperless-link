@@ -1,9 +1,9 @@
 "use client"
 
+import { Suspense, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useSearchParams } from "next/navigation"
 import { signIn } from "next-auth/react"
-import { useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
@@ -97,6 +97,30 @@ export default function LoginPage() {
             </Button>
           </CardFooter>
         </form>
+      </Card>
+    </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginPageFallback />}>
+      <LoginPageContent />
+    </Suspense>
+  )
+}
+
+function LoginPageFallback() {
+  return (
+    <div className="flex h-screen w-full items-center justify-center p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl">Login</CardTitle>
+          <CardDescription>Enter your credentials to access Paperless.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-xs text-muted-foreground">Loading sign-in form...</div>
+        </CardContent>
       </Card>
     </div>
   )

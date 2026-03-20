@@ -15,7 +15,7 @@ export type Document = {
   document_type: number | null | undefined
   storage_path: number | null | undefined
   tags: number[]
-  custom_fields?: { value: any; field: number }[]
+  custom_fields?: { value: unknown; field: number }[]
   owner?: number | null
   notes?: { id: number; note?: string }[]
   num_notes?: number | null
@@ -29,7 +29,14 @@ export interface LookupMaps {
   tags: Record<number, { id: number; name: string; color: string }>
   storagePaths: Record<number, { id: number; name: string }>
   users?: Record<number, { id: number; username?: string; first_name?: string; last_name?: string }>
-  customFields: Record<number, { id: number; name: string; data_type: string; extra_data?: { select_options?: string[] } }>
+  customFields: Record<number, {
+    id: number
+    name: string
+    data_type: string
+    extra_data?: {
+      select_options?: Array<string | { id?: string | number; label?: string }>
+    }
+  }>
 }
 
 // These match NGX's DisplayField enum values
@@ -65,6 +72,51 @@ export const DEFAULT_DISPLAY_FIELDS: string[] = [
 
 // Custom field display field prefix (matches NGX's DisplayField.CUSTOM_FIELD)
 export const CUSTOM_FIELD_PREFIX = "custom_field_"
+
+export function getCustomFieldDisplayValue(
+  fieldDef: LookupMaps["customFields"][number] | undefined,
+  rawValue: unknown
+): string | null {
+  if (!fieldDef) return rawValue == null || rawValue === "" ? null : String(rawValue)
+  if (rawValue === null || rawValue === undefined || rawValue === "") return null
+
+  if (Array.isArray(rawValue)) {
+    const values: string[] = rawValue
+      .map((value) => getCustomFieldDisplayValue(fieldDef, value))
+      .filter((value): value is string => Boolean(value))
+    return values.length > 0 ? values.join(", ") : null
+  }
+
+  if (fieldDef.data_type === "boolean") {
+    return rawValue === true ? "Yes" : rawValue === false ? "No" : String(rawValue)
+  }
+
+  if (fieldDef.data_type === "select") {
+    const options = fieldDef.extra_data?.select_options ?? []
+    const normalizedValue = String(rawValue)
+
+    const objectOption = options.find((option) => {
+      if (typeof option === "string") return false
+      return String(option.id ?? "") === normalizedValue
+    })
+    if (objectOption && typeof objectOption !== "string") {
+      return objectOption.label ?? normalizedValue
+    }
+
+    const numericIndex =
+      typeof rawValue === "number" ? rawValue : Number.parseInt(normalizedValue, 10)
+    if (!Number.isNaN(numericIndex) && numericIndex >= 0 && numericIndex < options.length) {
+      const indexedOption = options[numericIndex]
+      return typeof indexedOption === "string"
+        ? indexedOption
+        : indexedOption?.label ?? normalizedValue
+    }
+
+    return normalizedValue
+  }
+
+  return String(rawValue)
+}
 
 export function makeColumns(
   lookup: LookupMaps,
@@ -355,26 +407,23 @@ export function makeColumns(
         id: f,
         accessorFn: (row) => {
           const entry = (row.custom_fields || []).find(
-            (cf: { field: number; value: any }) => cf.field === fieldId
+            (cf: { field: number; value: unknown }) => cf.field === fieldId
           )
           return entry?.value ?? null
         },
         header: fieldName,
-        cell: ({ getValue }) => {
-          const val = getValue()
+        cell: ({ row }) => {
+          const val =
+            (row.original.custom_fields || []).find(
+              (cf: { field: number; value: unknown }) => cf.field === fieldId
+            )?.value ?? null
           if (val === null || val === undefined || val === "")
             return <span className="text-muted-foreground">-</span>
           if (typeof val === "boolean")
             return <span className="text-sm">{val ? "Yes" : "No"}</span>
-          // Select fields: val is the option label string (Paperless stores the string directly)
-          // or a numeric index into extra_data.select_options
           if (fieldDef?.data_type === "select") {
-            const options = fieldDef.extra_data?.select_options ?? []
-            const idx = typeof val === "number" ? val : parseInt(String(val), 10)
-            if (!isNaN(idx) && options[idx] !== undefined) {
-              return <span>{options[idx]}</span>
-            }
-            return <span>{String(val)}</span>
+            const displayValue = getCustomFieldDisplayValue(fieldDef, val)
+            return displayValue ? <span>{displayValue}</span> : <span className="text-muted-foreground">-</span>
           }
           if (val instanceof Date || (typeof val === "string" && val.match(/^\d{4}-\d{2}-\d{2}/)))
             return <span className="text-muted-foreground">{String(val).split("T")[0]}</span>

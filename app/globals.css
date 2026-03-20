@@ -1,6 +1,8 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
 @plugin "tailwindcss-animate";
-@import "../node_modules/shadcn/dist/tailwind.css";
+@source "../app";
+@source "../components";
+@source "../lib";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
