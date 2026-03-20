@@ -5,6 +5,7 @@ import { CanCreate } from "@/components/permissions/can-create"
 import { CanDelete } from "@/components/permissions/can-delete"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -23,6 +24,8 @@ interface Note {
 interface NotesTabProps {
   documentId: number
   initialNotes: Note[]
+  className?: string
+  fullHeight?: boolean
 }
 
 async function addNote(documentId: number, note: string): Promise<Note> {
@@ -48,7 +51,12 @@ async function fetchNotes(documentId: number): Promise<Note[]> {
   return res.json()
 }
 
-export function NotesTab({ documentId, initialNotes }: NotesTabProps) {
+export function NotesTab({
+  documentId,
+  initialNotes,
+  className,
+  fullHeight = true,
+}: NotesTabProps) {
   const [notes, setNotes] = React.useState<Note[]>(initialNotes)
   const [text, setText] = React.useState("")
   const [sending, setSending] = React.useState(false)
@@ -106,7 +114,7 @@ export function NotesTab({ documentId, initialNotes }: NotesTabProps) {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4 h-full">
+    <div className={cn("flex flex-col gap-4 p-4", fullHeight && "h-full", className)}>
       {/* Add note form */}
       <div className="flex flex-col gap-2">
         <CanCreate
@@ -141,7 +149,7 @@ export function NotesTab({ documentId, initialNotes }: NotesTabProps) {
       </div>
 
       {/* Notes list */}
-      <div className="flex-1 overflow-y-auto space-y-3">
+      <div className={cn("space-y-3", fullHeight && "flex-1 overflow-y-auto")}>
         {notes.length === 0 ? (
           <p className="text-muted-foreground text-sm text-center py-8">
             No notes yet. Add one above.

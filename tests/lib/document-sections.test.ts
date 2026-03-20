@@ -35,6 +35,6 @@ describe("document sections", () => {
 
   it("builds canonical hrefs for the details tab and named tabs", () => {
     expect(getDocumentSectionHref(12, "details")).toBe("/documents/12")
-    expect(getDocumentSectionHref(12, "notes")).toBe("/documents/12/notes")
+    expect(getDocumentSectionHref(12, "versions")).toBe("/documents/12/versions")
   })
 })

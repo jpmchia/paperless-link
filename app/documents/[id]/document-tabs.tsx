@@ -2,7 +2,9 @@
 
 import * as React from "react"
 import { useSetAtom } from "jotai"
+import { Expand } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { documentDetailAvailableFieldsAtom, documentSectionAtom } from "@/lib/store"
@@ -20,26 +22,34 @@ import {
   getDocumentSectionHref,
 } from "./document-sections"
 import { buildAvailableDetailFields } from "./detail-field-layout"
+import {
+  Dialog as DraggableDialog,
+  DialogBody as DraggableDialogBody,
+  DialogContent as DraggableDialogContent,
+  DialogDescription as DraggableDialogDescription,
+  DialogHeader as DraggableDialogHeader,
+  DialogTitle as DraggableDialogTitle,
+} from "@/components/draggable-dialog"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 const TAB_TRIGGER =
   "relative rounded-none border-b-2 border-b-transparent border-t-none min-h-16 bg-transparent px-3 pb-2 pt-2 text-xs font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-b-accent data-[state=active]:text-foreground data-[state=active]:shadow-none whitespace-nowrap rounded-t-lg"
 
 interface DocumentTabsProps {
-  correspondents: any[]
-  customFieldsList: any[]
+  correspondents: React.ComponentProps<typeof DetailsForm>["correspondents"]
+  customFieldsList: React.ComponentProps<typeof DetailsForm>["customFieldsList"]
   document: Document
-  documentTypes: any[]
-  duplicates: any[]
-  groupsList: any[]
-  history: any[]
+  documentTypes: React.ComponentProps<typeof DetailsForm>["documentTypes"]
+  duplicates: React.ComponentProps<typeof DuplicatesTab>["duplicates"]
+  groupsList: React.ComponentProps<typeof PermissionsTab>["groupsList"]
+  history: React.ComponentProps<typeof HistoryTab>["history"]
   initialSection: DocumentSection
-  metadata: any
-  notes: any[]
+  metadata: React.ComponentProps<typeof MetadataTab>["metadata"]
+  notes: React.ComponentProps<typeof NotesTab>["initialNotes"]
   paperlessBaseUrl: string
-  storagePaths: any[]
-  tagsList: any[]
-  usersList: any[]
-  versions: any[]
+  storagePaths: React.ComponentProps<typeof DetailsForm>["storagePaths"]
+  tagsList: React.ComponentProps<typeof DetailsForm>["tagsList"]
+  usersList: React.ComponentProps<typeof PermissionsTab>["usersList"]
+  versions: React.ComponentProps<typeof VersionsTab>["initialVersions"]
   canChangeDocument: boolean
   canManageShareLinks: boolean
 }
@@ -66,6 +76,7 @@ export function DocumentTabs({
   const setDocumentSection = useSetAtom(documentSectionAtom)
   const setDetailAvailableFields = useSetAtom(documentDetailAvailableFieldsAtom)
   const [currentSection, setCurrentSection] = React.useState<DocumentSection>(initialSection)
+  const [notesPanelOpen, setNotesPanelOpen] = React.useState(false)
 
   React.useEffect(() => {
     setCurrentSection(initialSection)
@@ -113,7 +124,6 @@ export function DocumentTabs({
           {canChangeDocument && (
             <TabsTrigger value="permissions" className={TAB_TRIGGER}>Permissions</TabsTrigger>
           )}
-          <TabsTrigger value="notes" className={TAB_TRIGGER}>Notes</TabsTrigger>
           <TabsTrigger value="versions" className={TAB_TRIGGER}>
             Versions
             {versions.length > 0 && (
@@ -146,6 +156,34 @@ export function DocumentTabs({
             tagsList={tagsList}
             customFieldsList={customFieldsList}
           />
+          <section className="mt-10 border-t pt-8">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-medium">Notes</h3>
+                <p className="text-sm text-muted-foreground">
+                  Document notes are now part of the details view.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setNotesPanelOpen(true)}
+              >
+                <Expand className="mr-2 h-3.5 w-3.5" />
+                Open in Panel
+              </Button>
+            </div>
+            <div className="rounded-lg border bg-card">
+              <NotesTab
+                documentId={document.id}
+                initialNotes={notes}
+                fullHeight={false}
+                className="p-5"
+              />
+            </div>
+          </section>
         </TabsContent>
 
         <TabsContent value="content" className="m-0 flex h-full w-full flex-col space-y-4 overflow-y-auto px-6 pb-6 outline-none">
@@ -155,7 +193,9 @@ export function DocumentTabs({
           </div>
           <Textarea
             className="flex-1 font-mono text-sm"
-            defaultValue={(document as any).content || "No OCR content available."}
+            defaultValue={("content" in document && typeof document.content === "string")
+              ? document.content
+              : "No OCR content available."}
           />
         </TabsContent>
 
@@ -179,10 +219,6 @@ export function DocumentTabs({
           </TabsContent>
         )}
 
-        <TabsContent value="notes" className="m-0 h-full w-full overflow-hidden outline-none">
-          <NotesTab documentId={document.id} initialNotes={notes} />
-        </TabsContent>
-
         <TabsContent value="versions" className="m-0 h-full overflow-hidden outline-none">
           <VersionsTab
             documentId={document.id}
@@ -201,6 +237,21 @@ export function DocumentTabs({
           <DuplicatesTab duplicates={duplicates} />
         </TabsContent>
       </div>
+      <DraggableDialog open={notesPanelOpen} onOpenChange={setNotesPanelOpen}>
+        <DraggableDialogContent initialWidth={760} initialHeight={680} maxWidth={960} maxHeight={900}>
+          <DraggableDialogHeader>
+            <DraggableDialogTitle>Notes</DraggableDialogTitle>
+            <DraggableDialogDescription>
+              Floating notes panel for this document.
+            </DraggableDialogDescription>
+          </DraggableDialogHeader>
+          <DraggableDialogBody className="pb-6">
+            <div className="h-full rounded-lg border bg-card">
+              <NotesTab documentId={document.id} initialNotes={notes} className="h-full p-5" />
+            </div>
+          </DraggableDialogBody>
+        </DraggableDialogContent>
+      </DraggableDialog>
     </Tabs>
   )
 }

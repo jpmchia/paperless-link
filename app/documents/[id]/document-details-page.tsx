@@ -98,8 +98,12 @@ export async function DocumentDetailsPageContent({
         original_mime_type?: string | null
       }
     | null
-  const versions = Array.isArray(doc.versions) ? doc.versions : []
-  const duplicates = Array.isArray(doc.duplicate_documents) ? doc.duplicate_documents : []
+  const versions = (Array.isArray(doc.versions) ? doc.versions : []) as React.ComponentProps<
+    typeof DocumentTabs
+  >["versions"]
+  const duplicates = (Array.isArray(doc.duplicate_documents) ? doc.duplicate_documents : []) as React.ComponentProps<
+    typeof DocumentTabs
+  >["duplicates"]
   const emailEnabled = Boolean(uiSettingsRecord.settings?.[SETTINGS_KEYS.EMAIL_ENABLED])
   const hasArchiveVersion = Boolean(
     metadataRecord?.has_archive_version ?? doc.archived_file_name

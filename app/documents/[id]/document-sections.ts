@@ -6,7 +6,6 @@ export const DOCUMENT_SECTIONS = [
   "metadata",
   "history",
   "permissions",
-  "notes",
   "versions",
   "share",
   "duplicates",

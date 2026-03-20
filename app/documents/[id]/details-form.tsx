@@ -94,35 +94,112 @@ const baseSchema = z.object({
   document_type: z.number().nullable().optional(),
   storage_path: z.number().nullable().optional(),
   tags: z.array(z.number()).optional(),
-}).catchall(z.any()) // Allow dynamic custom fields
+}).catchall(z.unknown()) // Allow dynamic custom fields
+
+type SelectOption =
+  | string
+  | {
+      id?: string
+      label?: string
+    }
+
+type NamedEntity = {
+  id: number
+  name: string
+}
+
+type CorrespondentItem = NamedEntity & {
+  matching_algorithm: number
+  match: string
+  is_insensitive: boolean
+  document_count?: number
+  last_correspondence?: string | null
+}
+
+type DocumentTypeItem = NamedEntity & {
+  matching_algorithm: number
+  match: string
+  is_insensitive: boolean
+  document_count?: number
+}
+
+type TagItem = NamedEntity & {
+  color: string
+  matching_algorithm: number
+  match: string
+  is_insensitive: boolean
+  is_inbox_tag: boolean
+  document_count?: number
+  text_color?: string | null
+}
+
+type CustomFieldDefinition = {
+  id: number
+  name: string
+  data_type: string
+  extra_data?: {
+    select_options?: SelectOption[]
+  }
+}
+
+type DocumentCustomFieldValue = {
+  field: number
+  value: unknown
+}
+
+type DocumentDetailsDocument = Document & {
+  tags?: number[]
+  correspondent?: number | null
+  document_type?: number | null
+  storage_path?: number | null
+  created_date?: string
+  custom_fields?: DocumentCustomFieldValue[]
+}
+
+type FormValues = z.infer<typeof baseSchema> & Record<string, unknown>
+
+type ComboboxField = {
+  value: number | null | undefined
+  onChange: (value: number | null) => void
+}
+
+type TagsField = {
+  value: number[] | undefined
+  onChange: (value: number[]) => void
+}
+
+type ValueField = {
+  value: unknown
+  onChange: (value: unknown) => void
+}
 
 type Props = {
-  document: Document & { tags?: number[], correspondent?: number | null, document_type?: number | null, storage_path?: number | null, created_date?: string, custom_fields?: any[] }
-  correspondents: any[]
-  documentTypes: any[]
-  storagePaths: any[]
-  tagsList: any[]
-  customFieldsList: any[]
+  document: DocumentDetailsDocument
+  correspondents: CorrespondentItem[]
+  documentTypes: DocumentTypeItem[]
+  storagePaths: NamedEntity[]
+  tagsList: TagItem[]
+  customFieldsList: CustomFieldDefinition[]
 }
 
 type CreateDialogState =
   | { type: "selectOption"; fieldId: number }
   | null
 
-function getSelectOptionLabel(option: any): string {
+function getSelectOptionLabel(option: SelectOption): string {
   if (typeof option === "string") return option
   if (option?.label !== undefined && option?.label !== null) return String(option.label)
   if (option?.id !== undefined && option?.id !== null) return String(option.id)
   return ""
 }
 
-function getSelectOptionId(option: any): string {
+function getSelectOptionId(option: SelectOption): string {
   if (typeof option === "string") return option
   if (option?.id !== undefined && option?.id !== null) return String(option.id)
   return getSelectOptionLabel(option)
 }
 
-function getSelectOptionValue(option: any, index: number): string {
+function getSelectOptionValue(option: SelectOption, index: number): string {
   return typeof option === "string" ? String(index) : getSelectOptionId(option)
 }
 
@@ -134,7 +211,7 @@ function createSelectOptionId() {
   return Math.random().toString(36).slice(2, 18)
 }
 
-function normalizeSelectOptionsForApi(selectOptions: any[] | undefined) {
+function normalizeSelectOptionsForApi(selectOptions: SelectOption[] | undefined) {
   return (selectOptions ?? [])
     .map((option) => {
       const label = getSelectOptionLabel(option)
@@ -172,7 +249,7 @@ function buildDefaultValues(
   document: Props["document"],
   customFieldsList: Props["customFieldsList"]
 ) {
-  const defaultValues: Record<string, any> = {
+  const defaultValues: FormValues = {
     title: document.title || "",
     created: document.created
       ? document.created.split("T")[0]
@@ -187,7 +264,7 @@ function buildDefaultValues(
   }
 
   customFieldsList.forEach((cf) => {
-    const existing = document.custom_fields?.find((f: any) => f.field === cf.id)
+    const existing = document.custom_fields?.find((f) => f.field === cf.id)
     defaultValues[`cf_${cf.id}`] = existing !== undefined ? existing.value : ""
 
     if (cf.data_type === "boolean") {
@@ -201,7 +278,7 @@ function buildDefaultValues(
       const rawValue = existing !== undefined ? existing.value : null
       const normalizedValue = normalizeCustomFieldSelectValue(cf, rawValue)
       const matchingOption = (cf.extra_data?.select_options ?? []).find(
-        (option: any) => getSelectOptionId(option) === normalizedValue || getSelectOptionLabel(option) === String(rawValue ?? "")
+        (option) => getSelectOptionId(option) === normalizedValue || getSelectOptionLabel(option) === String(rawValue ?? "")
       )
       defaultValues[`cf_${cf.id}`] = matchingOption ? getSelectOptionId(matchingOption) : normalizedValue
     }
@@ -215,9 +292,9 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
   const [detailLayoutsByType, setDetailLayoutsByType] = React.useState<Record<string, string[]>>(() =>
     readCachedDetailLayouts()
   )
-  const [correspondentItems, setCorrespondentItems] = React.useState(correspondents)
-  const [documentTypeItems, setDocumentTypeItems] = React.useState(documentTypes)
-  const [tagItems, setTagItems] = React.useState(tagsList)
+  const [correspondentItems, setCorrespondentItems] = React.useState<Props["correspondents"]>(correspondents)
+  const [documentTypeItems, setDocumentTypeItems] = React.useState<Props["documentTypes"]>(documentTypes)
+  const [tagItems, setTagItems] = React.useState<Props["tagsList"]>(tagsList)
   const [customFieldDefinitions, setCustomFieldDefinitions] = React.useState(customFieldsList)
   const [createDialog, setCreateDialog] = React.useState<CreateDialogState>(null)
   const [correspondentsDialogOpen, setCorrespondentsDialogOpen] = React.useState(false)
@@ -252,9 +329,9 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
   )
 
   // We rely on HTML validation and basic coercion for custom fields.
-  const form = useForm({
+  const form = useForm<FormValues>({
     resolver: zodResolver(baseSchema),
-    defaultValues: defaultValues as any
+    defaultValues
   })
   const currentDocumentTypeId = form.watch("document_type")
   const watchedValues = useWatch({ control: form.control })
@@ -318,7 +395,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
           const customFieldId = parseDetailCustomFieldId(fieldId)
           if (customFieldId === null) return []
 
-          const customField = customFieldDefinitions.find((item: any) => item.id === customFieldId)
+          const customField = customFieldDefinitions.find((item) => item.id === customFieldId)
           if (!customField) return []
 
           const valueKey = `cf_${customField.id}`
@@ -501,7 +578,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
             ? [...customField.extra_data.select_options]
             : []
 
-          const existingOption = existingOptions.find((option: any) => {
+          const existingOption = existingOptions.find((option) => {
             if (typeof option === "string") {
               return option === trimmedName
             }
@@ -546,7 +623,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
     }
   }, [createDialog, customFieldDefinitions, form, newEntityName])
 
-  const persistDocument = React.useCallback(async (values: any) => {
+  const persistDocument = React.useCallback(async (values: FormValues) => {
     setIsSaving(true)
     try {
       const payload = buildUpdateDocumentPayload(
@@ -596,7 +673,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
     router,
   ])
 
-  async function onSubmit(values: any) {
+  async function onSubmit(values: FormValues) {
     await persistDocument(values)
   }
 
@@ -615,8 +692,8 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
 
   // Helper for single select combobox (standard fields)
   const renderCombobox = (
-    field: any,
-    items: any[],
+    field: ComboboxField,
+    items: NamedEntity[],
     placeholder: string,
     emptyText: string
   ) => {
@@ -681,7 +758,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
   }
 
   // Multi-select for tags
-  const renderTagsCombobox = (field: any) => {
+  const renderTagsCombobox = (field: TagsField) => {
     const selectedTags = field.value || []
 
     return (
@@ -705,8 +782,8 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
                         variant="secondary"
                         className="max-w-full truncate px-2 py-0.5"
                         style={{
-                          backgroundColor: tag.text_color ? tag.color : undefined,
-                          color: tag.text_color || undefined,
+                          backgroundColor: tag.text_color ? (tag.color ?? undefined) : undefined,
+                          color: tag.text_color ?? undefined,
                         }}
                       >
                         {tag.name}
@@ -764,9 +841,9 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
     )
   }
 
-  const renderCustomSelectCombobox = (cf: any, field: any) => {
+  const renderCustomSelectCombobox = (cf: CustomFieldDefinition, field: ValueField) => {
     const options = cf.extra_data?.select_options ?? []
-    const selectedOption = options.find((option: any, index: number) => {
+    const selectedOption = options.find((option, index: number) => {
       const optionValue = getSelectOptionValue(option, index)
       return optionValue === String(field.value ?? "")
     })
@@ -806,7 +883,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
                   />
                   -- Clear --
                 </CommandItem>
-                {options.map((option: any, index: number) => {
+                {options.map((option, index: number) => {
                   const optionValue = getSelectOptionValue(option, index)
                   const optionLabel = getSelectOptionLabel(option)
 
@@ -834,7 +911,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
     )
   }
 
-  const renderDatePicker = (field: any, placeholder = "Pick a date") => {
+  const renderDatePicker = (field: ValueField, placeholder = "Pick a date") => {
     const selectedDate =
       typeof field.value === "string" && field.value
         ? parseISO(field.value)
@@ -883,7 +960,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
   }
 
   // Custom Field renderer
-  function renderCustomFieldInput(cf: any, field: any) {
+  function renderCustomFieldInput(cf: CustomFieldDefinition, field: ValueField) {
     switch (cf.data_type) {
       case "boolean":
         return (
@@ -897,22 +974,22 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
       case "date":
         return renderDatePicker(field)
       case "integer":
-        return <Input type="number" {...field} value={field.value ?? ""} />
+        return <Input type="number" {...field} value={typeof field.value === "number" ? field.value : ""} />
       case "float":
-        return <Input type="number" step="any" {...field} value={field.value ?? ""} />
+        return <Input type="number" step="any" {...field} value={typeof field.value === "number" ? field.value : ""} />
       case "monetary":
-        return <Input type="text" placeholder="e.g. USD123.45" {...field} value={field.value || ""} />
+        return <Input type="text" placeholder="e.g. USD123.45" {...field} value={typeof field.value === "string" ? field.value : ""} />
       case "url":
-        return <Input type="url" placeholder="https://" {...field} value={field.value || ""} />
+        return <Input type="url" placeholder="https://" {...field} value={typeof field.value === "string" ? field.value : ""} />
       case "documentlink":
-        return <Input type="text" placeholder="e.g. 100, 101, 102" {...field} value={field.value || ""} />
+        return <Input type="text" placeholder="e.g. 100, 101, 102" {...field} value={typeof field.value === "string" ? field.value : ""} />
       case "select":
         return renderCustomSelectCombobox(cf, field)
       case "long_text":
-        return <Textarea rows={4} {...field} value={field.value || ""} />
+        return <Textarea rows={4} {...field} value={typeof field.value === "string" ? field.value : ""} />
       case "string":
       default:
-        return <Input type="text" {...field} value={field.value || ""} />
+        return <Input type="text" {...field} value={typeof field.value === "string" ? field.value : ""} />
     }
   }
 
@@ -945,7 +1022,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
             key={fieldId}
             control={form.control}
             name="title"
-            render={({ field }: any) => (
+            render={({ field }) => (
               <FormItem className="md:col-span-2">
                 <FormLabel>Title</FormLabel>
                 <FormControl>
@@ -962,7 +1039,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
             key={fieldId}
             control={form.control}
             name="created"
-            render={({ field }: any) => (
+            render={({ field }) => (
               <FormItem>
                 <FormLabel>Created Date</FormLabel>
                 {renderDatePicker(field, "Pick created date")}
@@ -977,7 +1054,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
             key={fieldId}
             control={form.control}
             name="archive_serial_number"
-            render={({ field }: any) => (
+            render={({ field }) => (
               <FormItem>
                 <FormLabel>ASN</FormLabel>
                 <FormControl>
@@ -1002,7 +1079,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
             key={fieldId}
             control={form.control}
             name="correspondent"
-            render={({ field }: any) => (
+            render={({ field }) => (
               <FormItem className="flex flex-col shrink-1">
                 <div className="flex items-center justify-between gap-2">
                   <FormLabel>Correspondent</FormLabel>
@@ -1031,7 +1108,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
             key={fieldId}
             control={form.control}
             name="document_type"
-            render={({ field }: any) => (
+            render={({ field }) => (
               <FormItem className="flex flex-col">
                 <div className="flex items-center justify-between gap-2">
                   <FormLabel>Document Type</FormLabel>
@@ -1060,7 +1137,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
             key={fieldId}
             control={form.control}
             name="storage_path"
-            render={({ field }: any) => (
+            render={({ field }) => (
               <FormItem className="flex flex-col">
                 <FormLabel>Storage Path</FormLabel>
                 {renderCombobox(field, storagePaths, "Storage Path", "No Storage Path found.")}
@@ -1075,7 +1152,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
             key={fieldId}
             control={form.control}
             name="tags"
-            render={({ field }: any) => (
+            render={({ field }) => (
               <FormItem className="md:col-span-2">
                 <div className="flex items-center justify-between gap-2">
                   <FormLabel>Tags</FormLabel>
