@@ -231,6 +231,7 @@ export function MailTable({
   const [ruleDraft, setRuleDraft] = React.useState<MailRuleDraft>(createMailRuleDraft())
   const [savingAccount, setSavingAccount] = React.useState(false)
   const [savingRule, setSavingRule] = React.useState(false)
+  const [testingAccount, setTestingAccount] = React.useState(false)
   const [processingAccountId, setProcessingAccountId] = React.useState<number | null>(null)
   const oauthAccountSelected = isOAuthAccountType(accountDraft.account_type)
   const selectedOAuthUrl =
@@ -321,6 +322,32 @@ export function MailTable({
     []
   )
 
+  const buildMailAccountPayload = React.useCallback(() => {
+    const fallbackExistingAccount = editingAccount ?? null
+    return oauthAccountSelected
+      ? {
+          name: accountDraft.name.trim(),
+          account_type: Number(accountDraft.account_type),
+          imap_server: fallbackExistingAccount?.imap_server ?? "",
+          imap_port: fallbackExistingAccount?.imap_port ?? null,
+          imap_security: fallbackExistingAccount?.imap_security ?? 2,
+          username: fallbackExistingAccount?.username ?? "",
+          character_set: fallbackExistingAccount?.character_set ?? "UTF-8",
+          is_token: fallbackExistingAccount?.is_token ?? true,
+        }
+      : {
+          name: accountDraft.name.trim(),
+          imap_server: accountDraft.imap_server.trim(),
+          imap_port: accountDraft.imap_port ? Number(accountDraft.imap_port) : null,
+          imap_security: Number(accountDraft.imap_security),
+          username: accountDraft.username.trim(),
+          ...(accountDraft.password.trim() ? { password: accountDraft.password } : {}),
+          character_set: accountDraft.character_set.trim() || "UTF-8",
+          is_token: accountDraft.is_token,
+          account_type: Number(accountDraft.account_type),
+        }
+  }, [accountDraft, editingAccount, oauthAccountSelected])
+
   const handleSaveAccount = async () => {
     if (!accountDraft.name.trim()) {
       toast.error("Account name is required")
@@ -345,29 +372,7 @@ export function MailTable({
 
     setSavingAccount(true)
     try {
-      const fallbackExistingAccount = editingAccount ?? null
-      const payload = oauthAccountSelected
-        ? {
-            name: accountDraft.name.trim(),
-            account_type: Number(accountDraft.account_type),
-            imap_server: fallbackExistingAccount?.imap_server ?? "",
-            imap_port: fallbackExistingAccount?.imap_port ?? null,
-            imap_security: fallbackExistingAccount?.imap_security ?? 2,
-            username: fallbackExistingAccount?.username ?? "",
-            character_set: fallbackExistingAccount?.character_set ?? "UTF-8",
-            is_token: fallbackExistingAccount?.is_token ?? true,
-          }
-        : {
-        name: accountDraft.name.trim(),
-        imap_server: accountDraft.imap_server.trim(),
-        imap_port: accountDraft.imap_port ? Number(accountDraft.imap_port) : null,
-        imap_security: Number(accountDraft.imap_security),
-        username: accountDraft.username.trim(),
-        ...(accountDraft.password.trim() ? { password: accountDraft.password } : {}),
-        character_set: accountDraft.character_set.trim() || "UTF-8",
-        is_token: accountDraft.is_token,
-        account_type: Number(accountDraft.account_type),
-          }
+      const payload = buildMailAccountPayload()
 
       const saved = editingAccount
         ? await patchJson<MailAccount>(`/api/proxy/mail_accounts/${editingAccount.id}/`, payload)
@@ -387,6 +392,29 @@ export function MailTable({
       })
     } finally {
       setSavingAccount(false)
+    }
+  }
+
+  const handleTestAccount = async () => {
+    if (oauthAccountSelected && !editingAccount) {
+      toast.error("OAuth accounts must be created through the provider connect flow before they can be tested")
+      return
+    }
+    if (!accountDraft.name.trim() || !oauthAccountSelected && (!accountDraft.imap_server.trim() || !accountDraft.username.trim())) {
+      toast.error("Complete the required account fields before testing")
+      return
+    }
+
+    setTestingAccount(true)
+    try {
+      await postJson("/api/proxy/mail_accounts/test/", buildMailAccountPayload())
+      toast.success("Mail account connection test succeeded")
+    } catch (error) {
+      toast.error("Mail account test failed", {
+        description: toErrorMessage(error),
+      })
+    } finally {
+      setTestingAccount(false)
     }
   }
 
@@ -455,6 +483,20 @@ export function MailTable({
       })
     } finally {
       setSavingRule(false)
+    }
+  }
+
+  const handleToggleRuleEnabled = async (rule: MailRule) => {
+    try {
+      const saved = await patchJson<MailRule>(`/api/proxy/mail_rules/${rule.id}/`, {
+        enabled: !(rule.enabled ?? true),
+      })
+      setRuleList((prev) => prev.map((item) => (item.id === saved.id ? saved : item)))
+      toast.success(`Mail rule ${saved.enabled ? "enabled" : "disabled"}`)
+    } catch (error) {
+      toast.error("Failed to update mail rule", {
+        description: toErrorMessage(error),
+      })
     }
   }
 
@@ -589,6 +631,7 @@ export function MailTable({
                   <TableHead>Name</TableHead>
                   <TableHead>Account</TableHead>
                   <TableHead>Folder</TableHead>
+                  <TableHead className="w-24 text-center">Enabled</TableHead>
                   <TableHead>Filter From</TableHead>
                   <TableHead>Filter Subject</TableHead>
                   <TableHead className="w-16 text-center">Order</TableHead>
@@ -598,7 +641,7 @@ export function MailTable({
               <TableBody>
                 {ruleList.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground h-24">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground h-24">
                       No mail rules configured.
                     </TableCell>
                   </TableRow>
@@ -608,6 +651,13 @@ export function MailTable({
                       <TableCell className="font-medium">{rule.name}</TableCell>
                       <TableCell className="text-muted-foreground">{accountMap[rule.account] ?? `#${rule.account}`}</TableCell>
                       <TableCell className="text-muted-foreground">{rule.folder || "INBOX"}</TableCell>
+                      <TableCell className="text-center">
+                        <Switch
+                          checked={rule.enabled ?? true}
+                          onCheckedChange={() => void handleToggleRuleEnabled(rule)}
+                          className="mx-auto"
+                        />
+                      </TableCell>
                       <TableCell className="text-muted-foreground">{rule.filter_from || "—"}</TableCell>
                       <TableCell className="text-muted-foreground">{rule.filter_subject || "—"}</TableCell>
                       <TableCell className="text-center text-muted-foreground">{rule.order ?? "—"}</TableCell>
@@ -835,6 +885,14 @@ export function MailTable({
           </div>
           </DraggableDialogBody>
           <DraggableDialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => void handleTestAccount()}
+              disabled={testingAccount || (oauthAccountSelected && !editingAccount)}
+            >
+              {testingAccount ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Test connection
+            </Button>
             <Button variant="outline" onClick={() => setAccountDialogOpen(false)}>Cancel</Button>
             <Button onClick={() => void handleSaveAccount()} disabled={savingAccount || (oauthAccountSelected && !editingAccount)}>
               {savingAccount ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
