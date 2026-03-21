@@ -123,6 +123,7 @@ export function GlobalSearch({
   const [query, setQuery] = React.useState("")
   const [documents, setDocuments] = React.useState<SearchDocumentResult[]>([])
   const [loadingDocuments, setLoadingDocuments] = React.useState(false)
+  const [shortcutLabel, setShortcutLabel] = React.useState("Ctrl+K")
   const deferredQuery = useDeferredValue(query.trim())
   const canViewDocuments = can("view", "document")
   const canViewGroups = can("view", "group")
@@ -142,6 +143,12 @@ export function GlobalSearch({
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
+  }, [])
+
+  React.useEffect(() => {
+    if (typeof navigator !== "undefined" && navigator.platform.toLowerCase().includes("mac")) {
+      setShortcutLabel("⌘K")
+    }
   }, [])
 
   React.useEffect(() => {
@@ -249,10 +256,7 @@ export function GlobalSearch({
           Search documents and views
         </span>
         <kbd className="rounded border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
-          {typeof navigator !== "undefined" &&
-          navigator.platform.toLowerCase().includes("mac")
-            ? "⌘K"
-            : "Ctrl+K"}
+          {shortcutLabel}
         </kbd>
       </Button>
 

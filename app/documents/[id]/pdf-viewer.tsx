@@ -39,6 +39,7 @@ type RegistryStoreState = {
 
 export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
   const activeVersionId = useAtomValue(activeVersionIdAtom)
+  const setActiveVersionId = useSetAtom(activeVersionIdAtom)
   const viewerRef = React.useRef<PDFViewerRef>(null)
   const densityObserverRef = React.useRef<MutationObserver | null>(null)
   const setPdfPageCount = useSetAtom(pdfViewerPageCountAtom)
@@ -218,6 +219,10 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
       sibling = sibling.previousElementSibling
     }
   }, [])
+
+  React.useEffect(() => {
+    setActiveVersionId(null)
+  }, [documentId, setActiveVersionId])
 
   React.useEffect(() => {
     setPdfPageCount(totalPages)

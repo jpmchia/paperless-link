@@ -65,6 +65,9 @@ import { toast } from "sonner"
 import type { PermissionedObject } from "@/lib/permissions"
 import { deleteDocument, removeDocumentPassword, reprocessDocument } from "./actions"
 import { getDocumentSectionHref, type DocumentSection } from "./document-sections"
+import { DocumentCustomFieldsDropdown } from "./document-custom-fields-dropdown"
+import { DocumentSuggestionsDropdown } from "./document-suggestions-dropdown"
+import { DocumentVersionDropdown } from "./document-version-dropdown"
 import { DetailsFieldsPicker } from "./details-fields-picker"
 import { EmailDocumentDialog } from "./email-document-dialog"
 import { PdfToolsDialog } from "./pdf-tools-dialog"
@@ -88,6 +91,12 @@ export function TopBar({
     hasArchiveVersion = false,
     canEditPdf = false,
     totalPages = 1,
+    versions = [],
+    correspondents = [],
+    documentTypes = [],
+    storagePaths = [],
+    tags = [],
+    customFields = [],
 }: {
     children: React.ReactNode
     title?: React.ReactNode
@@ -98,6 +107,19 @@ export function TopBar({
     hasArchiveVersion?: boolean
     canEditPdf?: boolean
     totalPages?: number
+    versions?: Array<{
+        id: number
+        added: string
+        version_label?: string | null
+        checksum?: string
+        is_root: boolean
+        original_filename?: string
+    }>
+    correspondents?: Array<{ id: number; name: string }>
+    documentTypes?: Array<{ id: number; name: string }>
+    storagePaths?: Array<{ id: number; name: string }>
+    tags?: Array<{ id: number; name: string; color?: string; text_color?: string | null }>
+    customFields?: Array<{ id: number; name: string; data_type: string }>
 }) {
     const documentList = useAtomValue(documentListState)
     const openDocuments = useAtomValue(openDocumentsAtom)
@@ -608,6 +630,23 @@ export function TopBar({
                 <div className="flex items-center gap-2">
                     <div className="flex items-center gap-2">
                         <HasObjectPermission action="change" object={permissionedDocument} type="document">
+                            {documentId ? (
+                                <DocumentSuggestionsDropdown
+                                    documentId={documentId}
+                                    correspondents={correspondents}
+                                    documentTypes={documentTypes}
+                                    storagePaths={storagePaths}
+                                    tags={tags}
+                                />
+                            ) : null}
+                        </HasObjectPermission>
+                        <HasObjectPermission action="change" object={permissionedDocument} type="document">
+                            <DocumentCustomFieldsDropdown
+                                customFields={customFields}
+                                disabled={customFields.length === 0}
+                            />
+                        </HasObjectPermission>
+                        <HasObjectPermission action="change" object={permissionedDocument} type="document">
                             {nextId && (
                                 <Button variant="secondary" type="submit" form="document-details-form" onClick={() => setSaveAction("next")} className="h-8 hover:bg-accent" disabled={!isDocumentDirty}>
                                     Save & Next
@@ -748,6 +787,14 @@ export function TopBar({
                                 ) : <ChevronRight className="h-4 w-4" />}
                             </Button>
                         </div>
+
+                        {documentId ? (
+                            <DocumentVersionDropdown
+                                documentId={documentId}
+                                initialVersions={versions}
+                                disabled={versions.length === 0}
+                            />
+                        ) : null}
 
                         <div className="flex items-center">
                             <Button

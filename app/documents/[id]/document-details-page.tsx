@@ -142,6 +142,12 @@ export async function DocumentDetailsPageContent({
           hasArchiveVersion={hasArchiveVersion}
           canEditPdf={canEditPdf}
           totalPages={metadataRecord?.pages ?? 1}
+          versions={versions}
+          correspondents={correspondents}
+          documentTypes={documentTypes}
+          storagePaths={storagePaths}
+          tags={tagsList}
+          customFields={customFieldsList}
         >
           <div className="flex items-center gap-2">
             <Badge variant="outline">ASN: {document.archive_serial_number || "None"}</Badge>
@@ -183,6 +189,7 @@ export async function DocumentDetailsPageContent({
               versions={versions}
               canChangeDocument={canChangeDocument}
               canManageShareLinks={canManageShareLinks}
+              hasArchiveVersion={hasArchiveVersion}
             />
           </ResizablePanel>
 

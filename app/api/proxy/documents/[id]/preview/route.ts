@@ -1,10 +1,13 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 
+type AccessTokenSession = { accessToken?: string } | null
+
 export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const session = await getServerSession(authOptions as any)
-  const token = (session as any)?.accessToken
+  const requestUrl = new URL(request.url)
+  const session = (await getServerSession(authOptions as never)) as AccessTokenSession
+  const token = session?.accessToken
 
   if (!token) {
     return new Response("Unauthorized", { status: 401 })
@@ -13,7 +16,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
   
   try {
-    const response = await fetch(`${baseUrl}api/documents/${params.id}/preview/`, {
+    const response = await fetch(`${baseUrl}api/documents/${params.id}/preview/${requestUrl.search}`, {
       headers: {
         Authorization: `Token ${token}`
       }

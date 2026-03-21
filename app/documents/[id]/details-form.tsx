@@ -61,6 +61,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { buildUpdateDocumentPayload, normalizeCustomFieldSelectValue } from "./details-payload"
 import {
   documentDetailAvailableFieldsAtom,
+  documentDetailsControllerAtom,
   documentDetailFieldLayoutAtom,
   documentDetailFieldLayoutRevisionAtom,
   documentDetailsChangedFieldsAtom,
@@ -294,6 +295,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
   )
   const [correspondentItems, setCorrespondentItems] = React.useState<Props["correspondents"]>(correspondents)
   const [documentTypeItems, setDocumentTypeItems] = React.useState<Props["documentTypes"]>(documentTypes)
+  const [storagePathItems, setStoragePathItems] = React.useState<Props["storagePaths"]>(storagePaths)
   const [tagItems, setTagItems] = React.useState<Props["tagsList"]>(tagsList)
   const [customFieldDefinitions, setCustomFieldDefinitions] = React.useState(customFieldsList)
   const [createDialog, setCreateDialog] = React.useState<CreateDialogState>(null)
@@ -307,8 +309,10 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
   const documentList = useAtomValue(documentListState)
   const setDocumentDetailsDirty = useSetAtom(documentDetailsDirtyAtom)
   const setDocumentDetailsChangedFields = useSetAtom(documentDetailsChangedFieldsAtom)
+  const setDocumentDetailsController = useSetAtom(documentDetailsControllerAtom)
   const [detailFieldLayout, setDetailFieldLayout] = useAtom(documentDetailFieldLayoutAtom)
   const layoutRevision = useAtomValue(documentDetailFieldLayoutRevisionAtom)
+  const setDetailFieldLayoutRevision = useSetAtom(documentDetailFieldLayoutRevisionAtom)
   const resetRevision = useAtomValue(documentDetailsResetRevisionAtom)
   const setDetailAvailableFields = useSetAtom(documentDetailAvailableFieldsAtom)
   const defaultValues = buildDefaultValues(document, customFieldDefinitions)
@@ -437,6 +441,10 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
   }, [documentTypes])
 
   React.useEffect(() => {
+    setStoragePathItems(storagePaths)
+  }, [storagePaths])
+
+  React.useEffect(() => {
     setTagItems(tagsList)
   }, [tagsList])
 
@@ -447,6 +455,93 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
   React.useEffect(() => {
     setDetailAvailableFields(availableDetailFields)
   }, [availableDetailFields, setDetailAvailableFields])
+
+  React.useEffect(() => {
+    setDocumentDetailsController({
+      appendCorrespondentOption: (option) => {
+        setCorrespondentItems((previous) =>
+          previous.some((item) => item.id === option.id)
+            ? previous
+            : [...previous, {
+                id: option.id,
+                name: option.name,
+                match: "",
+                matching_algorithm: 0,
+                is_insensitive: false,
+              }]
+        )
+      },
+      appendCustomFieldDefinition: (field) => {
+        setCustomFieldDefinitions((previous) =>
+          previous.some((item) => item.id === field.id) ? previous : [...previous, field]
+        )
+      },
+      appendDocumentTypeOption: (option) => {
+        setDocumentTypeItems((previous) =>
+          previous.some((item) => item.id === option.id)
+            ? previous
+            : [...previous, {
+                id: option.id,
+                name: option.name,
+                match: "",
+                matching_algorithm: 0,
+                is_insensitive: false,
+              }]
+        )
+      },
+      appendStoragePathOption: (option) => {
+        setStoragePathItems((previous) =>
+          previous.some((item) => item.id === option.id) ? previous : [...previous, option]
+        )
+      },
+      appendTagOption: (option) => {
+        setTagItems((previous) =>
+          previous.some((item) => item.id === option.id)
+            ? previous
+            : [...previous, {
+                id: option.id,
+                name: option.name,
+                color: option.color ?? "#94a3b8",
+                text_color: option.text_color ?? null,
+                match: "",
+                matching_algorithm: 0,
+                is_insensitive: false,
+                is_inbox_tag: false,
+              }]
+        )
+      },
+      ensureFieldVisible: (fieldId) => {
+        setDetailFieldLayout((previous) =>
+          previous.includes(fieldId) ? previous : [...previous, fieldId]
+        )
+        setDetailFieldLayoutRevision((revision) => revision + 1)
+      },
+      getFieldValue: (fieldId) => form.getValues(String(fieldId)),
+      setFieldValue: (fieldId, value) => {
+        if (!availableDetailFieldIds.includes(fieldId)) return
+
+        setDetailFieldLayout((previous) =>
+          previous.includes(fieldId) ? previous : [...previous, fieldId]
+        )
+        setDetailFieldLayoutRevision((revision) => revision + 1)
+        form.setValue(String(fieldId), value, {
+          shouldDirty: true,
+          shouldTouch: true,
+          shouldValidate: true,
+        })
+      },
+    })
+
+    return () => {
+      setDocumentDetailsController(null)
+    }
+  }, [
+    availableDetailFieldIds,
+    form,
+    setDetailFieldLayout,
+    setDetailFieldLayoutRevision,
+    setDocumentDetailsController,
+  ])
 
   React.useEffect(() => {
     let isCancelled = false
@@ -1140,7 +1235,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
             render={({ field }) => (
               <FormItem className="flex flex-col">
                 <FormLabel>Storage Path</FormLabel>
-                {renderCombobox(field, storagePaths, "Storage Path", "No Storage Path found.")}
+                {renderCombobox(field, storagePathItems, "Storage Path", "No Storage Path found.")}
                 <FormMessage />
               </FormItem>
             )}

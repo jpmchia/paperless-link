@@ -24,6 +24,7 @@ interface DocumentMetadata {
   has_archive_version?: boolean
   media_filename?: string
   media_info?: Record<string, unknown> | unknown[] | null
+  original_metadata?: Record<string, unknown> | unknown[] | null
   original_checksum?: string
   original_filename?: string
   original_mime_type?: string
@@ -119,8 +120,11 @@ export function MetadataTab({
     )
   }
 
-  const renderArchivedMetadata = (data: unknown) => {
-    if (!data || Object.keys(data).length === 0) return null
+  const renderMetadataEntries = (data: unknown) => {
+    if (!data) return null
+    if (!Array.isArray(data) && Object.keys(data as Record<string, unknown>).length === 0) {
+      return null
+    }
 
     if (Array.isArray(data)) {
       return (
@@ -167,6 +171,24 @@ export function MetadataTab({
     )
   }
 
+  const hasOriginalMetadata = Boolean(
+    currentMetadata.original_metadata &&
+      (Array.isArray(currentMetadata.original_metadata)
+        ? currentMetadata.original_metadata.length > 0
+        : Object.keys(currentMetadata.original_metadata).length > 0)
+  )
+
+  const hasArchiveMetadata = Boolean(
+    currentMetadata.archive_metadata &&
+      (Array.isArray(currentMetadata.archive_metadata)
+        ? currentMetadata.archive_metadata.length > 0
+        : Object.keys(currentMetadata.archive_metadata).length > 0)
+  )
+
+  const hasMediaInfo = Boolean(
+    currentMetadata.media_info && Object.keys(currentMetadata.media_info).length > 0
+  )
+
   return (
     <ScrollArea className="h-full">
       <div className="max-w-4xl space-y-2 px-6 py-6 pb-20">
@@ -183,30 +205,42 @@ export function MetadataTab({
 
         <div className="py-2" />
 
+        {hasOriginalMetadata && (
+          <div className="mt-6">
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="original-metadata" className="border-none">
+                <AccordionTrigger className="justify-start gap-4 rounded-md bg-muted/20 px-4 py-2 text-sm font-semibold hover:no-underline">
+                  Original document metadata
+                </AccordionTrigger>
+                <AccordionContent className="px-2 pt-4">
+                  {renderMetadataEntries(currentMetadata.original_metadata)}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
+        )}
+
         {currentMetadata.has_archive_version && (
           <>
             {renderSimpleRow("Archive MD5 checksum", currentMetadata.archive_checksum)}
             {renderSimpleRow("Archive file size", formatFileSize(currentMetadata.archive_size))}
 
-            {currentMetadata.archive_metadata &&
-              Object.keys(currentMetadata.archive_metadata).length > 0 && (
-                <div className="mt-6">
-                  <Accordion type="single" collapsible className="w-full">
-                    <AccordionItem value="archived-metadata" className="border-none">
-                      <AccordionTrigger className="justify-start gap-4 rounded-md bg-muted/20 px-4 py-2 text-sm font-semibold hover:no-underline">
-                        Archived document metadata
-                      </AccordionTrigger>
-                      <AccordionContent className="px-2 pt-4">
-                        {renderArchivedMetadata(currentMetadata.archive_metadata)}
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </div>
-              )}
+            {hasArchiveMetadata && (
+              <div className="mt-6">
+                <Accordion type="single" collapsible className="w-full">
+                  <AccordionItem value="archived-metadata" className="border-none">
+                    <AccordionTrigger className="justify-start gap-4 rounded-md bg-muted/20 px-4 py-2 text-sm font-semibold hover:no-underline">
+                      Archived document metadata
+                    </AccordionTrigger>
+                    <AccordionContent className="px-2 pt-4">
+                      {renderMetadataEntries(currentMetadata.archive_metadata)}
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </div>
+            )}
 
-            {!currentMetadata.archive_metadata &&
-              currentMetadata.media_info &&
-              Object.keys(currentMetadata.media_info).length > 0 && (
+            {!hasArchiveMetadata && hasMediaInfo && (
                 <div className="mt-6">
                   <Accordion type="single" collapsible className="w-full">
                     <AccordionItem value="media-info" className="border-none">
@@ -214,7 +248,7 @@ export function MetadataTab({
                         Document media info
                       </AccordionTrigger>
                       <AccordionContent className="px-2 pt-4">
-                        {renderArchivedMetadata(currentMetadata.media_info)}
+                        {renderMetadataEntries(currentMetadata.media_info)}
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>

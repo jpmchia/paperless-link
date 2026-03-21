@@ -1,7 +1,7 @@
 "use client"
 
+import * as React from "react"
 import {
-  BadgeCheck,
   ChevronsUpDown,
   LogOut,
   UserRound,
@@ -33,10 +33,15 @@ import {
 export function NavUser() {
   const { isMobile } = useSidebar()
   const { data: session } = useSession()
+  const [hasMounted, setHasMounted] = React.useState(false)
 
   const user = session?.user
 
-  if (!user) {
+  React.useEffect(() => {
+    setHasMounted(true)
+  }, [])
+
+  if (!hasMounted || !user) {
     return null
   }
 

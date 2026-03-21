@@ -22,6 +22,7 @@ interface ShareLink {
   expiration: string | null
   created: string
   document: number
+  file_version?: "archive" | "original"
 }
 
 const EXPIRATION_OPTIONS = [
@@ -49,6 +50,7 @@ function formatExpiry(expiration: string | null): string {
 interface ShareLinksTabProps {
   documentId: number
   paperlessBaseUrl: string
+  hasArchiveVersion?: boolean
 }
 
 async function fetchShareLinks(documentId: number): Promise<ShareLink[]> {
@@ -58,11 +60,14 @@ async function fetchShareLinks(documentId: number): Promise<ShareLink[]> {
   return Array.isArray(data) ? data : (data.results ?? [])
 }
 
-export function ShareLinksTab({ documentId, paperlessBaseUrl }: ShareLinksTabProps) {
+export function ShareLinksTab({ documentId, paperlessBaseUrl, hasArchiveVersion = true }: ShareLinksTabProps) {
   const [links, setLinks] = React.useState<ShareLink[]>([])
   const [loading, setLoading] = React.useState(true)
   const [creating, setCreating] = React.useState(false)
   const [expiration, setExpiration] = React.useState("7")
+  const [fileVersion, setFileVersion] = React.useState<"archive" | "original">(
+    hasArchiveVersion ? "archive" : "original"
+  )
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
   const refreshToken = useRealtimeDocumentRefresh({
     documentId,
@@ -90,7 +95,9 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl }: ShareLinksTabPro
   const handleCreate = async () => {
     setCreating(true)
     try {
-      const body: Record<string, string> = {}
+      const body: Record<string, string> = {
+        file_version: fileVersion,
+      }
       const exp = expirationDate(expiration)
       if (exp) body.expiration = exp
       const res = await fetch(`/api/proxy/documents/${documentId}/share_links/`, {
@@ -141,6 +148,17 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl }: ShareLinksTabPro
       <div className="rounded-lg border p-3 space-y-3">
         <p className="text-sm font-medium">Create share link</p>
         <div className="flex items-center gap-2">
+          <Select value={fileVersion} onValueChange={(value: "archive" | "original") => setFileVersion(value)}>
+            <SelectTrigger className="h-8 text-xs w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {hasArchiveVersion ? (
+                <SelectItem value="archive" className="text-xs">Archive version</SelectItem>
+              ) : null}
+              <SelectItem value="original" className="text-xs">Original file</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={expiration} onValueChange={setExpiration}>
             <SelectTrigger className="h-8 text-xs w-32">
               <SelectValue />
@@ -184,6 +202,9 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl }: ShareLinksTabPro
                       {url}
                     </code>
                     <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-[10px] h-4 px-1.5 capitalize">
+                        {link.file_version ?? "archive"}
+                      </Badge>
                       <Badge
                         variant={expired ? "destructive" : "secondary"}
                         className="text-[10px] h-4 px-1.5"

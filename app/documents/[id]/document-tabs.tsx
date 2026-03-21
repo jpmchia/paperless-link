@@ -52,6 +52,7 @@ interface DocumentTabsProps {
   versions: React.ComponentProps<typeof VersionsTab>["initialVersions"]
   canChangeDocument: boolean
   canManageShareLinks: boolean
+  hasArchiveVersion?: boolean
 }
 
 export function DocumentTabs({
@@ -72,6 +73,7 @@ export function DocumentTabs({
   versions,
   canChangeDocument,
   canManageShareLinks,
+  hasArchiveVersion = true,
 }: DocumentTabsProps) {
   const setDocumentSection = useSetAtom(documentSectionAtom)
   const setDetailAvailableFields = useSetAtom(documentDetailAvailableFieldsAtom)
@@ -229,7 +231,11 @@ export function DocumentTabs({
 
         {canManageShareLinks && (
           <TabsContent value="share" className="m-0 h-full overflow-hidden outline-none">
-            <ShareLinksTab documentId={document.id} paperlessBaseUrl={paperlessBaseUrl} />
+            <ShareLinksTab
+              documentId={document.id}
+              paperlessBaseUrl={paperlessBaseUrl}
+              hasArchiveVersion={hasArchiveVersion}
+            />
           </TabsContent>
         )}
 

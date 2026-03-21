@@ -6,6 +6,17 @@ import type { FilterParams } from './api'
 import type { DocumentSection } from '@/app/documents/[id]/document-sections'
 import type { PluginRegistry } from '@embedpdf/react-pdf-viewer'
 
+export type DocumentDetailsController = {
+  appendCorrespondentOption: (option: { id: number; name: string }) => void
+  appendCustomFieldDefinition: (field: { id: number; name: string; data_type: string; extra_data?: { select_options?: Array<string | { id?: string; label?: string }> } }) => void
+  appendDocumentTypeOption: (option: { id: number; name: string }) => void
+  appendStoragePathOption: (option: { id: number; name: string }) => void
+  appendTagOption: (option: { id: number; name: string; color?: string; text_color?: string | null }) => void
+  ensureFieldVisible: (fieldId: string) => void
+  getFieldValue: (fieldId: string) => unknown
+  setFieldValue: (fieldId: string, value: unknown) => void
+}
+
 export const documentListState = atom<number[]>([])
 
 export const documentDetailsDirtyAtom = atom(false)
@@ -17,6 +28,7 @@ export const documentDetailFieldLayoutAtom = atom<string[]>([])
 export const documentDetailAvailableFieldsAtom = atom<Array<{ id: string; label: string }>>([])
 export const documentDetailFieldLayoutRevisionAtom = atom(0)
 export const documentDetailsResetRevisionAtom = atom(0)
+export const documentDetailsControllerAtom = atom<DocumentDetailsController | null>(null)
 
 // Version ID currently being previewed in the PDF viewer (null = latest)
 export const activeVersionIdAtom = atom<number | null>(null)
