@@ -71,6 +71,9 @@ interface FilterPanelProps {
   currentDisplayMode?: DocumentDisplayMode
   currentDisplayFields?: string[]
   currentPageSize?: number
+  extraDirty?: boolean
+  onSaveExtras?: () => Promise<void>
+  onCreateViewExtras?: (createdViewId: number) => Promise<void>
   trailingControls?: React.ReactNode
 }
 
@@ -163,6 +166,9 @@ export function FilterPanel({
   currentDisplayMode,
   currentDisplayFields = [],
   currentPageSize = 25,
+  extraDirty = false,
+  onSaveExtras,
+  onCreateViewExtras,
   trailingControls,
 }: FilterPanelProps) {
   // Use local state as the primary state driver (not the stale Jotai atom)
@@ -191,13 +197,14 @@ export function FilterPanel({
     currentDisplayFields,
     currentPageSize
   )
-  const activeViewIsDirty = isSavedViewDirty(
+  const activeViewStateDirty = isSavedViewDirty(
     filters,
     savedViewBaseline,
     currentDisplayMode,
     currentDisplayFields,
     currentPageSize
   )
+  const activeViewIsDirty = activeViewStateDirty || extraDirty
 
   // Keep Jotai atom in sync for cross-component use (e.g. document detail Next/Prev)
   React.useEffect(() => {
@@ -466,6 +473,9 @@ export function FilterPanel({
         display_fields: currentSavedViewState.displayFields,
         page_size: currentSavedViewState.pageSize,
       })
+      if (onSaveExtras) {
+        await onSaveExtras()
+      }
       setSavedViewBaseline(currentSavedViewState)
       toast.success(`View "${activeViewName}" saved`)
     } catch (e: any) {
@@ -492,6 +502,9 @@ export function FilterPanel({
         show_on_dashboard: false,
         show_in_sidebar: false,
       })
+      if (onCreateViewExtras) {
+        await onCreateViewExtras(created.id)
+      }
       toast.success(`View "${saveAsName}" created`)
       setSaveAsOpen(false)
       setSaveAsName("")

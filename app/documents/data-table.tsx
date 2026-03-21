@@ -7,6 +7,7 @@ import {
   getSortedRowModel,
   SortingState,
   ColumnResizeMode,
+  ColumnSizingState,
   RowSelectionState,
   useReactTable,
   ColumnDef,
@@ -55,11 +56,13 @@ interface DataTableProps {
   data: Document[]
   pageCount: number
   displayFields?: string[]
+  columnSizing?: ColumnSizingState
   currentFilters?: FilterParams
   onFilterChange?: (params: FilterParams) => void
   usersList?: Array<{ id: number; username?: string }>
   groupsList?: Array<{ id: number; name?: string }>
   onDisplayFieldsChange?: React.Dispatch<React.SetStateAction<string[]>>
+  onColumnSizingChange?: React.Dispatch<React.SetStateAction<ColumnSizingState>>
   onPreviewDocument?: (document: { id: number; title?: string }) => void
 }
 
@@ -188,9 +191,11 @@ export function DataTable({
   data,
   pageCount,
   displayFields: initialDisplayFields,
+  columnSizing: controlledColumnSizing,
   usersList = [],
   groupsList = [],
   onDisplayFieldsChange,
+  onColumnSizingChange,
   onPreviewDocument,
 }: DataTableProps) {
   const router = useRouter()
@@ -199,6 +204,9 @@ export function DataTable({
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
   const [columnResizeMode] = React.useState<ColumnResizeMode>("onChange")
+  const [localColumnSizing, setLocalColumnSizing] = React.useState<ColumnSizingState>(
+    controlledColumnSizing ?? {}
+  )
 
   // Local display fields state — initialized from prop (view's settings) or default
   const [localDisplayFields, setLocalDisplayFields] = React.useState<string[]>(
@@ -207,6 +215,7 @@ export function DataTable({
       : DEFAULT_DISPLAY_FIELDS
   )
   const displayFields = onDisplayFieldsChange ? (initialDisplayFields ?? DEFAULT_DISPLAY_FIELDS) : localDisplayFields
+  const columnSizing = onColumnSizingChange ? (controlledColumnSizing ?? {}) : localColumnSizing
 
   // Re-sync when prop changes (e.g. navigating between views)
   React.useEffect(() => {
@@ -218,6 +227,12 @@ export function DataTable({
       }
     }
   }, [initialDisplayFields?.join(","), onDisplayFieldsChange]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  React.useEffect(() => {
+    if (!onColumnSizingChange) {
+      setLocalColumnSizing(controlledColumnSizing ?? {})
+    }
+  }, [controlledColumnSizing, onColumnSizingChange])
 
   // Keep document ID list in Jotai for Next/Prev navigation in detail view
   React.useEffect(() => {
@@ -284,7 +299,8 @@ export function DataTable({
     getSortedRowModel: getSortedRowModel(),
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
-    state: { sorting, rowSelection },
+    onColumnSizingChange: onColumnSizingChange ?? setLocalColumnSizing,
+    state: { sorting, rowSelection, columnSizing },
     manualPagination: true,
     pageCount,
     columnResizeMode,

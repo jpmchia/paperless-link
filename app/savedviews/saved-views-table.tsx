@@ -2,16 +2,10 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { Copy, ExternalLink, Pencil, Plus, Search, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,16 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Plus, Pencil, Trash2, Search, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 import { CanCreate } from "@/components/permissions/can-create"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
@@ -50,9 +35,19 @@ import {
   updateSavedViewMeta,
   deleteSavedViewManagement,
 } from "@/lib/management-actions"
-import { createSavedView } from "@/app/documents/saved-view-actions"
-
-const PAGE_SIZES = [10, 25, 50, 100, 250]
+import {
+  createSavedView,
+  patchSavedView,
+} from "@/app/documents/saved-view-actions"
+import {
+  SavedViewEditor,
+  type SavedViewEditorValue,
+} from "@/components/saved-views/saved-view-editor"
+import type {
+  SavedViewRule,
+  SavedViewRuleEditorLookups,
+} from "@/components/saved-views/filter-rule-editor"
+import type { DocumentDisplayMode } from "@/app/documents/display-mode"
 
 type SavedView = {
   id: number
@@ -64,36 +59,86 @@ type SavedView = {
   show_in_sidebar: boolean
   sort_field: string
   sort_reverse: boolean
-  filter_rules: unknown[]
+  filter_rules: SavedViewRule[]
   page_size: number | null
-  display_mode: string | null
+  display_mode: DocumentDisplayMode | null
   display_fields: string[] | null
 }
 
-const emptyView = (): Partial<SavedView> => ({
+type LookupOption = { id: number; name: string }
+type UserOption = { id: number; username?: string; first_name?: string; last_name?: string }
+type CustomFieldOption = { id: number; name: string }
+
+const SORT_FIELD_LABELS: Record<string, string> = {
+  created: "Created",
+  added: "Added",
+  modified: "Modified",
+  title: "Title",
+  correspondent__name: "Correspondent",
+  archive_serial_number: "ASN",
+}
+
+const emptyView = (): SavedViewEditorValue => ({
   name: "",
   show_on_dashboard: false,
   show_in_sidebar: false,
   sort_field: "created",
   sort_reverse: true,
+  filter_rules: [],
   page_size: null,
+  display_mode: null,
+  display_fields: [],
 })
 
-const SORT_FIELDS = [
-  { value: "created", label: "Created" },
-  { value: "added", label: "Added" },
-  { value: "modified", label: "Modified" },
-  { value: "title", label: "Title" },
-  { value: "correspondent__name", label: "Correspondent" },
-  { value: "archive_serial_number", label: "ASN" },
-]
+function toEditorValue(view: SavedView): SavedViewEditorValue {
+  return {
+    id: view.id,
+    name: view.name,
+    show_on_dashboard: view.show_on_dashboard,
+    show_in_sidebar: view.show_in_sidebar,
+    sort_field: view.sort_field ?? "created",
+    sort_reverse: view.sort_reverse ?? true,
+    filter_rules: view.filter_rules ?? [],
+    page_size: view.page_size ?? null,
+    display_mode: view.display_mode ?? null,
+    display_fields: view.display_fields ?? [],
+  }
+}
 
-export function SavedViewsTable({ initialViews }: { initialViews: SavedView[] }) {
+export function SavedViewsTable({
+  initialViews,
+  correspondents,
+  documentTypes,
+  storagePaths,
+  tags,
+  users,
+  customFields,
+}: {
+  initialViews: SavedView[]
+  correspondents: LookupOption[]
+  documentTypes: LookupOption[]
+  storagePaths: LookupOption[]
+  tags: LookupOption[]
+  users: UserOption[]
+  customFields: CustomFieldOption[]
+}) {
   const [views, setViews] = React.useState<SavedView[]>(initialViews)
   const [search, setSearch] = React.useState("")
-  const [editing, setEditing] = React.useState<Partial<SavedView> | null>(null)
+  const [editing, setEditing] = React.useState<SavedViewEditorValue | null>(null)
   const [isNew, setIsNew] = React.useState(false)
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
+
+  const lookups = React.useMemo<SavedViewRuleEditorLookups>(
+    () => ({
+      correspondents,
+      documentTypes,
+      storagePaths,
+      tags,
+      users,
+      customFields,
+    }),
+    [correspondents, documentTypes, storagePaths, tags, users, customFields]
+  )
 
   const filtered = views.filter((v) =>
     v.name.toLowerCase().includes(search.toLowerCase())
@@ -101,17 +146,19 @@ export function SavedViewsTable({ initialViews }: { initialViews: SavedView[] })
 
   const { pending: saving, run: saveView } = useAsyncAction({
     action: async () => {
-      if (!editing?.name?.trim()) {
+      if (!editing?.name.trim()) {
         throw new Error("View name is required")
       }
 
       if (isNew) {
         const created = await createSavedView({
           name: editing.name,
-          filter_rules: [],
+          filter_rules: editing.filter_rules,
           sort_field: editing.sort_field ?? "created",
           sort_reverse: editing.sort_reverse ?? true,
           page_size: editing.page_size ?? undefined,
+          display_mode: editing.display_mode ?? undefined,
+          display_fields: editing.display_fields,
           show_on_dashboard: editing.show_on_dashboard ?? false,
           show_in_sidebar: editing.show_in_sidebar ?? false,
         })
@@ -124,11 +171,16 @@ export function SavedViewsTable({ initialViews }: { initialViews: SavedView[] })
         return
       }
 
-      await updateSavedViewMeta(editing.id!, {
+      await patchSavedView(editing.id!, {
         name: editing.name,
         show_on_dashboard: editing.show_on_dashboard,
         show_in_sidebar: editing.show_in_sidebar,
         page_size: editing.page_size ?? undefined,
+        sort_field: editing.sort_field,
+        sort_reverse: editing.sort_reverse,
+        display_mode: editing.display_mode,
+        display_fields: editing.display_fields,
+        filter_rules: editing.filter_rules,
       })
       setViews((prev) =>
         prev.map((view) =>
@@ -155,7 +207,39 @@ export function SavedViewsTable({ initialViews }: { initialViews: SavedView[] })
 
   const openEdit = (view: SavedView) => {
     setIsNew(false)
-    setEditing({ ...view })
+    setEditing(toEditorValue(view))
+  }
+
+  const duplicateView = async (source: SavedViewEditorValue) => {
+    const duplicated = await createSavedView({
+      name: `${source.name} Copy`,
+      filter_rules: source.filter_rules,
+      sort_field: source.sort_field,
+      sort_reverse: source.sort_reverse,
+      page_size: source.page_size ?? undefined,
+      display_mode: source.display_mode ?? undefined,
+      display_fields: source.display_fields,
+      show_on_dashboard: false,
+      show_in_sidebar: false,
+    })
+
+    const duplicatedView = duplicated as SavedView
+    setViews((prev) => [...prev, duplicatedView])
+    toast.success(`View "${duplicatedView.name}" created`)
+    setEditing(toEditorValue(duplicatedView))
+    setIsNew(false)
+  }
+
+  const handleDuplicate = async () => {
+    if (!editing?.name.trim()) return
+
+    try {
+      await duplicateView(editing)
+    } catch (error) {
+      toast.error("Failed to duplicate", {
+        description: toErrorMessage(error),
+      })
+    }
   }
 
   const handleSave = async () => {
@@ -270,10 +354,20 @@ export function SavedViewsTable({ initialViews }: { initialViews: SavedView[] })
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {view.sort_reverse ? "↓" : "↑"}{" "}
-                    {SORT_FIELDS.find((f) => f.value === view.sort_field)?.label ?? view.sort_field}
+                    {SORT_FIELD_LABELS[view.sort_field] ?? view.sort_field}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <CanCreate type="savedView">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => void duplicateView(toEditorValue(view))}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </CanCreate>
                       <HasObjectPermission action="change" object={view} type="savedView">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(view)}>
                           <Pencil className="h-3.5 w-3.5" />
@@ -302,110 +396,19 @@ export function SavedViewsTable({ initialViews }: { initialViews: SavedView[] })
         {filtered.length} of {views.length} saved views
       </p>
 
-      {/* Edit / Create Dialog */}
-      <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{isNew ? "Create Saved View" : `Edit "${editing?.name}"`}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="sv-name">Name</Label>
-              <Input
-                id="sv-name"
-                value={editing?.name ?? ""}
-                onChange={(e) => setEditing((p) => ({ ...p, name: e.target.value }))}
-                placeholder="View name"
-                autoFocus
-              />
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <p className="text-sm font-medium">Show on dashboard</p>
-                <p className="text-xs text-muted-foreground">Appears as a widget on the dashboard</p>
-              </div>
-              <Switch
-                checked={editing?.show_on_dashboard ?? false}
-                onCheckedChange={(v) => setEditing((p) => ({ ...p, show_on_dashboard: v }))}
-              />
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <p className="text-sm font-medium">Show in sidebar</p>
-                <p className="text-xs text-muted-foreground">Pinned in the app sidebar for quick access</p>
-              </div>
-              <Switch
-                checked={editing?.show_in_sidebar ?? false}
-                onCheckedChange={(v) => setEditing((p) => ({ ...p, show_in_sidebar: v }))}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Sort by</Label>
-                <Select
-                  value={editing?.sort_field ?? "created"}
-                  onValueChange={(v) => setEditing((p) => ({ ...p, sort_field: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SORT_FIELDS.map((f) => (
-                      <SelectItem key={f.value} value={f.value}>
-                        {f.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Direction</Label>
-                <Select
-                  value={editing?.sort_reverse ? "desc" : "asc"}
-                  onValueChange={(v) => setEditing((p) => ({ ...p, sort_reverse: v === "desc" }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="desc">Newest first</SelectItem>
-                    <SelectItem value="asc">Oldest first</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Page size</Label>
-              <Select
-                value={editing?.page_size != null ? String(editing.page_size) : "_default"}
-                onValueChange={(v) => setEditing((p) => ({ ...p, page_size: v === "_default" ? null : Number(v) }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_default">Default</SelectItem>
-                  {PAGE_SIZES.map((s) => (
-                    <SelectItem key={s} value={String(s)}>
-                      {s} per page
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button onClick={() => void handleSave()} disabled={saving || !editing?.name?.trim()}>
-              {saving ? "Saving…" : isNew ? "Create" : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SavedViewEditor
+        open={editing !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditing(null)
+        }}
+        value={editing}
+        onChange={setEditing}
+        onSave={handleSave}
+        onDuplicate={!isNew ? handleDuplicate : undefined}
+        saving={saving}
+        isNew={isNew}
+        lookups={lookups}
+      />
 
       {/* Delete Confirmation */}
       <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>

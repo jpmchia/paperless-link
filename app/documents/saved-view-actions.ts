@@ -3,25 +3,32 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 import { revalidatePath } from "next/cache"
+import type { DocumentDisplayMode } from "./display-mode"
+import type { SavedViewRule } from "@/components/saved-views/filter-rule-editor"
 
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
+type AccessTokenSession = { accessToken?: string } | null
 
 async function getToken() {
-  const session = await getServerSession(authOptions as any)
-  const token = (session as any)?.accessToken
+  const session = (await getServerSession(authOptions as never)) as AccessTokenSession
+  const token = session?.accessToken
   if (!token) throw new Error("Unauthorized")
   return token
 }
 
-export async function patchSavedView(id: number, data: {
-  filter_rules?: any[]
+type SavedViewMutation = {
+  filter_rules?: SavedViewRule[]
   sort_field?: string
   sort_reverse?: boolean
-  display_mode?: string
+  display_mode?: DocumentDisplayMode | null
   display_fields?: string[]
   name?: string
-  page_size?: number
-}) {
+  page_size?: number | null
+  show_on_dashboard?: boolean
+  show_in_sidebar?: boolean
+}
+
+export async function patchSavedView(id: number, data: SavedViewMutation) {
   const token = await getToken()
   const res = await fetch(`${baseUrl}api/saved_views/${id}/`, {
     method: "PATCH",
@@ -38,15 +45,16 @@ export async function patchSavedView(id: number, data: {
   }
   revalidatePath("/documents")
   revalidatePath(`/view/${id}`)
+  revalidatePath("/savedviews")
   return res.json()
 }
 
 export async function createSavedView(data: {
   name: string
-  filter_rules: any[]
+  filter_rules: SavedViewRule[]
   sort_field?: string
   sort_reverse?: boolean
-  display_mode?: string
+  display_mode?: DocumentDisplayMode | null
   display_fields?: string[]
   page_size?: number
   show_on_dashboard?: boolean
@@ -67,6 +75,7 @@ export async function createSavedView(data: {
     throw new Error(`Failed to create view: ${err}`)
   }
   revalidatePath("/documents")
+  revalidatePath("/savedviews")
   return res.json()
 }
 

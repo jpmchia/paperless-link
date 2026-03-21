@@ -2,8 +2,10 @@
 
 import * as React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import type { ColumnSizingState } from "@tanstack/react-table"
 import { updateUiSettings } from "@/app/actions/ui-settings"
 import type { FilterParams } from "@/lib/api"
+import { toast } from "sonner"
 import { RealtimeDocumentListSync } from "@/components/realtime-document-list-sync"
 import { DEFAULT_DISPLAY_FIELDS, type Document, type LookupMaps } from "./columns"
 import { FilterPanel } from "./filter-panel"
@@ -17,11 +19,54 @@ import {
   type DocumentDisplayMode,
   resolveDocumentDisplayMode,
 } from "./display-mode"
+import { toErrorMessage } from "@/lib/errors"
 
 type LookupItem = { id: number; name: string }
 type UserOption = { id: number; username?: string; first_name?: string; last_name?: string }
 type TagOption = { id: number; name: string; color: string | number }
 type CustomFieldOption = { id: number; name: string }
+type DocumentTableLayout = {
+  displayFields?: string[]
+  columnSizing?: ColumnSizingState
+  smallCardSize?: number
+  largeCardSize?: number
+}
+type DocumentTableLayoutSettings = {
+  global?: DocumentTableLayout
+  views?: Record<string, DocumentTableLayout>
+}
+
+const DOCUMENT_TABLE_LAYOUTS_STORAGE_KEY = "paperless-document-table-layouts"
+
+function layoutsEqual(left: DocumentTableLayout | null | undefined, right: DocumentTableLayout | null | undefined) {
+  return JSON.stringify(left ?? {}) === JSON.stringify(right ?? {})
+}
+
+function readStoredTableLayouts(): DocumentTableLayoutSettings | null {
+  if (typeof window === "undefined") return null
+
+  try {
+    const raw = window.localStorage.getItem(DOCUMENT_TABLE_LAYOUTS_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as DocumentTableLayoutSettings
+    return parsed && typeof parsed === "object" ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function writeStoredTableLayouts(layouts: DocumentTableLayoutSettings) {
+  if (typeof window === "undefined") return
+
+  try {
+    window.localStorage.setItem(
+      DOCUMENT_TABLE_LAYOUTS_STORAGE_KEY,
+      JSON.stringify(layouts)
+    )
+  } catch {
+    // Ignore local persistence failures.
+  }
+}
 
 interface DocumentsWorkspaceProps {
   activeView?: React.ComponentProps<typeof FilterPanel>["activeView"]
@@ -43,6 +88,7 @@ interface DocumentsWorkspaceProps {
   users?: UserOption[]
   currentUserId?: number | null
   initialDisplayMode?: string | null
+  initialTableLayouts?: DocumentTableLayoutSettings | null
 }
 
 export function DocumentsWorkspace({
@@ -64,9 +110,38 @@ export function DocumentsWorkspace({
   users = [],
   currentUserId,
   initialDisplayMode,
+  initialTableLayouts,
 }: DocumentsWorkspaceProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [tableLayouts, setTableLayouts] = React.useState<DocumentTableLayoutSettings>(
+    initialTableLayouts ?? {}
+  )
+
+  React.useEffect(() => {
+    setTableLayouts(initialTableLayouts ?? {})
+  }, [initialTableLayouts])
+
+  React.useEffect(() => {
+    const storedLayouts = readStoredTableLayouts()
+    if (!storedLayouts) return
+
+    setTableLayouts((current) => ({
+      global: storedLayouts.global ?? current.global,
+      views: {
+        ...(current.views ?? {}),
+        ...(storedLayouts.views ?? {}),
+      },
+    }))
+  }, [])
+
+  const activeViewLayout = React.useMemo<DocumentTableLayout | null>(
+    () =>
+      activeView?.id != null
+        ? tableLayouts.views?.[String(activeView.id)] ?? null
+        : tableLayouts.global ?? null,
+    [activeView?.id, tableLayouts]
+  )
   const activeViewDisplayFields = activeView?.display_fields
   const activeViewDisplayFieldsKey = React.useMemo(
     () => activeViewDisplayFields?.join(",") ?? "",
@@ -74,13 +149,24 @@ export function DocumentsWorkspace({
   )
 
   const [displayFields, setDisplayFields] = React.useState<string[]>(
-    activeView?.display_fields?.length ? activeView.display_fields : DEFAULT_DISPLAY_FIELDS
+    activeView?.display_fields?.length
+      ? activeView.display_fields
+      : activeViewLayout?.displayFields?.length
+        ? activeViewLayout.displayFields
+        : DEFAULT_DISPLAY_FIELDS
   )
   const [displayMode, setDisplayMode] = React.useState<DocumentDisplayMode>(() =>
     resolveDocumentDisplayMode(activeView?.display_mode, initialDisplayMode)
   )
-  const [smallCardSize, setSmallCardSize] = React.useState(190)
-  const [largeCardSize, setLargeCardSize] = React.useState(280)
+  const [columnSizing, setColumnSizing] = React.useState<ColumnSizingState>(
+    activeViewLayout?.columnSizing ?? {}
+  )
+  const [smallCardSize, setSmallCardSize] = React.useState(
+    activeViewLayout?.smallCardSize ?? 190
+  )
+  const [largeCardSize, setLargeCardSize] = React.useState(
+    activeViewLayout?.largeCardSize ?? 280
+  )
   const [previewDocument, setPreviewDocument] = React.useState<{
     id: number
     title?: string
@@ -89,10 +175,21 @@ export function DocumentsWorkspace({
   React.useEffect(() => {
     if (activeViewDisplayFields?.length) {
       setDisplayFields(activeViewDisplayFields)
+    } else if (activeViewLayout?.displayFields?.length) {
+      setDisplayFields(activeViewLayout.displayFields)
     } else {
       setDisplayFields(DEFAULT_DISPLAY_FIELDS)
     }
-  }, [activeView?.id, activeViewDisplayFields, activeViewDisplayFieldsKey])
+  }, [activeView?.id, activeViewDisplayFields, activeViewDisplayFieldsKey, activeViewLayout])
+
+  React.useEffect(() => {
+    setColumnSizing(activeViewLayout?.columnSizing ?? {})
+  }, [activeView?.id, activeViewLayout])
+
+  React.useEffect(() => {
+    setSmallCardSize(activeViewLayout?.smallCardSize ?? 190)
+    setLargeCardSize(activeViewLayout?.largeCardSize ?? 280)
+  }, [activeView?.id, activeViewLayout])
 
   React.useEffect(() => {
     setDisplayMode(resolveDocumentDisplayMode(activeView?.display_mode, initialDisplayMode))
@@ -101,18 +198,45 @@ export function DocumentsWorkspace({
   React.useEffect(() => {
     if (activeView?.id) return
 
+    const nextLayouts: DocumentTableLayoutSettings = {
+      ...tableLayouts,
+      global: {
+        ...tableLayouts.global,
+        displayFields,
+        columnSizing,
+        smallCardSize,
+        largeCardSize,
+      },
+      views: tableLayouts.views ?? {},
+    }
+
     const timeout = window.setTimeout(() => {
+      setTableLayouts(nextLayouts)
+      writeStoredTableLayouts(nextLayouts)
       void updateUiSettings({
         document_list_display_mode: displayMode,
+        document_table_layouts: nextLayouts,
       }).catch(() => {
         // Silently ignore workspace preference persistence failures.
       })
     }, 250)
 
     return () => window.clearTimeout(timeout)
-  }, [activeView?.id, displayMode])
+  }, [activeView?.id, displayMode, displayFields, columnSizing, smallCardSize, largeCardSize, tableLayouts])
 
   const cardSize = displayMode === "largeCards" ? largeCardSize : smallCardSize
+  const currentActiveViewLayout = React.useMemo<DocumentTableLayout>(
+    () => ({
+      columnSizing,
+      smallCardSize,
+      largeCardSize,
+    }),
+    [columnSizing, smallCardSize, largeCardSize]
+  )
+  const activeViewLayoutDirty = React.useMemo(
+    () => Boolean(activeView?.id) && !layoutsEqual(activeViewLayout, currentActiveViewLayout),
+    [activeView?.id, activeViewLayout, currentActiveViewLayout]
+  )
   const previewDocuments = React.useMemo(
     () =>
       data.map((document) => ({
@@ -134,6 +258,35 @@ export function DocumentsWorkspace({
       }
     },
     [displayMode]
+  )
+
+  const persistViewLayout = React.useCallback(
+    async (viewId: number) => {
+      const nextLayouts: DocumentTableLayoutSettings = {
+        ...tableLayouts,
+        global: tableLayouts.global,
+        views: {
+          ...(tableLayouts.views ?? {}),
+          [String(viewId)]: {
+            ...(tableLayouts.views?.[String(viewId)] ?? {}),
+            ...currentActiveViewLayout,
+          },
+        },
+      }
+
+      setTableLayouts(nextLayouts)
+      writeStoredTableLayouts(nextLayouts)
+      try {
+        await updateUiSettings({
+          document_table_layouts: nextLayouts,
+        })
+      } catch (error) {
+        toast.error("Saved view updated, but layout could not be persisted", {
+          description: toErrorMessage(error),
+        })
+      }
+    },
+    [currentActiveViewLayout, tableLayouts]
   )
 
   React.useEffect(() => {
@@ -269,6 +422,20 @@ export function DocumentsWorkspace({
         activeView={activeView}
         initialFilters={currentFilters}
         currentUserId={currentUserId}
+        extraDirty={activeViewLayoutDirty}
+        onSaveExtras={
+          activeView?.id != null
+            ? (() => {
+                const activeViewId = activeView.id
+                return async () => {
+                  await persistViewLayout(activeViewId)
+                }
+              })()
+            : undefined
+        }
+        onCreateViewExtras={async (createdViewId) => {
+          await persistViewLayout(createdViewId)
+        }}
         trailingControls={(
           <>
             <DisplayModePicker
@@ -292,9 +459,11 @@ export function DocumentsWorkspace({
           data={data}
           pageCount={pageCount}
           displayFields={displayFields}
+          columnSizing={columnSizing}
           currentFilters={currentFilters}
           usersList={users}
           groupsList={groupsList}
+          onColumnSizingChange={setColumnSizing}
           onPreviewDocument={setPreviewDocument}
         />
       ) : (

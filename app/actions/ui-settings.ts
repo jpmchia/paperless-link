@@ -25,33 +25,18 @@ async function writeUiSettings(settings: Record<string, unknown>) {
   }
   const body = JSON.stringify({ settings })
 
-  const patchResponse = await fetch(url, {
-    method: "PATCH",
+  const response = await fetch(url, {
+    method: "POST",
     headers,
     body,
     next: { revalidate: 0 },
   })
 
-  if (patchResponse.ok) {
-    return (await patchResponse.json()) as UiSettingsRecord
+  if (!response.ok) {
+    throw new Error(`API Error ${response.status}: ${response.statusText}`)
   }
 
-  if (patchResponse.status !== 405) {
-    throw new Error(`API Error ${patchResponse.status}: ${patchResponse.statusText}`)
-  }
-
-  const putResponse = await fetch(url, {
-    method: "PUT",
-    headers,
-    body,
-    next: { revalidate: 0 },
-  })
-
-  if (!putResponse.ok) {
-    throw new Error(`API Error ${putResponse.status}: ${putResponse.statusText}`)
-  }
-
-  return (await putResponse.json()) as UiSettingsRecord
+  return (await response.json()) as UiSettingsRecord
 }
 
 export async function updateUiSettings(

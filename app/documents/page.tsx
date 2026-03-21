@@ -27,6 +27,19 @@ function idx<T extends { id: number }>(arr: T[]): Record<number, T> {
 type UiSettingsRecord = {
   settings?: {
     document_list_display_mode?: string | null
+    document_table_layouts?: {
+      global?: {
+        displayFields?: string[]
+        columnSizing?: Record<string, number>
+      }
+      views?: Record<
+        string,
+        {
+          displayFields?: string[]
+          columnSizing?: Record<string, number>
+        }
+      >
+    } | null
   }
 }
 
@@ -127,6 +140,7 @@ export default async function DocumentsPage({
         users={usersList}
         currentUserId={currentUserId}
         initialDisplayMode={(uiSettings as UiSettingsRecord)?.settings?.document_list_display_mode ?? null}
+        initialTableLayouts={(uiSettings as UiSettingsRecord)?.settings?.document_table_layouts ?? null}
       />
     </AppShell>
   )

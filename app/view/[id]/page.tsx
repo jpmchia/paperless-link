@@ -18,6 +18,25 @@ import type { LookupMaps } from "@/app/documents/columns"
 import { DocumentsWorkspace } from "@/app/documents/documents-workspace"
 import { TopBar } from "@/app/documents/topbar"
 
+type UiSettingsRecord = {
+  settings?: {
+    document_list_display_mode?: string | null
+    document_table_layouts?: {
+      global?: {
+        displayFields?: string[]
+        columnSizing?: Record<string, number>
+      }
+      views?: Record<
+        string,
+        {
+          displayFields?: string[]
+          columnSizing?: Record<string, number>
+        }
+      >
+    } | null
+  }
+}
+
 function idx<T extends { id: number }>(arr: T[]): Record<number, T> {
   return Object.fromEntries(arr.map((x) => [x.id, x])) as Record<number, T>
 }
@@ -101,7 +120,8 @@ export default async function SavedViewPage({
         tags={tagsList}
         totalCount={documentsData.count || 0}
         users={usersList}
-        initialDisplayMode={(uiSettings as any)?.settings?.document_list_display_mode ?? null}
+        initialDisplayMode={(uiSettings as UiSettingsRecord)?.settings?.document_list_display_mode ?? null}
+        initialTableLayouts={(uiSettings as UiSettingsRecord)?.settings?.document_table_layouts ?? null}
       />
     </AppShell>
   )
