@@ -12,6 +12,7 @@ import {
   Mail,
   Search,
   Settings,
+  SlidersHorizontal,
   Tags,
   UserRound,
   Users,
@@ -58,6 +59,7 @@ interface SearchNavItem {
       | "savedView"
       | "workflow"
       | "mailAccount"
+      | "uiSettings"
       | "user"
       | "group"
   }
@@ -103,7 +105,13 @@ const NAV_ITEMS: SearchNavItem[] = [
     title: "Users",
   },
   { href: "/profile", icon: UserRound, title: "My Profile" },
-  { href: "/settings", icon: Settings, title: "Settings" },
+  {
+    href: "/settings",
+    icon: Settings,
+    permission: { action: "view", type: "uiSettings" },
+    title: "Settings",
+  },
+  { href: "/config", icon: SlidersHorizontal, title: "Configuration" },
 ]
 
 function matchesQuery(value: string, query: string) {
@@ -132,6 +140,7 @@ export function GlobalSearch({
   const canViewUsers = can("view", "user")
   const canViewWorkflows = can("view", "workflow")
   const canViewMail = can("view", "mailAccount")
+  const canViewUiSettings = can("view", "uiSettings")
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -194,7 +203,7 @@ export function GlobalSearch({
   }, [canViewDocuments, deferredQuery])
 
   const navigationItems = NAV_ITEMS.filter((item) => {
-    if (item.href === "/settings") {
+    if (item.href === "/config") {
       return canManageConfig
     }
 
@@ -213,6 +222,8 @@ export function GlobalSearch({
         return canViewWorkflows
       case "mailAccount":
         return canViewMail
+      case "uiSettings":
+        return canViewUiSettings
       case "group":
         return canViewGroups
       case "user":

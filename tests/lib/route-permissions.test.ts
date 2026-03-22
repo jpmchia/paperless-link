@@ -32,8 +32,19 @@ describe("route permissions", () => {
     })
 
     expect(
-      isRouteAllowed(currentUser, routePermissionRequirements["/settings"])
+      isRouteAllowed(currentUser, routePermissionRequirements["/config"])
     ).toBe(false)
+  })
+
+  it("allows a user with ui settings permission onto the settings route", () => {
+    const currentUser = mapPermissionBootstrapPayload({
+      permissions: ["view_uisettings"],
+      user: { id: 1, is_staff: false },
+    })
+
+    expect(
+      isRouteAllowed(currentUser, routePermissionRequirements["/settings"])
+    ).toBe(true)
   })
 
   it("applies document-view permission to the dashboard route", () => {

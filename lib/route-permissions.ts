@@ -17,6 +17,7 @@ export interface RoutePermissionRequirement {
 }
 
 export type RoutePermissionKey =
+  | "/config"
   | "/dashboard"
   | "/correspondents"
   | "/custom-fields"
@@ -40,6 +41,9 @@ export const routePermissionRequirements: Record<
 > = {
   "/dashboard": {
     anyOf: [{ action: "view", type: "document" }],
+  },
+  "/config": {
+    requireAdmin: true,
   },
   "/correspondents": {
     anyOf: [{ action: "view", type: "correspondent" }],
@@ -67,7 +71,7 @@ export const routePermissionRequirements: Record<
     anyOf: [{ action: "view", type: "savedView" }],
   },
   "/settings": {
-    requireAdmin: true,
+    anyOf: [{ action: "view", type: "uiSettings" }],
   },
   "/storage-paths": {
     anyOf: [{ action: "view", type: "storagePath" }],

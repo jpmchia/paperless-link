@@ -25,6 +25,7 @@ import {
   LayoutDashboard,
   Files,
   Settings,
+  SlidersHorizontal,
   Tags,
   Users,
   LayoutList,
@@ -131,7 +132,8 @@ const navSettings: NavItem[] = [
   { title: "Tasks", url: "/tasks", icon: Activity },
   { title: "Logs", url: "/logs", icon: ScrollText },
   { title: "System Status", url: "/system-status", icon: HeartPulse },
-  { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Settings", url: "/settings", icon: Settings, permissionType: "uiSettings" },
+  { title: "Configuration", url: "/config", icon: SlidersHorizontal },
 ]
 
 async function persistViewOrder(orderedIds: number[]) {
@@ -272,8 +274,12 @@ export function AppSidebar({
   })
 
   const systemItems = navSettings.filter((item) => {
-    if (item.title === "Settings" || item.title === "System Status") {
+    if (item.title === "Configuration" || item.title === "System Status") {
       return canManageConfig(currentUserPermissions)
+    }
+
+    if (item.permissionType) {
+      return currentUserCan(currentUserPermissions, "view", item.permissionType)
     }
 
     return true

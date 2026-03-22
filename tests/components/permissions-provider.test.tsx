@@ -42,4 +42,50 @@ describe("PermissionsProvider", () => {
       expect(screen.getByText("view_tag")).toBeInTheDocument()
     })
   })
+
+  it("rehydrates when the server permission snapshot changes", async () => {
+    const { rerender } = render(
+      <JotaiProvider>
+        <PermissionsProvider
+          initialPermissions={{
+            groupIds: [3],
+            isAuthenticated: true,
+            isStaff: false,
+            isSuperuser: false,
+            permissionCodes: ["view_savedview"],
+            userId: 11,
+          }}
+        >
+          <PermissionProbe />
+        </PermissionsProvider>
+      </JotaiProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText("11")).toBeInTheDocument()
+      expect(screen.getByText("view_savedview")).toBeInTheDocument()
+    })
+
+    rerender(
+      <JotaiProvider>
+        <PermissionsProvider
+          initialPermissions={{
+            groupIds: [3],
+            isAuthenticated: true,
+            isStaff: true,
+            isSuperuser: false,
+            permissionCodes: ["view_savedview", "view_uisettings"],
+            userId: 11,
+          }}
+        >
+          <PermissionProbe />
+        </PermissionsProvider>
+      </JotaiProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText("true")).toBeInTheDocument()
+      expect(screen.getByText("view_savedview,view_uisettings")).toBeInTheDocument()
+    })
+  })
 })
