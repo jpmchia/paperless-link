@@ -5,6 +5,7 @@ import { FilterPanel } from "@/app/documents/filter-panel"
 import { ConfirmationDialogProvider } from "@/components/confirmation-dialog-provider"
 import { JotaiProvider } from "@/components/jotai-provider"
 import { PermissionsProvider } from "@/components/permissions/provider"
+import type { ReactNode } from "react"
 
 const pushMock = vi.fn()
 const patchSavedViewMock = vi.fn()
@@ -21,6 +22,42 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/app/documents/saved-view-actions", () => ({
   patchSavedView: (...args: unknown[]) => patchSavedViewMock(...args),
   createSavedView: (...args: unknown[]) => createSavedViewMock(...args),
+}))
+
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuLabel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuSeparator: () => <hr />,
+  DropdownMenuItem: ({
+    children,
+    onClick,
+    className,
+    disabled,
+  }: {
+    children: ReactNode
+    onClick?: () => void
+    className?: string
+    disabled?: boolean
+  }) => (
+    <button type="button" className={className} disabled={disabled} onClick={onClick}>
+      {children}
+    </button>
+  ),
+  DropdownMenuCheckboxItem: ({
+    children,
+    checked,
+    onCheckedChange,
+  }: {
+    children: ReactNode
+    checked?: boolean
+    onCheckedChange?: (checked: boolean) => void
+  }) => (
+    <button type="button" aria-pressed={checked} onClick={() => onCheckedChange?.(!checked)}>
+      {children}
+    </button>
+  ),
 }))
 
 function renderFilterPanel(initialFilters: Record<string, unknown>) {
@@ -127,6 +164,104 @@ describe("FilterPanel saved-view dirty state", () => {
     )
 
     expect(screen.getByRole("button", { name: /Views/i })).toBeInTheDocument()
+  })
+
+  it("opens the full saved-view editor from save as new view and creates a view", async () => {
+    createSavedViewMock.mockResolvedValue({ id: 11, name: "Invoices board" })
+
+    render(
+      <JotaiProvider>
+        <ConfirmationDialogProvider>
+          <PermissionsProvider
+            initialPermissions={{
+              groupIds: [],
+              isAuthenticated: true,
+              isStaff: false,
+              isSuperuser: false,
+              permissionCodes: ["view_savedview", "add_savedview"],
+              userId: 1,
+            }}
+          >
+            <FilterPanel
+              correspondents={[]}
+              documentTypes={[]}
+              storagePaths={[]}
+              tags={[]}
+              savedViews={[]}
+              initialFilters={{ query: "invoices" }}
+              currentUserId={1}
+              currentDisplayMode="table"
+              currentDisplayFields={["title", "created"]}
+              currentPageSize={25}
+            />
+          </PermissionsProvider>
+        </ConfirmationDialogProvider>
+      </JotaiProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Views/i }))
+    fireEvent.click(screen.getByText(/Save view/))
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Invoices board" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Create" }))
+
+    await waitFor(() => {
+      expect(createSavedViewMock).toHaveBeenCalledWith(expect.objectContaining({
+        name: "Invoices board",
+        filter_rules: [{ rule_type: 20, value: "invoices" }],
+        display_fields: ["title", "created"],
+      }))
+    })
+  })
+
+  it("hides edit and save actions for active saved views without change permission", () => {
+    render(
+      <JotaiProvider>
+        <ConfirmationDialogProvider>
+          <PermissionsProvider
+            initialPermissions={{
+              groupIds: [],
+              isAuthenticated: true,
+              isStaff: false,
+              isSuperuser: false,
+              permissionCodes: ["view_savedview", "add_savedview"],
+              userId: 1,
+            }}
+          >
+            <FilterPanel
+              correspondents={[]}
+              documentTypes={[]}
+              storagePaths={[]}
+              tags={[]}
+              savedViews={[]}
+              activeViewId={7}
+              activeViewName="Invoices"
+              activeView={{
+                id: 7,
+                name: "Invoices",
+                filter_rules: [],
+                sort_field: "created",
+                sort_reverse: true,
+                display_fields: ["title", "created"],
+                page_size: 25,
+              }}
+              initialFilters={{ query: "invoice" }}
+              currentUserId={1}
+              currentDisplayMode="table"
+              currentDisplayFields={["title", "created"]}
+              currentPageSize={25}
+            />
+          </PermissionsProvider>
+        </ConfirmationDialogProvider>
+      </JotaiProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Views Modified/i }))
+
+    expect(screen.queryByText("Save view")).not.toBeInTheDocument()
+    expect(screen.queryByText("Edit view…")).not.toBeInTheDocument()
+    expect(screen.getByText(/Save as new view/)).toBeInTheDocument()
   })
 
   it("renders the views menu for plain document lists with create permission", () => {

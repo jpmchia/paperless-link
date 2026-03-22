@@ -33,6 +33,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { toErrorMessage } from "@/lib/errors"
+import { CanCreate } from "@/components/permissions/can-create"
+import { usePermission } from "@/hooks/use-permissions"
+import { ProcessedMailDialog, type ProcessedMailEntry } from "@/components/mail/processed-mail-dialog"
 
 interface MailAccount extends PermissionedObject {
   id: number
@@ -62,6 +65,9 @@ interface MailRule extends PermissionedObject {
   filter_attachment_filename_include?: string
   filter_attachment_filename_exclude?: string
   maximum_age?: number
+  attachment_type?: number
+  consumption_scope?: number
+  pdf_layout?: number
   action_parameter?: string
   assign_title_from?: number
   assign_tags?: number[]
@@ -69,17 +75,7 @@ interface MailRule extends PermissionedObject {
   assign_correspondent?: number | null
   assign_document_type?: number | null
   assign_owner_from_rule?: boolean
-}
-
-interface ProcessedMailEntry {
-  id: number
-  received: string
-  subject?: string
-  status?: number
-  rule?: number | null
-  rule_name?: string | null
-  document?: number | null
-  error?: string | null
+  stop_processing?: boolean
 }
 
 interface MailTableProps {
@@ -106,24 +102,43 @@ const ACCOUNT_TYPE_LABELS: Record<number, string> = {
 }
 
 const MAIL_RULE_ACTION_LABELS: Record<number, string> = {
-  1: "Tag",
+  1: "Delete",
   2: "Move",
-  3: "Delete",
-  4: "Mark read",
-  5: "Flag",
+  3: "Mark read",
+  4: "Flag",
+  5: "Tag",
 }
 
 const ASSIGN_TITLE_FROM_LABELS: Record<number, string> = {
-  0: "None",
   1: "Subject",
   2: "Filename",
+  3: "Do not assign",
 }
 
 const ASSIGN_CORRESPONDENT_FROM_LABELS: Record<number, string> = {
-  0: "None",
-  1: "From",
-  2: "To",
-  3: "Cc",
+  1: "Do not assign",
+  2: "Use mail address",
+  3: "Use sender name",
+  4: "Use selected correspondent",
+}
+
+const ATTACHMENT_TYPE_LABELS: Record<number, string> = {
+  1: "Attachments only",
+  2: "All files, including inline",
+}
+
+const CONSUMPTION_SCOPE_LABELS: Record<number, string> = {
+  1: "Attachments only",
+  2: "Full mail as .eml",
+  3: "Mail as .eml and attachments",
+}
+
+const PDF_LAYOUT_LABELS: Record<number, string> = {
+  0: "System default",
+  1: "Text, then HTML",
+  2: "HTML, then text",
+  3: "HTML only",
+  4: "Text only",
 }
 
 const STATUS_LABELS: Record<number, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -156,6 +171,9 @@ type MailRuleDraft = {
   filter_attachment_filename_include: string
   filter_attachment_filename_exclude: string
   maximum_age: string
+  attachment_type: string
+  consumption_scope: string
+  pdf_layout: string
   action: string
   action_parameter: string
   assign_title_from: string
@@ -164,6 +182,7 @@ type MailRuleDraft = {
   assign_document_type: string
   assign_tags: number[]
   assign_owner_from_rule: boolean
+  stop_processing: boolean
   order: string
 }
 
@@ -198,14 +217,18 @@ function createMailRuleDraft(rule?: MailRule | null): MailRuleDraft {
     filter_attachment_filename_include: rule?.filter_attachment_filename_include ?? "",
     filter_attachment_filename_exclude: rule?.filter_attachment_filename_exclude ?? "",
     maximum_age: rule?.maximum_age != null ? String(rule.maximum_age) : "",
-    action: String(rule?.action ?? 1),
+    attachment_type: String(rule?.attachment_type ?? 1),
+    consumption_scope: String(rule?.consumption_scope ?? 1),
+    pdf_layout: String(rule?.pdf_layout ?? 0),
+    action: String(rule?.action ?? 3),
     action_parameter: rule?.action_parameter ?? "",
-    assign_title_from: String(rule?.assign_title_from ?? 0),
-    assign_correspondent_from: String(rule?.assign_correspondent_from ?? 0),
+    assign_title_from: String(rule?.assign_title_from ?? 1),
+    assign_correspondent_from: String(rule?.assign_correspondent_from ?? 1),
     assign_correspondent: rule?.assign_correspondent != null ? String(rule.assign_correspondent) : "",
     assign_document_type: rule?.assign_document_type != null ? String(rule.assign_document_type) : "",
     assign_tags: rule?.assign_tags ?? [],
     assign_owner_from_rule: Boolean(rule?.assign_owner_from_rule),
+    stop_processing: Boolean(rule?.stop_processing),
     order: rule?.order != null ? String(rule.order) : "",
   }
 }
@@ -233,7 +256,9 @@ export function MailTable({
   const [savingRule, setSavingRule] = React.useState(false)
   const [testingAccount, setTestingAccount] = React.useState(false)
   const [processingAccountId, setProcessingAccountId] = React.useState<number | null>(null)
+  const [processedMailRule, setProcessedMailRule] = React.useState<MailRule | null>(null)
   const oauthAccountSelected = isOAuthAccountType(accountDraft.account_type)
+  const canViewProcessedMail = usePermission("view", "processedMail")
   const selectedOAuthUrl =
     accountDraft.account_type === "2"
       ? gmailOAuthUrl
@@ -281,9 +306,12 @@ export function MailTable({
 
   const openCreateRuleDialog = React.useCallback(() => {
     setEditingRule(null)
-    setRuleDraft(createMailRuleDraft())
+    setRuleDraft({
+      ...createMailRuleDraft(),
+      account: accountList[0] != null ? String(accountList[0].id) : "",
+    })
     setRuleDialogOpen(true)
-  }, [])
+  }, [accountList])
 
   const openEditRuleDialog = React.useCallback((rule: MailRule) => {
     setEditingRule(rule)
@@ -454,6 +482,9 @@ export function MailTable({
         filter_attachment_filename_exclude:
           ruleDraft.filter_attachment_filename_exclude.trim() || null,
         maximum_age: ruleDraft.maximum_age ? Number(ruleDraft.maximum_age) : 30,
+        attachment_type: Number(ruleDraft.attachment_type),
+        consumption_scope: Number(ruleDraft.consumption_scope),
+        pdf_layout: Number(ruleDraft.pdf_layout),
         action: Number(ruleDraft.action),
         action_parameter: ruleDraft.action_parameter.trim(),
         assign_title_from: Number(ruleDraft.assign_title_from),
@@ -462,6 +493,7 @@ export function MailTable({
         assign_correspondent: ruleDraft.assign_correspondent ? Number(ruleDraft.assign_correspondent) : null,
         assign_document_type: ruleDraft.assign_document_type ? Number(ruleDraft.assign_document_type) : null,
         assign_owner_from_rule: ruleDraft.assign_owner_from_rule,
+        stop_processing: ruleDraft.stop_processing,
         order: ruleDraft.order ? Number(ruleDraft.order) : ruleList.length + 1,
       }
 
@@ -522,31 +554,37 @@ export function MailTable({
             <p className="text-sm text-muted-foreground">
               Manage inbound mail accounts used by Paperless for consumption.
             </p>
-            <Button size="sm" className="h-8 gap-1.5" onClick={openCreateAccountDialog}>
-              <Plus className="h-3.5 w-3.5" />
-              New account
-            </Button>
+            <CanCreate type="mailAccount">
+              <Button size="sm" className="h-8 gap-1.5" onClick={openCreateAccountDialog}>
+                <Plus className="h-3.5 w-3.5" />
+                New account
+              </Button>
+            </CanCreate>
           </div>
           {/* OAuth connect buttons */}
           {(gmailOAuthUrl || outlookOAuthUrl) && (
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm text-muted-foreground">Connect via OAuth:</span>
-              {gmailOAuthUrl && (
-                <Button size="sm" variant="outline" className="h-8 gap-1.5" asChild>
-                  <a href={gmailOAuthUrl}>
-                    <ChromeIcon className="h-3.5 w-3.5" />
-                    Connect Gmail
-                  </a>
-                </Button>
-              )}
-              {outlookOAuthUrl && (
-                <Button size="sm" variant="outline" className="h-8 gap-1.5" asChild>
-                  <a href={outlookOAuthUrl}>
-                    <Mail className="h-3.5 w-3.5" />
-                    Connect Outlook
-                  </a>
-                </Button>
-              )}
+              <CanCreate type="mailAccount">
+                <>
+                  {gmailOAuthUrl && (
+                    <Button size="sm" variant="outline" className="h-8 gap-1.5" asChild>
+                      <a href={gmailOAuthUrl}>
+                        <ChromeIcon className="h-3.5 w-3.5" />
+                        Connect Gmail
+                      </a>
+                    </Button>
+                  )}
+                  {outlookOAuthUrl && (
+                    <Button size="sm" variant="outline" className="h-8 gap-1.5" asChild>
+                      <a href={outlookOAuthUrl}>
+                        <Mail className="h-3.5 w-3.5" />
+                        Connect Outlook
+                      </a>
+                    </Button>
+                  )}
+                </>
+              </CanCreate>
             </div>
           )}
 
@@ -584,24 +622,41 @@ export function MailTable({
                       </TableCell>
                       <TableCell className="text-muted-foreground">{acct.username || "—"}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => void handleProcessAccount(acct)}
-                          disabled={processingAccountId === acct.id}
-                        >
-                          {processingAccountId === acct.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Play className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditAccountDialog(acct)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
+                        <HasObjectPermission action="change" object={acct} type="mailAccount">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => void handleProcessAccount(acct)}
+                            disabled={processingAccountId === acct.id}
+                            aria-label={`Process ${acct.name}`}
+                          >
+                            {processingAccountId === acct.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Play className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        </HasObjectPermission>
+                        <HasObjectPermission action="change" object={acct} type="mailAccount">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openEditAccountDialog(acct)}
+                            aria-label={`Edit ${acct.name}`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </HasObjectPermission>
                         <HasObjectPermission action="delete" object={acct} type="mailAccount">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ type: "account", id: acct.id })}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget({ type: "account", id: acct.id })}
+                            aria-label={`Delete ${acct.name}`}
+                          >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </HasObjectPermission>
@@ -619,10 +674,12 @@ export function MailTable({
             <p className="text-sm text-muted-foreground">
               Define how incoming mail should be filtered and classified.
             </p>
-            <Button size="sm" className="h-8 gap-1.5" onClick={openCreateRuleDialog}>
-              <Plus className="h-3.5 w-3.5" />
-              New rule
-            </Button>
+            <CanCreate type="mailRule">
+              <Button size="sm" className="h-8 gap-1.5" onClick={openCreateRuleDialog}>
+                <Plus className="h-3.5 w-3.5" />
+                New rule
+              </Button>
+            </CanCreate>
           </div>
           <div className="rounded-md border overflow-hidden">
             <Table>
@@ -635,13 +692,14 @@ export function MailTable({
                   <TableHead>Filter From</TableHead>
                   <TableHead>Filter Subject</TableHead>
                   <TableHead className="w-16 text-center">Order</TableHead>
+                  {canViewProcessedMail ? <TableHead className="w-40">Processed Mail</TableHead> : null}
                   <TableHead className="w-20 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {ruleList.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground h-24">
+                    <TableCell colSpan={canViewProcessedMail ? 9 : 8} className="text-center text-muted-foreground h-24">
                       No mail rules configured.
                     </TableCell>
                   </TableRow>
@@ -652,21 +710,50 @@ export function MailTable({
                       <TableCell className="text-muted-foreground">{accountMap[rule.account] ?? `#${rule.account}`}</TableCell>
                       <TableCell className="text-muted-foreground">{rule.folder || "INBOX"}</TableCell>
                       <TableCell className="text-center">
-                        <Switch
-                          checked={rule.enabled ?? true}
-                          onCheckedChange={() => void handleToggleRuleEnabled(rule)}
-                          className="mx-auto"
-                        />
+                        <HasObjectPermission action="change" object={rule} type="mailRule">
+                          <Switch
+                            checked={rule.enabled ?? true}
+                            onCheckedChange={() => void handleToggleRuleEnabled(rule)}
+                            className="mx-auto"
+                            aria-label={`Toggle ${rule.name}`}
+                          />
+                        </HasObjectPermission>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{rule.filter_from || "—"}</TableCell>
                       <TableCell className="text-muted-foreground">{rule.filter_subject || "—"}</TableCell>
                       <TableCell className="text-center text-muted-foreground">{rule.order ?? "—"}</TableCell>
+                      {canViewProcessedMail ? (
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8"
+                            onClick={() => setProcessedMailRule(rule)}
+                          >
+                            View processed
+                          </Button>
+                        </TableCell>
+                      ) : null}
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditRuleDialog(rule)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
+                        <HasObjectPermission action="change" object={rule} type="mailRule">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openEditRuleDialog(rule)}
+                            aria-label={`Edit ${rule.name}`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </HasObjectPermission>
                         <HasObjectPermission action="delete" object={rule} type="mailRule">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ type: "rule", id: rule.id })}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget({ type: "rule", id: rule.id })}
+                            aria-label={`Delete ${rule.name}`}
+                          >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </HasObjectPermission>
@@ -700,7 +787,7 @@ export function MailTable({
                   </TableRow>
                 ) : (
                   processedMail.map((entry) => {
-                    const status = STATUS_LABELS[entry.status ?? 0] ?? { label: "Unknown", variant: "outline" as const }
+                    const status = STATUS_LABELS[Number(entry.status ?? 0)] ?? { label: "Unknown", variant: "outline" as const }
                     return (
                       <TableRow key={entry.id}>
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
@@ -777,12 +864,12 @@ export function MailTable({
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Name</Label>
-              <Input value={accountDraft.name} onChange={(e) => handleAccountDraftChange("name", e.target.value)} />
+              <Input aria-label="Account name" value={accountDraft.name} onChange={(e) => handleAccountDraftChange("name", e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Account type</Label>
               <Select value={accountDraft.account_type} onValueChange={(value) => handleAccountDraftChange("account_type", value)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Account type"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(ACCOUNT_TYPE_LABELS).map(([value, label]) => (
                     <SelectItem
@@ -844,16 +931,16 @@ export function MailTable({
               <>
                 <div className="space-y-2">
                   <Label>IMAP server</Label>
-                  <Input value={accountDraft.imap_server} onChange={(e) => handleAccountDraftChange("imap_server", e.target.value)} />
+                  <Input aria-label="IMAP server" value={accountDraft.imap_server} onChange={(e) => handleAccountDraftChange("imap_server", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Port</Label>
-                  <Input value={accountDraft.imap_port} onChange={(e) => handleAccountDraftChange("imap_port", e.target.value)} inputMode="numeric" />
+                  <Input aria-label="IMAP port" value={accountDraft.imap_port} onChange={(e) => handleAccountDraftChange("imap_port", e.target.value)} inputMode="numeric" />
                 </div>
                 <div className="space-y-2">
                   <Label>Security</Label>
                   <Select value={accountDraft.imap_security} onValueChange={(value) => handleAccountDraftChange("imap_security", value)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger aria-label="IMAP security"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {Object.entries(SECURITY_LABELS).map(([value, label]) => (
                         <SelectItem key={value} value={value}>{label}</SelectItem>
@@ -863,15 +950,15 @@ export function MailTable({
                 </div>
                 <div className="space-y-2">
                   <Label>Character set</Label>
-                  <Input value={accountDraft.character_set} onChange={(e) => handleAccountDraftChange("character_set", e.target.value)} />
+                  <Input aria-label="Character set" value={accountDraft.character_set} onChange={(e) => handleAccountDraftChange("character_set", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Username</Label>
-                  <Input value={accountDraft.username} onChange={(e) => handleAccountDraftChange("username", e.target.value)} />
+                  <Input aria-label="Account username" value={accountDraft.username} onChange={(e) => handleAccountDraftChange("username", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>{editingAccount ? "Password or token (leave blank to keep)" : "Password or token"}</Label>
-                  <Input type="password" value={accountDraft.password} onChange={(e) => handleAccountDraftChange("password", e.target.value)} />
+                  <Input aria-label="Account password or token" type="password" value={accountDraft.password} onChange={(e) => handleAccountDraftChange("password", e.target.value)} />
                 </div>
                 <div className="md:col-span-2 flex items-center gap-3 rounded-md border px-3 py-2">
                   <Checkbox checked={accountDraft.is_token} onCheckedChange={(checked) => handleAccountDraftChange("is_token", Boolean(checked))} />
@@ -914,12 +1001,12 @@ export function MailTable({
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Name</Label>
-              <Input value={ruleDraft.name} onChange={(e) => handleRuleDraftChange("name", e.target.value)} />
+              <Input aria-label="Rule name" value={ruleDraft.name} onChange={(e) => handleRuleDraftChange("name", e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Account</Label>
               <Select value={ruleDraft.account} onValueChange={(value) => handleRuleDraftChange("account", value)}>
-                <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
+                <SelectTrigger aria-label="Rule account"><SelectValue placeholder="Select account" /></SelectTrigger>
                 <SelectContent>
                   {accountList.map((account) => (
                     <SelectItem key={account.id} value={String(account.id)}>{account.name}</SelectItem>
@@ -929,11 +1016,11 @@ export function MailTable({
             </div>
             <div className="space-y-2">
               <Label>Folder</Label>
-              <Input value={ruleDraft.folder} onChange={(e) => handleRuleDraftChange("folder", e.target.value)} />
+              <Input aria-label="Rule folder" value={ruleDraft.folder} onChange={(e) => handleRuleDraftChange("folder", e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Order</Label>
-              <Input value={ruleDraft.order} onChange={(e) => handleRuleDraftChange("order", e.target.value)} inputMode="numeric" />
+              <Input aria-label="Rule order" value={ruleDraft.order} onChange={(e) => handleRuleDraftChange("order", e.target.value)} inputMode="numeric" />
             </div>
             <div className="space-y-2">
               <Label>Filter from</Label>
@@ -961,12 +1048,45 @@ export function MailTable({
             </div>
             <div className="space-y-2">
               <Label>Maximum age (days)</Label>
-              <Input value={ruleDraft.maximum_age} onChange={(e) => handleRuleDraftChange("maximum_age", e.target.value)} inputMode="numeric" />
+              <Input aria-label="Maximum age" value={ruleDraft.maximum_age} onChange={(e) => handleRuleDraftChange("maximum_age", e.target.value)} inputMode="numeric" />
+            </div>
+            <div className="space-y-2">
+              <Label>Consumption scope</Label>
+              <Select value={ruleDraft.consumption_scope} onValueChange={(value) => handleRuleDraftChange("consumption_scope", value)}>
+                <SelectTrigger aria-label="Consumption scope"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(CONSUMPTION_SCOPE_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Attachment type</Label>
+              <Select value={ruleDraft.attachment_type} onValueChange={(value) => handleRuleDraftChange("attachment_type", value)}>
+                <SelectTrigger aria-label="Attachment type"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(ATTACHMENT_TYPE_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>PDF layout</Label>
+              <Select value={ruleDraft.pdf_layout} onValueChange={(value) => handleRuleDraftChange("pdf_layout", value)}>
+                <SelectTrigger aria-label="PDF layout"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(PDF_LAYOUT_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Action</Label>
               <Select value={ruleDraft.action} onValueChange={(value) => handleRuleDraftChange("action", value)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Rule action"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(MAIL_RULE_ACTION_LABELS).map(([value, label]) => (
                     <SelectItem key={value} value={value}>{label}</SelectItem>
@@ -974,10 +1094,12 @@ export function MailTable({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Action parameter</Label>
-              <Input value={ruleDraft.action_parameter} onChange={(e) => handleRuleDraftChange("action_parameter", e.target.value)} />
-            </div>
+            {ruleDraft.action === "2" || ruleDraft.action === "5" ? (
+              <div className="space-y-2">
+                <Label>Action parameter</Label>
+                <Input aria-label="Action parameter" value={ruleDraft.action_parameter} onChange={(e) => handleRuleDraftChange("action_parameter", e.target.value)} />
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label>Assign title from</Label>
               <Select value={ruleDraft.assign_title_from} onValueChange={(value) => handleRuleDraftChange("assign_title_from", value)}>
@@ -1000,18 +1122,20 @@ export function MailTable({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Assign correspondent</Label>
-              <Select value={ruleDraft.assign_correspondent || "__none"} onValueChange={(value) => handleRuleDraftChange("assign_correspondent", value === "__none" ? "" : value)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">None</SelectItem>
-                  {correspondents.map((correspondent) => (
-                    <SelectItem key={correspondent.id} value={String(correspondent.id)}>{correspondent.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {ruleDraft.assign_correspondent_from === "4" ? (
+              <div className="space-y-2">
+                <Label>Assign correspondent</Label>
+                <Select value={ruleDraft.assign_correspondent || "__none"} onValueChange={(value) => handleRuleDraftChange("assign_correspondent", value === "__none" ? "" : value)}>
+                  <SelectTrigger aria-label="Assign correspondent"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">None</SelectItem>
+                    {correspondents.map((correspondent) => (
+                      <SelectItem key={correspondent.id} value={String(correspondent.id)}>{correspondent.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label>Assign document type</Label>
               <Select value={ruleDraft.assign_document_type || "__none"} onValueChange={(value) => handleRuleDraftChange("assign_document_type", value === "__none" ? "" : value)}>
@@ -1057,6 +1181,13 @@ export function MailTable({
             </div>
             <div className="md:col-span-2 flex items-center justify-between rounded-md border px-3 py-2">
               <div>
+                <p className="text-sm font-medium">Stop further processing</p>
+                <p className="text-xs text-muted-foreground">Stop processing more rules after this one queues a document.</p>
+              </div>
+              <Switch checked={ruleDraft.stop_processing} onCheckedChange={(checked) => handleRuleDraftChange("stop_processing", checked)} />
+            </div>
+            <div className="md:col-span-2 flex items-center justify-between rounded-md border px-3 py-2">
+              <div>
                 <p className="text-sm font-medium">Assign rule owner to documents</p>
                 <p className="text-xs text-muted-foreground">When enabled, consumed documents inherit the rule owner.</p>
               </div>
@@ -1073,6 +1204,12 @@ export function MailTable({
           </DraggableDialogFooter>
         </DraggableDialogContent>
       </DraggableDialog>
+
+      <ProcessedMailDialog
+        open={processedMailRule !== null}
+        onOpenChange={(open) => !open && setProcessedMailRule(null)}
+        rule={processedMailRule}
+      />
     </>
   )
 }
