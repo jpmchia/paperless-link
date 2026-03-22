@@ -690,12 +690,12 @@ export function WorkflowEditor({
     <div className="space-y-6">
       <div className="grid gap-4 xl:grid-cols-3">
         <div className="space-y-2">
-          <Label>Name</Label>
-          <Input value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} />
+          <Label htmlFor="workflow-name">Name</Label>
+          <Input id="workflow-name" value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} />
         </div>
         <div className="space-y-2">
-          <Label>Sort order</Label>
-          <Input value={value.order} onChange={(event) => onChange({ ...value, order: event.target.value })} inputMode="numeric" />
+          <Label htmlFor="workflow-order">Sort order</Label>
+          <Input id="workflow-order" value={value.order} onChange={(event) => onChange({ ...value, order: event.target.value })} inputMode="numeric" />
         </div>
         <div className="xl:col-span-1 flex items-center justify-between rounded-md border px-3 py-2">
           <div>

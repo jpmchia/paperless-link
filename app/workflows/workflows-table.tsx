@@ -60,6 +60,7 @@ import {
   WorkflowTriggerType,
 } from "@/components/workflows/editor/types"
 import { CanCreate } from "@/components/permissions/can-create"
+import { usePermission } from "@/hooks/use-permissions"
 import { deleteJson, patchJson, postJson } from "@/lib/paperless-client"
 import type { PermissionedObject } from "@/lib/permissions"
 import { toErrorMessage } from "@/lib/errors"
@@ -201,7 +202,7 @@ function sanitizeAction(action: WorkflowAction): WorkflowAction {
   return next
 }
 
-function buildWorkflowPayload(draft: WorkflowDraft, itemsLength: number) {
+export function buildWorkflowPayload(draft: WorkflowDraft, itemsLength: number) {
   return {
     name: draft.name.trim(),
     enabled: draft.enabled,
@@ -211,7 +212,7 @@ function buildWorkflowPayload(draft: WorkflowDraft, itemsLength: number) {
   }
 }
 
-function duplicateWorkflow(workflow: Workflow): WorkflowDraft {
+export function duplicateWorkflow(workflow: Workflow): WorkflowDraft {
   return {
     ...createWorkflowDraft(workflow),
     id: undefined,
@@ -301,6 +302,7 @@ export function WorkflowsTable({
   initialItems: Workflow[]
   lookups: WorkflowLookups
 }) {
+  const canChangeWorkflow = usePermission("change", "workflow")
   const [items, setItems] = React.useState<Workflow[]>([...initialItems].sort((a, b) => a.order - b.order))
   const [search, setSearch] = React.useState("")
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
@@ -391,6 +393,8 @@ export function WorkflowsTable({
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    if (!canChangeWorkflow) return
+
     const { active, over } = event
     if (!over || active.id === over.id) return
 
@@ -461,7 +465,7 @@ export function WorkflowsTable({
                       onDelete={setDeleteId}
                       onEdit={openEditWorkflowDialog}
                       onToggle={toggleEnabled}
-                      isDragDisabled={isSearching}
+                      isDragDisabled={isSearching || !canChangeWorkflow}
                     />
                   ))
                 )}
