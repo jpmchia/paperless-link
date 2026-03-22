@@ -23,14 +23,6 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Search, X, ChevronDown, Tag, User, FileType, Calendar, SortAsc, LayoutList, Save, SaveAll, UserCheck } from "lucide-react"
 import { toast } from "sonner"
 import { patchSavedView, createSavedView } from "./saved-view-actions"
@@ -39,10 +31,14 @@ import {
   getComparableSavedViewStateFromView,
   isSavedViewDirty,
   orderingToSavedViewSort,
-  filterParamsToSavedViewRules,
 } from "./saved-view-state"
 import { tagColourHex } from "@/lib/tag-colors"
 import type { DocumentDisplayMode } from "./display-mode"
+import {
+  SavedViewEditor,
+  type SavedViewEditorValue,
+} from "@/components/saved-views/saved-view-editor"
+import type { SavedViewRuleEditorLookups } from "@/components/saved-views/filter-rule-editor"
 
 type ActiveSavedView = PermissionedObject & {
   filter_rules?: Array<{ rule_type?: number; value?: string | number | boolean | null }>
@@ -181,8 +177,9 @@ export function FilterPanel({
   const [suggestionsOpen, setSuggestionsOpen] = React.useState(false)
   const autocompleteTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const [tagMode, setTagMode] = React.useState<TagFilterMode>("all")
-  const [saveAsOpen, setSaveAsOpen] = React.useState(false)
-  const [saveAsName, setSaveAsName] = React.useState("")
+  const [editorOpen, setEditorOpen] = React.useState(false)
+  const [editorIsNew, setEditorIsNew] = React.useState(false)
+  const [editorValue, setEditorValue] = React.useState<SavedViewEditorValue | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [savedViewBaseline, setSavedViewBaseline] = React.useState(() =>
     getComparableSavedViewStateFromView(activeView)
@@ -205,6 +202,17 @@ export function FilterPanel({
     currentPageSize
   )
   const activeViewIsDirty = activeViewStateDirty || extraDirty
+  const savedViewLookups = React.useMemo<SavedViewRuleEditorLookups>(
+    () => ({
+      correspondents,
+      documentTypes,
+      storagePaths,
+      tags,
+      users,
+      customFields: [],
+    }),
+    [correspondents, documentTypes, storagePaths, tags, users]
+  )
 
   // Keep Jotai atom in sync for cross-component use (e.g. document detail Next/Prev)
   React.useEffect(() => {
@@ -264,6 +272,45 @@ export function FilterPanel({
     }
     router.push(`/documents?view=${view.id}`)
   }
+
+  const buildEditorValueFromCurrentState = React.useCallback(
+    (name: string, id?: number) => {
+      const sortParts = orderingToSavedViewSort(filters.ordering)
+      return {
+        id,
+        name,
+        show_on_dashboard: false,
+        show_in_sidebar: false,
+        filter_rules: currentSavedViewState.filterRules,
+        sort_field: sortParts.sortField,
+        sort_reverse: sortParts.sortReverse,
+        display_mode: currentSavedViewState.displayMode,
+        display_fields: currentSavedViewState.displayFields,
+        page_size: currentSavedViewState.pageSize,
+      } satisfies SavedViewEditorValue
+    },
+    [currentSavedViewState, filters.ordering]
+  )
+
+  const buildEditorValueFromActiveView = React.useCallback(() => {
+    return {
+      ...buildEditorValueFromCurrentState(activeViewName ?? "Saved view", activeViewId ?? undefined),
+      show_on_dashboard: Boolean((activeView as { show_on_dashboard?: boolean } | null | undefined)?.show_on_dashboard),
+      show_in_sidebar: Boolean((activeView as { show_in_sidebar?: boolean } | null | undefined)?.show_in_sidebar),
+    } satisfies SavedViewEditorValue
+  }, [activeView, activeViewId, activeViewName, buildEditorValueFromCurrentState])
+
+  const navigateToSavedView = React.useCallback(
+    (viewId: number) => {
+      if (pathname.startsWith("/view/")) {
+        router.push(`/view/${viewId}`)
+        return
+      }
+
+      router.push(`/documents?view=${viewId}`)
+    },
+    [pathname, router]
+  )
 
   const getUserLabel = React.useCallback(
     (userId: number) => {
@@ -485,32 +532,66 @@ export function FilterPanel({
     }
   }
 
-  // Save as new view
-  const handleSaveAs = async () => {
-    if (!saveAsName.trim()) return
+  const handleEditorSave = async () => {
+    if (!editorValue?.name.trim()) return
     setSaving(true)
     try {
-      const sortParts = orderingToSavedViewSort(filters.ordering)
-      const created = await createSavedView({
-        name: saveAsName.trim(),
-        filter_rules: filterParamsToSavedViewRules(filters),
-        sort_field: sortParts.sortField,
-        sort_reverse: sortParts.sortReverse,
-        display_mode: currentSavedViewState.displayMode,
-        display_fields: currentSavedViewState.displayFields,
-        page_size: currentSavedViewState.pageSize,
-        show_on_dashboard: false,
-        show_in_sidebar: false,
-      })
-      if (onCreateViewExtras) {
-        await onCreateViewExtras(created.id)
+      if (editorIsNew) {
+        const created = await createSavedView({
+          name: editorValue.name.trim(),
+          filter_rules: editorValue.filter_rules,
+          sort_field: editorValue.sort_field,
+          sort_reverse: editorValue.sort_reverse,
+          display_mode: editorValue.display_mode,
+          display_fields: editorValue.display_fields,
+          page_size: editorValue.page_size ?? undefined,
+          show_on_dashboard: editorValue.show_on_dashboard,
+          show_in_sidebar: editorValue.show_in_sidebar,
+        })
+        if (onCreateViewExtras) {
+          await onCreateViewExtras(created.id)
+        }
+        toast.success(`View "${editorValue.name}" created`)
+        setEditorOpen(false)
+        setEditorValue(null)
+        navigateToSavedView(created.id)
+        return
       }
-      toast.success(`View "${saveAsName}" created`)
-      setSaveAsOpen(false)
-      setSaveAsName("")
-      router.push(`/view/${created.id}`)
+
+      if (!editorValue.id) {
+        throw new Error("Saved view id is missing")
+      }
+
+      await patchSavedView(editorValue.id, {
+        name: editorValue.name.trim(),
+        filter_rules: editorValue.filter_rules,
+        sort_field: editorValue.sort_field,
+        sort_reverse: editorValue.sort_reverse,
+        display_mode: editorValue.display_mode,
+        display_fields: editorValue.display_fields,
+        page_size: editorValue.page_size ?? undefined,
+        show_on_dashboard: editorValue.show_on_dashboard,
+        show_in_sidebar: editorValue.show_in_sidebar,
+      })
+      if (onSaveExtras) {
+        await onSaveExtras()
+      }
+      setSavedViewBaseline({
+        filterRules: editorValue.filter_rules,
+        sortField: editorValue.sort_field,
+        sortReverse: editorValue.sort_reverse,
+        displayMode: editorValue.display_mode ?? currentSavedViewState.displayMode,
+        displayFields: editorValue.display_fields,
+        pageSize: editorValue.page_size ?? currentSavedViewState.pageSize,
+      })
+      toast.success(`View "${editorValue.name}" updated`)
+      setEditorOpen(false)
+      setEditorValue(null)
+      navigateToSavedView(editorValue.id)
     } catch (e: any) {
-      toast.error("Failed to create view", { description: e.message })
+      toast.error(editorIsNew ? "Failed to create view" : "Failed to save view", {
+        description: e.message,
+      })
     } finally {
       setSaving(false)
     }
@@ -932,13 +1013,28 @@ export function FilterPanel({
                   <Save className="mr-2 h-4 w-4" />
                   Save view
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setEditorIsNew(false)
+                    setEditorValue(buildEditorValueFromActiveView())
+                    setEditorOpen(true)
+                  }}
+                  disabled={saving}
+                >
+                  Edit view…
+                </DropdownMenuItem>
               </HasObjectPermission>
             )}
             <CanCreate type="savedView">
               <DropdownMenuItem
                 onClick={() => {
-                  setSaveAsName(activeViewName ? `${activeViewName} (copy)` : searchValue.trim())
-                  setSaveAsOpen(true)
+                  setEditorIsNew(true)
+                  setEditorValue(
+                    buildEditorValueFromCurrentState(
+                      activeViewName ? `${activeViewName} (copy)` : searchValue.trim() || "New saved view"
+                    )
+                  )
+                  setEditorOpen(true)
                 }}
               >
                 <SaveAll className="mr-2 h-4 w-4" />
@@ -979,31 +1075,22 @@ export function FilterPanel({
         </div>
       )}
 
-      {/* ---- Save As dialog ---- */}
       <CanCreate type="savedView">
-        <Dialog open={saveAsOpen} onOpenChange={setSaveAsOpen}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Save view as…</DialogTitle>
-              <DialogDescription>
-                Create a saved view from the current document filters and sort order.
-              </DialogDescription>
-            </DialogHeader>
-            <Input
-              placeholder="View name"
-              value={saveAsName}
-              onChange={(e) => setSaveAsName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSaveAs()}
-              autoFocus
-            />
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setSaveAsOpen(false)}>Cancel</Button>
-              <Button onClick={handleSaveAs} disabled={saving || !saveAsName.trim()}>
-                {saving ? "Saving…" : "Save"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <SavedViewEditor
+          open={editorOpen}
+          onOpenChange={(open) => {
+            setEditorOpen(open)
+            if (!open) {
+              setEditorValue(null)
+            }
+          }}
+          value={editorValue}
+          onChange={setEditorValue}
+          onSave={handleEditorSave}
+          saving={saving}
+          isNew={editorIsNew}
+          lookups={savedViewLookups}
+        />
       </CanCreate>
     </div>
   )

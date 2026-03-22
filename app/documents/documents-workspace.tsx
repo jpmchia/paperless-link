@@ -36,10 +36,18 @@ type DocumentTableLayoutSettings = {
   views?: Record<string, DocumentTableLayout>
 }
 
+function comparableLayout(layout: DocumentTableLayout | null | undefined): DocumentTableLayout {
+  return {
+    columnSizing: layout?.columnSizing ?? {},
+    smallCardSize: layout?.smallCardSize ?? 190,
+    largeCardSize: layout?.largeCardSize ?? 280,
+  }
+}
+
 const DOCUMENT_TABLE_LAYOUTS_STORAGE_KEY = "paperless-document-table-layouts"
 
 function layoutsEqual(left: DocumentTableLayout | null | undefined, right: DocumentTableLayout | null | undefined) {
-  return JSON.stringify(left ?? {}) === JSON.stringify(right ?? {})
+  return JSON.stringify(comparableLayout(left)) === JSON.stringify(comparableLayout(right))
 }
 
 function readStoredTableLayouts(): DocumentTableLayoutSettings | null {
