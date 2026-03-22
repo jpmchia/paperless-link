@@ -6,11 +6,11 @@ import { toast } from "sonner"
 import {
   Dialog as DraggableDialog,
   DialogBody as DraggableDialogBody,
-  DialogContent as DraggableDialogContent,
   DialogDescription as DraggableDialogDescription,
   DialogFooter as DraggableDialogFooter,
   DialogHeader as DraggableDialogHeader,
   DialogTitle as DraggableDialogTitle,
+  LargeEditorDialogContent,
 } from "@/components/draggable-dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -153,7 +153,7 @@ export function ProcessedMailDialog({
 
   return (
     <DraggableDialog open={open} onOpenChange={onOpenChange}>
-      <DraggableDialogContent initialWidth={1100} minWidth={980} initialHeight={760} maxWidth={4096} maxHeight={960}>
+      <LargeEditorDialogContent initialWidth={1100} initialHeight={760} maxHeight={960}>
         <DraggableDialogHeader>
           <DraggableDialogTitle>
             Processed Mail{rule ? ` for ${rule.name}` : ""}
@@ -299,7 +299,7 @@ export function ProcessedMailDialog({
             Close
           </Button>
         </DraggableDialogFooter>
-      </DraggableDialogContent>
+      </LargeEditorDialogContent>
     </DraggableDialog>
   )
 }

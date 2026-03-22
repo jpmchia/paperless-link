@@ -13,11 +13,11 @@ import {
 import {
   Dialog as DraggableDialog,
   DialogBody as DraggableDialogBody,
-  DialogContent as DraggableDialogContent,
   DialogDescription as DraggableDialogDescription,
   DialogFooter as DraggableDialogFooter,
   DialogHeader as DraggableDialogHeader,
   DialogTitle as DraggableDialogTitle,
+  LargeEditorDialogContent,
 } from "@/components/draggable-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -853,7 +853,7 @@ export function MailTable({
       </AlertDialog>
 
       <DraggableDialog open={accountDialogOpen} onOpenChange={setAccountDialogOpen}>
-        <DraggableDialogContent initialWidth={720} minWidth={680} initialHeight={720} maxWidth={4096} maxHeight={900}>
+        <LargeEditorDialogContent initialWidth={720} minWidth={680} initialHeight={720} maxHeight={900}>
           <DraggableDialogHeader>
             <DraggableDialogTitle>{editingAccount ? "Edit mail account" : "New mail account"}</DraggableDialogTitle>
             <DraggableDialogDescription>
@@ -986,11 +986,11 @@ export function MailTable({
               {editingAccount ? "Save account" : "Create account"}
             </Button>
           </DraggableDialogFooter>
-        </DraggableDialogContent>
+        </LargeEditorDialogContent>
       </DraggableDialog>
 
       <DraggableDialog open={ruleDialogOpen} onOpenChange={setRuleDialogOpen}>
-        <DraggableDialogContent initialWidth={980} minWidth={920} initialHeight={860} maxWidth={4096} maxHeight={980}>
+        <LargeEditorDialogContent initialWidth={980} minWidth={920} initialHeight={860} maxHeight={980}>
           <DraggableDialogHeader>
             <DraggableDialogTitle>{editingRule ? "Edit mail rule" : "New mail rule"}</DraggableDialogTitle>
             <DraggableDialogDescription>
@@ -1202,7 +1202,7 @@ export function MailTable({
               {editingRule ? "Save rule" : "Create rule"}
             </Button>
           </DraggableDialogFooter>
-        </DraggableDialogContent>
+        </LargeEditorDialogContent>
       </DraggableDialog>
 
       <ProcessedMailDialog

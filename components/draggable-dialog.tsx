@@ -268,6 +268,19 @@ const DialogContent = React.forwardRef<
 )
 DialogContent.displayName = "DraggableDialogContent"
 
+const LargeEditorDialogContent = React.forwardRef<
+  HTMLDivElement,
+  DraggableDialogContentProps
+>(({ minWidth = 980, maxWidth = 4096, ...props }, ref) => (
+  <DialogContent
+    ref={ref}
+    minWidth={minWidth}
+    maxWidth={maxWidth}
+    {...props}
+  />
+))
+LargeEditorDialogContent.displayName = "LargeEditorDialogContent"
+
 // ── DialogHeader (auto-wired as drag handle) ────────────────────────────
 
 interface DialogHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -383,6 +396,7 @@ export {
   DialogTrigger,
   DialogClose,
   DialogContent,
+  LargeEditorDialogContent,
   DialogHeader,
   DialogBody,
   DialogFooter,

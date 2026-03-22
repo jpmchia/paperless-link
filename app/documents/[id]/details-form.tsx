@@ -51,9 +51,9 @@ import {
 import {
   Dialog as DraggableDialog,
   DialogBody as DraggableDialogBody,
-  DialogContent as DraggableDialogContent,
   DialogHeader as DraggableDialogHeader,
   DialogTitle as DraggableDialogTitle,
+  LargeEditorDialogContent,
 } from "@/components/draggable-dialog"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
@@ -1342,7 +1342,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
         </DialogContent>
       </Dialog>
       <DraggableDialog open={correspondentsDialogOpen} onOpenChange={setCorrespondentsDialogOpen}>
-        <DraggableDialogContent initialWidth={1100} minWidth={980} initialHeight={760} maxWidth={4096}>
+        <LargeEditorDialogContent initialWidth={1100} initialHeight={760}>
           <DraggableDialogHeader>
             <DraggableDialogTitle>Correspondents</DraggableDialogTitle>
           </DraggableDialogHeader>
@@ -1358,10 +1358,10 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
             selectLabel="Use"
           />
           </DraggableDialogBody>
-        </DraggableDialogContent>
+        </LargeEditorDialogContent>
       </DraggableDialog>
       <DraggableDialog open={documentTypesDialogOpen} onOpenChange={setDocumentTypesDialogOpen}>
-        <DraggableDialogContent initialWidth={1100} minWidth={980} initialHeight={760} maxWidth={4096}>
+        <LargeEditorDialogContent initialWidth={1100} initialHeight={760}>
           <DraggableDialogHeader>
             <DraggableDialogTitle>Document Types</DraggableDialogTitle>
           </DraggableDialogHeader>
@@ -1377,10 +1377,10 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
             selectLabel="Use"
           />
           </DraggableDialogBody>
-        </DraggableDialogContent>
+        </LargeEditorDialogContent>
       </DraggableDialog>
       <DraggableDialog open={tagsDialogOpen} onOpenChange={setTagsDialogOpen}>
-        <DraggableDialogContent initialWidth={1100} minWidth={980} initialHeight={760} maxWidth={4096}>
+        <LargeEditorDialogContent initialWidth={1100} initialHeight={760}>
           <DraggableDialogHeader>
             <DraggableDialogTitle>Tags</DraggableDialogTitle>
           </DraggableDialogHeader>
@@ -1399,7 +1399,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
             selectLabel="Use"
           />
           </DraggableDialogBody>
-        </DraggableDialogContent>
+        </LargeEditorDialogContent>
       </DraggableDialog>
     </Form>
   )

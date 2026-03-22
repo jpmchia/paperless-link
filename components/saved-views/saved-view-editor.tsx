@@ -17,11 +17,11 @@ import { Switch } from "@/components/ui/switch"
 import {
   Dialog as DraggableDialog,
   DialogBody as DraggableDialogBody,
-  DialogContent as DraggableDialogContent,
   DialogDescription as DraggableDialogDescription,
   DialogFooter as DraggableDialogFooter,
   DialogHeader as DraggableDialogHeader,
   DialogTitle as DraggableDialogTitle,
+  LargeEditorDialogContent,
 } from "@/components/draggable-dialog"
 import {
   CUSTOM_FIELD_PREFIX,
@@ -131,7 +131,7 @@ export function SavedViewEditor({
 
   return (
     <DraggableDialog open={open} onOpenChange={onOpenChange}>
-      <DraggableDialogContent initialWidth={1120} minWidth={1020} initialHeight={920} maxWidth={4096} maxHeight={1040}>
+      <LargeEditorDialogContent initialWidth={1120} minWidth={1020} initialHeight={920} maxHeight={1040}>
         <DraggableDialogHeader>
           <DraggableDialogTitle>
             {isNew ? "Create saved view" : `Edit "${current.name}"`}
@@ -360,7 +360,7 @@ export function SavedViewEditor({
             </Button>
           </div>
         </DraggableDialogFooter>
-      </DraggableDialogContent>
+      </LargeEditorDialogContent>
     </DraggableDialog>
   )
 }

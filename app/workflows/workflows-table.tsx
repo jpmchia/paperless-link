@@ -28,11 +28,11 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog as DraggableDialog,
   DialogBody as DraggableDialogBody,
-  DialogContent as DraggableDialogContent,
   DialogDescription as DraggableDialogDescription,
   DialogFooter as DraggableDialogFooter,
   DialogHeader as DraggableDialogHeader,
   DialogTitle as DraggableDialogTitle,
+  LargeEditorDialogContent,
 } from "@/components/draggable-dialog"
 import { Input } from "@/components/ui/input"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
@@ -487,7 +487,7 @@ export function WorkflowsTable({
       </AlertDialog>
 
       <DraggableDialog open={workflowDialogOpen} onOpenChange={setWorkflowDialogOpen}>
-        <DraggableDialogContent initialWidth={1220} minWidth={1100} initialHeight={920} maxWidth={4096} maxHeight={1100}>
+        <LargeEditorDialogContent initialWidth={1220} minWidth={1100} initialHeight={920} maxHeight={1100}>
           <DraggableDialogHeader>
             <DraggableDialogTitle>{editingWorkflow ? "Edit workflow" : "New workflow"}</DraggableDialogTitle>
             <DraggableDialogDescription>
@@ -506,7 +506,7 @@ export function WorkflowsTable({
               {editingWorkflow ? "Save workflow" : "Create workflow"}
             </Button>
           </DraggableDialogFooter>
-        </DraggableDialogContent>
+        </LargeEditorDialogContent>
       </DraggableDialog>
     </>
   )
