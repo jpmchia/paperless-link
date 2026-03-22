@@ -853,7 +853,7 @@ export function MailTable({
       </AlertDialog>
 
       <DraggableDialog open={accountDialogOpen} onOpenChange={setAccountDialogOpen}>
-        <DraggableDialogContent initialWidth={720} initialHeight={720} maxWidth={920} maxHeight={900}>
+        <DraggableDialogContent initialWidth={720} minWidth={680} initialHeight={720} maxWidth={4096} maxHeight={900}>
           <DraggableDialogHeader>
             <DraggableDialogTitle>{editingAccount ? "Edit mail account" : "New mail account"}</DraggableDialogTitle>
             <DraggableDialogDescription>
@@ -990,7 +990,7 @@ export function MailTable({
       </DraggableDialog>
 
       <DraggableDialog open={ruleDialogOpen} onOpenChange={setRuleDialogOpen}>
-        <DraggableDialogContent initialWidth={980} initialHeight={860} maxWidth={1200} maxHeight={980}>
+        <DraggableDialogContent initialWidth={980} minWidth={920} initialHeight={860} maxWidth={4096} maxHeight={980}>
           <DraggableDialogHeader>
             <DraggableDialogTitle>{editingRule ? "Edit mail rule" : "New mail rule"}</DraggableDialogTitle>
             <DraggableDialogDescription>

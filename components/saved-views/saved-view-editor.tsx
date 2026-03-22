@@ -131,7 +131,7 @@ export function SavedViewEditor({
 
   return (
     <DraggableDialog open={open} onOpenChange={onOpenChange}>
-      <DraggableDialogContent initialWidth={1120} initialHeight={920} maxWidth={1320} maxHeight={1040}>
+      <DraggableDialogContent initialWidth={1120} minWidth={1020} initialHeight={920} maxWidth={4096} maxHeight={1040}>
         <DraggableDialogHeader>
           <DraggableDialogTitle>
             {isNew ? "Create saved view" : `Edit "${current.name}"`}

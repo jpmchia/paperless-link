@@ -1342,7 +1342,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
         </DialogContent>
       </Dialog>
       <DraggableDialog open={correspondentsDialogOpen} onOpenChange={setCorrespondentsDialogOpen}>
-        <DraggableDialogContent initialWidth={1100} initialHeight={760} maxWidth={1400}>
+        <DraggableDialogContent initialWidth={1100} minWidth={980} initialHeight={760} maxWidth={4096}>
           <DraggableDialogHeader>
             <DraggableDialogTitle>Correspondents</DraggableDialogTitle>
           </DraggableDialogHeader>
@@ -1361,7 +1361,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
         </DraggableDialogContent>
       </DraggableDialog>
       <DraggableDialog open={documentTypesDialogOpen} onOpenChange={setDocumentTypesDialogOpen}>
-        <DraggableDialogContent initialWidth={1100} initialHeight={760} maxWidth={1400}>
+        <DraggableDialogContent initialWidth={1100} minWidth={980} initialHeight={760} maxWidth={4096}>
           <DraggableDialogHeader>
             <DraggableDialogTitle>Document Types</DraggableDialogTitle>
           </DraggableDialogHeader>
@@ -1380,7 +1380,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
         </DraggableDialogContent>
       </DraggableDialog>
       <DraggableDialog open={tagsDialogOpen} onOpenChange={setTagsDialogOpen}>
-        <DraggableDialogContent initialWidth={1100} initialHeight={760} maxWidth={1400}>
+        <DraggableDialogContent initialWidth={1100} minWidth={980} initialHeight={760} maxWidth={4096}>
           <DraggableDialogHeader>
             <DraggableDialogTitle>Tags</DraggableDialogTitle>
           </DraggableDialogHeader>

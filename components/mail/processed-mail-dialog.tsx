@@ -153,7 +153,7 @@ export function ProcessedMailDialog({
 
   return (
     <DraggableDialog open={open} onOpenChange={onOpenChange}>
-      <DraggableDialogContent initialWidth={1100} initialHeight={760} maxWidth={1280} maxHeight={960}>
+      <DraggableDialogContent initialWidth={1100} minWidth={980} initialHeight={760} maxWidth={4096} maxHeight={960}>
         <DraggableDialogHeader>
           <DraggableDialogTitle>
             Processed Mail{rule ? ` for ${rule.name}` : ""}

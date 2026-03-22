@@ -6,6 +6,8 @@ import { WorkflowsTable } from "./workflows-table"
 
 type WorkflowRecord = React.ComponentProps<typeof WorkflowsTable>["initialItems"][number]
 type PaginatedWorkflowList = { results?: WorkflowRecord[] } | WorkflowRecord[]
+type MailRuleRecord = { id: number; name: string }
+type PaginatedMailRuleList = { results?: MailRuleRecord[] } | MailRuleRecord[]
 
 async function getWorkflows() {
   try {
@@ -16,10 +18,19 @@ async function getWorkflows() {
   }
 }
 
+async function getMailRules() {
+  try {
+    const data = (await getPaperlessApi("mail_rules/?page_size=100000")) as PaginatedMailRuleList
+    return Array.isArray(data) ? data : data.results ?? []
+  } catch {
+    return [] as MailRuleRecord[]
+  }
+}
+
 export default async function WorkflowsPage() {
   const permissions = await requireRoutePermission("/workflows")
 
-  const [workflows, tags, correspondents, documentTypes, storagePaths, customFields, users, groups] = await Promise.all([
+  const [workflows, tags, correspondents, documentTypes, storagePaths, customFields, users, groups, mailRules] = await Promise.all([
     getWorkflows(),
     getTags(),
     getCorrespondents(),
@@ -28,6 +39,7 @@ export default async function WorkflowsPage() {
     getCustomFields(),
     getUsers(),
     getGroups(),
+    getMailRules(),
   ])
 
   return (
@@ -43,6 +55,7 @@ export default async function WorkflowsPage() {
             storagePaths,
             tags,
             users,
+            mailRules,
           }}
         />
       </div>
