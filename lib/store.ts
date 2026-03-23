@@ -42,7 +42,7 @@ export const pdfViewerRegistryAtom = atom<PluginRegistry | null>(null)
 export const filterParamsAtom = atomWithStorage<FilterParams>(
   'paperless-filter-params',
   {},
-  safeJsonStorage as never
+  safeJsonStorage<FilterParams>()
 )
 
 // Derived atom: count of active filters (for badge display)

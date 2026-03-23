@@ -14,7 +14,7 @@ import { safeJsonStorage } from "@/lib/jotai-storage"
 const rawOpenDocumentsAtom = atomWithStorage<OpenDocumentItem[]>(
   OPEN_DOCUMENTS_STORAGE_KEY,
   [],
-  safeJsonStorage as never
+  safeJsonStorage<OpenDocumentItem[]>()
 )
 
 export const openDocumentsAtom = atom(

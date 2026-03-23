@@ -1,22 +1,17 @@
 "use client"
 
-import { createJSONStorage, type SyncStorage } from "jotai/utils"
+import { createJSONStorage } from "jotai/utils"
+import type {
+  SyncStorage,
+  SyncStringStorage,
+} from "jotai/vanilla/utils/atomWithStorage"
 
 const memoryStorage = new Map<string, string>()
 
-function createMemoryStorage(): Storage {
+function createMemoryStorage(): SyncStringStorage {
   return {
-    get length() {
-      return memoryStorage.size
-    },
-    clear() {
-      memoryStorage.clear()
-    },
     getItem(key: string) {
       return memoryStorage.get(key) ?? null
-    },
-    key(index: number) {
-      return Array.from(memoryStorage.keys())[index] ?? null
     },
     removeItem(key: string) {
       memoryStorage.delete(key)
@@ -27,7 +22,7 @@ function createMemoryStorage(): Storage {
   }
 }
 
-function resolveStorage(): Storage {
+function resolveStorage(): SyncStringStorage {
   if (typeof window === "undefined") {
     return createMemoryStorage()
   }
@@ -39,10 +34,16 @@ function resolveStorage(): Storage {
     typeof candidate.setItem === "function" &&
     typeof candidate.removeItem === "function"
   ) {
-    return candidate
+    return {
+      getItem: candidate.getItem.bind(candidate),
+      removeItem: candidate.removeItem.bind(candidate),
+      setItem: candidate.setItem.bind(candidate),
+    }
   }
 
   return createMemoryStorage()
 }
 
-export const safeJsonStorage = createJSONStorage(() => resolveStorage()) as SyncStorage<unknown>
+export function safeJsonStorage<Value>(): SyncStorage<Value> {
+  return createJSONStorage<Value>(() => resolveStorage())
+}

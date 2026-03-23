@@ -36,14 +36,14 @@ const MAX_NOTIFICATIONS = 50
 export const notificationsAtom = atomWithStorage<UiNotification[]>(
   "paperless-notifications",
   [],
-  safeJsonStorage as never
+  safeJsonStorage<UiNotification[]>()
 )
 
 export const notificationPreferencesAtom =
   atomWithStorage<NotificationPreferences>(
     "paperless-notification-preferences",
     defaultNotificationPreferences,
-    safeJsonStorage as never
+    safeJsonStorage<NotificationPreferences>()
   )
 
 export const setNotificationPreferencesAtom = atom(
