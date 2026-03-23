@@ -1,9 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { ExternalLink, RotateCcw, Save } from "lucide-react"
+import { ExternalLink, Lock, RotateCcw, Save } from "lucide-react"
 import { toast } from "sonner"
 
+import { updateConfig, uploadConfigLogo } from "@/app/config/actions"
 import { configCategories, configOptions, configOptionTypes, type ConfigOption } from "@/app/config/config-options"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -64,11 +65,13 @@ function docsUrl(configKey: string) {
 }
 
 function FieldCard({
+  canEdit,
   children,
   onReset,
   option,
   resetDisabled,
 }: {
+  canEdit: boolean
   children: React.ReactNode
   onReset: () => void
   option: ConfigOption
@@ -95,7 +98,7 @@ function FieldCard({
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             </Button>
-            <Button type="button" variant="ghost" size="sm" disabled={resetDisabled} onClick={onReset}>
+            <Button type="button" variant="ghost" size="sm" disabled={resetDisabled || !canEdit} onClick={onReset}>
               <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
               Reset
             </Button>
@@ -107,7 +110,13 @@ function FieldCard({
   )
 }
 
-export function SettingsForm({ initialConfig }: { initialConfig: unknown }) {
+export function SettingsForm({
+  initialConfig,
+  canEdit = true,
+}: {
+  initialConfig: unknown
+  canEdit?: boolean
+}) {
   const normalizedInitialConfig = React.useMemo(() => normalizeConfig(initialConfig), [initialConfig])
   const [config, setConfig] = React.useState<ConfigRecord>(normalizedInitialConfig)
   const [initialSnapshot, setInitialSnapshot] = React.useState(() => comparableConfig(normalizedInitialConfig))
@@ -177,19 +186,7 @@ export function SettingsForm({ initialConfig }: { initialConfig: unknown }) {
       let workingConfig = config
 
       if (logoFile) {
-        const formData = new FormData()
-        formData.append("app_logo", logoFile)
-
-        const fileResponse = await fetch(`/api/proxy/config/${config.id}/`, {
-          method: "PATCH",
-          body: formData,
-        })
-
-        if (!fileResponse.ok) {
-          throw new Error(`${fileResponse.status}: ${fileResponse.statusText}`)
-        }
-
-        workingConfig = (await fileResponse.json()) as ConfigRecord
+        workingConfig = (await uploadConfigLogo(config.id, logoFile)) as ConfigRecord
       }
 
       const payload = Object.fromEntries(
@@ -207,17 +204,7 @@ export function SettingsForm({ initialConfig }: { initialConfig: unknown }) {
           })
       )
 
-      const response = await fetch(`/api/proxy/config/${config.id}/`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        throw new Error(`${response.status}: ${response.statusText}`)
-      }
-
-      const updated = (await response.json()) as ConfigRecord
+      const updated = (await updateConfig(config.id, payload)) as ConfigRecord
       const nextState = {
         ...updated,
         user_args: toJsonEditorValue(updated.user_args),
@@ -254,27 +241,42 @@ export function SettingsForm({ initialConfig }: { initialConfig: unknown }) {
 
   return (
     <div className="grid gap-6">
-      <div className="max-w-3xl">
-        <h1 className="text-2xl font-semibold">Application Configuration</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Global configuration options for this Paperless-ngx installation. Values set here override defaults for every user.
-        </p>
-      </div>
+      <p className="max-w-3xl text-sm text-muted-foreground">
+        Global configuration options for this Paperless-ngx installation. Values set here override defaults for every user.
+      </p>
+
+      {!canEdit && (
+        <div className="flex items-center gap-2 rounded-md border border-border/70 bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+          <Lock className="h-4 w-4" />
+          You can view this configuration, but you do not have permission to change it.
+        </div>
+      )}
 
       <Tabs defaultValue={categories[0]} className="gap-4">
-        <div className="overflow-x-auto">
-          <TabsList variant="line" className="min-w-max justify-start border-b p-0">
-            {categories.map((category) => (
-              <TabsTrigger key={category} value={category} className="px-3">
-                {category}
-              </TabsTrigger>
-            ))}
-            {Object.keys(unknownOptions).length > 0 && (
-              <TabsTrigger value="other-settings" className="px-3">
-                Other Settings
-              </TabsTrigger>
-            )}
-          </TabsList>
+        <div className="flex flex-col gap-3 border-b pb-2 lg:flex-row lg:items-end lg:justify-between">
+          <div className="overflow-x-auto">
+            <TabsList variant="line" className="min-w-max justify-start p-0">
+              {categories.map((category) => (
+                <TabsTrigger key={category} value={category} className="px-3">
+                  {category}
+                </TabsTrigger>
+              ))}
+              {Object.keys(unknownOptions).length > 0 && (
+                <TabsTrigger value="other-settings" className="px-3">
+                  Other Settings
+                </TabsTrigger>
+              )}
+            </TabsList>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" disabled={!canEdit || saving || !isDirty} onClick={discardChanges}>
+              Discard
+            </Button>
+            <Button type="button" disabled={!canEdit || saving || !isDirty || hasErrors} onClick={() => void saveConfig()}>
+              <Save className="mr-2 h-4 w-4" />
+              {saving ? "Saving…" : "Save configuration"}
+            </Button>
+          </div>
         </div>
 
         {categories.map((category) => (
@@ -288,6 +290,7 @@ export function SettingsForm({ initialConfig }: { initialConfig: unknown }) {
 
                   return (
                     <FieldCard
+                      canEdit={canEdit}
                       key={option.key}
                       option={option}
                       onReset={() => resetValue(option.key)}
@@ -297,6 +300,7 @@ export function SettingsForm({ initialConfig }: { initialConfig: unknown }) {
                         <Select
                           value={typeof value === "string" ? value : "__unset__"}
                           onValueChange={(nextValue) => setValue(option.key, nextValue === "__unset__" ? null : nextValue)}
+                          disabled={!canEdit}
                         >
                           <SelectTrigger className="h-9 w-full text-sm">
                             <SelectValue placeholder="Use default" />
@@ -316,6 +320,7 @@ export function SettingsForm({ initialConfig }: { initialConfig: unknown }) {
                         <Input
                           type="number"
                           className="h-9 text-sm"
+                          disabled={!canEdit}
                           value={typeof value === "number" ? String(value) : ""}
                           onChange={(event) =>
                             setValue(option.key, event.target.value === "" ? null : Number(event.target.value))
@@ -332,6 +337,7 @@ export function SettingsForm({ initialConfig }: { initialConfig: unknown }) {
                           </div>
                           <Switch
                             checked={Boolean(value)}
+                            disabled={!canEdit}
                             onCheckedChange={(checked) => setValue(option.key, checked)}
                           />
                         </div>
@@ -341,6 +347,7 @@ export function SettingsForm({ initialConfig }: { initialConfig: unknown }) {
                         <Input
                           type={option.type === configOptionTypes.password ? "password" : "text"}
                           className="h-9 text-sm"
+                          disabled={!canEdit}
                           value={typeof value === "string" ? value : ""}
                           onChange={(event) => setValue(option.key, event.target.value)}
                           placeholder="Use default"
@@ -351,6 +358,7 @@ export function SettingsForm({ initialConfig }: { initialConfig: unknown }) {
                         <>
                           <Textarea
                             className="min-h-28 font-mono text-xs"
+                            disabled={!canEdit}
                             value={typeof value === "string" ? value : ""}
                             onChange={(event) => setValue(option.key, event.target.value)}
                             placeholder='{"example": true}'
@@ -364,18 +372,58 @@ export function SettingsForm({ initialConfig }: { initialConfig: unknown }) {
                           {typeof value === "string" && value ? (
                             <div className="grid gap-1">
                               <div className="text-xs font-medium text-muted-foreground">Current file</div>
+                              <div className="flex items-center gap-3 rounded-md border border-border/70 bg-background px-3 py-3">
+                                <div
+                                  className="size-12 rounded-lg bg-contain bg-center bg-no-repeat ring-1 ring-border"
+                                  style={{ backgroundImage: `url(${value})` }}
+                                  aria-hidden="true"
+                                />
+                                <div className="min-w-0">
+                                  <div className="text-xs font-medium">Current logo preview</div>
+                                  <div className="text-[0.7rem] text-muted-foreground">
+                                    This is the image currently served by Paperless.
+                                  </div>
+                                </div>
+                              </div>
                               <code className="rounded-md border bg-background px-3 py-2 text-[0.7rem]">{value}</code>
                             </div>
                           ) : (
                             <Badge variant="outline">No file configured</Badge>
                           )}
                           {logoFile ? (
-                            <Badge variant="secondary">Ready to upload: {logoFile.name}</Badge>
+                            <div className="grid gap-2">
+                              <Badge variant="secondary" className="w-fit">
+                                Ready to upload: {logoFile.name}
+                              </Badge>
+                              <p className="text-xs text-muted-foreground">
+                                The selected logo is staged locally until you save the configuration.
+                              </p>
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  disabled={!canEdit || saving || hasErrors}
+                                  onClick={() => void saveConfig()}
+                                >
+                                  {saving ? "Uploading…" : "Upload and save now"}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={!canEdit || saving}
+                                  onClick={() => setLogoFile(null)}
+                                >
+                                  Clear selection
+                                </Button>
+                              </div>
+                            </div>
                           ) : null}
                           <Input
                             type="file"
                             accept="image/*,.svg"
                             className="h-9 text-sm"
+                            disabled={!canEdit}
                             onChange={(event) => setLogoFile(event.target.files?.[0] ?? null)}
                           />
                         </div>
@@ -403,16 +451,6 @@ export function SettingsForm({ initialConfig }: { initialConfig: unknown }) {
           </TabsContent>
         )}
       </Tabs>
-
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" disabled={saving || !isDirty} onClick={discardChanges}>
-          Discard
-        </Button>
-        <Button type="button" disabled={saving || !isDirty || hasErrors} onClick={() => void saveConfig()}>
-          <Save className="mr-2 h-4 w-4" />
-          {saving ? "Saving…" : "Save configuration"}
-        </Button>
-      </div>
     </div>
   )
 }

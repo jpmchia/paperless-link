@@ -1,11 +1,13 @@
 import { AppShell } from "@/components/app-shell"
 import { TopBar } from "@/app/documents/topbar"
 import { getPaperlessApi } from "@/lib/api"
+import { currentUserCan } from "@/lib/permissions"
 import { requireRoutePermission } from "@/lib/server-permissions"
 import { SettingsForm } from "@/app/settings/settings-form"
 
 export default async function ConfigPage() {
   const permissions = await requireRoutePermission("/config")
+  const canEditConfig = currentUserCan(permissions, "change", "appConfig")
 
   let config: Record<string, unknown> = {}
   try {
@@ -19,8 +21,8 @@ export default async function ConfigPage() {
       initialPermissions={permissions}
       topbar={<TopBar title="Application Configuration" />}
     >
-      <div className="max-w-7xl p-6">
-        <SettingsForm initialConfig={config} />
+      <div className="max-w-7xl px-6">
+        <SettingsForm initialConfig={config} canEdit={canEditConfig} />
       </div>
     </AppShell>
   )

@@ -43,7 +43,7 @@ export const routePermissionRequirements: Record<
     anyOf: [{ action: "view", type: "document" }],
   },
   "/config": {
-    requireAdmin: true,
+    anyOf: [{ action: "view", type: "appConfig" }],
   },
   "/correspondents": {
     anyOf: [{ action: "view", type: "correspondent" }],

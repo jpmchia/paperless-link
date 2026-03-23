@@ -305,21 +305,26 @@ export function AppSidebar({
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link href="/dashboard">
+            <SidebarMenuButton size="lg" className="min-h-[5rem]" asChild>
+              <Link href="/dashboard" className="flex flex-col items-start gap-0">
                 {appLogo ? (
                   <div
-                    className="size-8 rounded-lg bg-cover bg-center ring-1 ring-sidebar-border"
-                    style={{ backgroundImage: `url(${appLogo})` }}
+                    className="flex w-full justify-start"
                     aria-hidden="true"
-                  />
+                  >
+                    <img
+                      src={appLogo}
+                      alt=""
+                      className="max-h-[4rem] object-contain"
+                    />
+                  </div>
                 ) : (
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                  <div className="flex size-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                     <Files className="size-4" />
                   </div>
                 )}
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold text-lg">
+                <div className="grid max-w-full text-left leading-tight">
+                  <span className="truncate text-sm font-semibold">
                     {appTitle?.trim() || "Paperless"}
                   </span>
                 </div>

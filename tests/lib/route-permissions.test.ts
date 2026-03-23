@@ -25,15 +25,15 @@ describe("route permissions", () => {
     ).toBe(false)
   })
 
-  it("respects admin-only route requirements", () => {
+  it("allows config route access with app config view permission", () => {
     const currentUser = mapPermissionBootstrapPayload({
-      permissions: ["view_uisettings"],
+      permissions: ["view_applicationconfiguration"],
       user: { id: 1, is_staff: false },
     })
 
     expect(
       isRouteAllowed(currentUser, routePermissionRequirements["/config"])
-    ).toBe(false)
+    ).toBe(true)
   })
 
   it("allows a user with ui settings permission onto the settings route", () => {

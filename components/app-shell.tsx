@@ -41,6 +41,17 @@ interface SavedViewEntry {
   show_in_sidebar: boolean
 }
 
+function resolvePaperlessAssetUrl(value: string | null) {
+  if (!value) return null
+
+  try {
+    return new URL(value).toString()
+  } catch {
+    const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
+    return new URL(value, baseUrl).toString()
+  }
+}
+
 export async function AppShell({
   children,
   initialPermissions,
@@ -57,10 +68,19 @@ export async function AppShell({
     if (session) {
       savedViews = (await getSavedViews()) as SavedViewEntry[]
       const uiSettings = await getUiSettings().catch(() => null)
-      appTitle = uiSettings?.app_title ?? null
-      appLogo = uiSettings?.app_logo ?? null
+      const uiSettingsValues =
+        (uiSettings?.settings as Record<string, unknown> | undefined) ?? {}
+      appTitle =
+        typeof uiSettingsValues.app_title === "string"
+          ? uiSettingsValues.app_title
+          : null
+      appLogo = resolvePaperlessAssetUrl(
+        typeof uiSettingsValues.app_logo === "string"
+          ? uiSettingsValues.app_logo
+          : null
+      )
       notificationPreferences = mapNotificationPreferences(
-        (uiSettings?.settings as Record<string, unknown> | undefined) ?? null
+        uiSettingsValues
       )
 
       if (!initialPermissions) {

@@ -20,7 +20,7 @@ import { setNotificationPreferencesAtom } from "@/lib/stores/notifications"
 import { updateUiSettings } from "@/app/actions/ui-settings"
 
 const DATE_LOCALE_OPTIONS = [
-  { value: "", label: "Browser default" },
+  { value: "__browser_default__", label: "Browser default" },
   { value: "en-US", label: "English (US) — MM/DD/YYYY" },
   { value: "en-GB", label: "English (UK) — DD/MM/YYYY" },
   { value: "de-DE", label: "German — DD.MM.YYYY" },
@@ -121,7 +121,12 @@ export function PreferencesForm({ initialSettings }: PreferencesFormProps) {
       <div className="space-y-5">
         <div className="space-y-1.5">
           <Label>Date format</Label>
-          <Select value={dateLocale} onValueChange={setDateLocale}>
+          <Select
+            value={dateLocale || "__browser_default__"}
+            onValueChange={(value) =>
+              setDateLocale(value === "__browser_default__" ? "" : value)
+            }
+          >
             <SelectTrigger className="w-72">
               <SelectValue placeholder="Browser default" />
             </SelectTrigger>
