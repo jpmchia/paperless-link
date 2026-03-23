@@ -497,7 +497,9 @@ export function ProfileForm({
                             </p>
                           </div>
                           <div className="grid gap-2 sm:max-w-xs">
-                            <FormLabel htmlFor="totp-code">Verification code</FormLabel>
+                            <label htmlFor="totp-code" className="text-sm font-medium">
+                              Verification code
+                            </label>
                             <Input
                               id="totp-code"
                               value={totpCode}
