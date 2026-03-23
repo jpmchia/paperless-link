@@ -77,6 +77,7 @@ describe("SystemStatusView", () => {
   beforeEach(() => {
     getJsonMock.mockReset()
     postJsonMock.mockReset()
+    vi.restoreAllMocks()
   })
 
   it("renders environment and health details", () => {
@@ -93,6 +94,35 @@ describe("SystemStatusView", () => {
     expect(screen.getByText("Environment")).toBeInTheDocument()
     expect(screen.getByText("postgresql")).toBeInTheDocument()
     expect(screen.getByText("Realtime idle")).toBeInTheDocument()
+    expect(screen.getByText("Copy JSON")).toBeInTheDocument()
+    expect(screen.getByText(/50% used/)).toBeInTheDocument()
+  })
+
+  it("copies the raw status payload", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, {
+      clipboard: {
+        writeText,
+      },
+    })
+
+    render(
+      <JotaiProvider>
+        <SystemStatusView
+          canRunTasks={false}
+          frontendVersion="2.14.0"
+          initialStatus={statusFixture}
+        />
+      </JotaiProvider>
+    )
+
+    fireEvent.click(screen.getByText("Copy JSON"))
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        JSON.stringify(statusFixture, null, 2)
+      )
+    })
   })
 
   it("runs a maintenance task and refreshes status", async () => {

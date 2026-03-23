@@ -5,6 +5,8 @@ import { useAtomValue } from "jotai"
 import {
   AlertTriangle,
   CheckCircle2,
+  Clipboard,
+  ClipboardCheck,
   Loader2,
   Play,
   RefreshCw,
@@ -60,6 +62,11 @@ function formatBytes(value?: number) {
   return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
 }
 
+function formatPercent(value: number) {
+  if (!Number.isFinite(value) || value < 0) return "0%"
+  return `${Math.round(value)}%`
+}
+
 function StatusBadge({ status }: { status?: SystemStatusLevel | string }) {
   if (!status) {
     return <Badge variant="outline">Unknown</Badge>
@@ -102,6 +109,16 @@ function Metric({
   )
 }
 
+function ErrorText({ children }: { children?: React.ReactNode }) {
+  if (!children) return null
+
+  return (
+    <p className="text-xs leading-relaxed text-destructive/90">
+      {children}
+    </p>
+  )
+}
+
 function SectionCard({
   action,
   children,
@@ -140,6 +157,7 @@ export function SystemStatusView({
     React.useState<MaintenanceTaskName | null>(null)
   const [refreshing, setRefreshing] = React.useState(false)
   const [status, setStatus] = React.useState<SystemStatus | null>(initialStatus)
+  const [copied, setCopied] = React.useState(false)
   const [lastRefreshedAt, setLastRefreshedAt] = React.useState<string | null>(
     initialStatus ? new Date().toISOString() : null
   )
@@ -190,6 +208,21 @@ export function SystemStatusView({
       ),
     [activeRealtimeTasks]
   )
+
+  const copyStatus = React.useCallback(async () => {
+    if (!status) return
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(status, null, 2))
+      setCopied(true)
+      toast.success("System status copied")
+      window.setTimeout(() => setCopied(false), 3000)
+    } catch (error) {
+      toast.error("Failed to copy system status", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+    }
+  }, [status])
 
   React.useEffect(() => {
     const previousConnection = previousConnectionRef.current
@@ -254,6 +287,12 @@ export function SystemStatusView({
 
   const versionMismatch =
     frontendVersion !== "unknown" && frontendVersion !== status.pngx_version
+  const usedStorage = Math.max(
+    0,
+    (status.storage.total ?? 0) - (status.storage.available ?? 0)
+  )
+  const storagePercent =
+    status.storage.total > 0 ? (usedStorage / status.storage.total) * 100 : 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -280,18 +319,28 @@ export function SystemStatusView({
             Realtime {realtimeConnection}
           </Badge>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => void refreshStatus()}
-          disabled={refreshing}
-        >
-          {refreshing ? (
-            <Loader2 className="mr-2 size-4 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-2 size-4" />
-          )}
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => void copyStatus()}>
+            {copied ? (
+              <ClipboardCheck className="mr-2 size-4" />
+            ) : (
+              <Clipboard className="mr-2 size-4" />
+            )}
+            {copied ? "Copied" : "Copy JSON"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => void refreshStatus()}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 size-4" />
+            )}
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -310,10 +359,23 @@ export function SystemStatusView({
             </Metric>
             <Metric label="Install type">{status.install_type}</Metric>
             <Metric label="Server OS">{status.server_os}</Metric>
-            <Metric label="Storage available">
-              {formatBytes(status.storage.available)}
-            </Metric>
-            <Metric label="Storage total">{formatBytes(status.storage.total)}</Metric>
+            <div className="space-y-2 sm:col-span-2">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Media storage
+              </p>
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-[width]"
+                  style={{ width: `${Math.max(0, Math.min(storagePercent, 100))}%` }}
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span>{formatBytes(status.storage.available)} available</span>
+                <span className="text-muted-foreground">
+                  {formatBytes(status.storage.total)} total · {formatPercent(storagePercent)} used
+                </span>
+              </div>
+            </div>
           </div>
         </SectionCard>
 
@@ -398,6 +460,7 @@ export function SystemStatusView({
                     {status.tasks.redis_url}
                   </p>
                 )}
+                <ErrorText>{status.tasks.redis_error}</ErrorText>
               </div>
             </Metric>
             <Metric label="Celery">
@@ -408,6 +471,19 @@ export function SystemStatusView({
                     {status.tasks.celery_url}
                   </p>
                 )}
+                <ErrorText>{status.tasks.celery_error}</ErrorText>
+              </div>
+            </Metric>
+            <Metric label="WebSocket connection">
+              <div className="space-y-2">
+                <StatusBadge
+                  status={realtimeConnection === "connected" ? "OK" : "ERROR"}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {realtimeConnection === "connected"
+                    ? "Realtime channel connected"
+                    : "Realtime channel unavailable"}
+                </p>
               </div>
             </Metric>
             <Metric label="Index">
@@ -417,6 +493,7 @@ export function SystemStatusView({
                   {formatDateTime(status.tasks.index_last_modified)}
                   {isStatusStale(status.tasks.index_last_modified) && " · stale"}
                 </p>
+                <ErrorText>{status.tasks.index_error}</ErrorText>
                 {canRunTasks && (
                   <Button
                     size="sm"
@@ -441,6 +518,7 @@ export function SystemStatusView({
                   {formatDateTime(status.tasks.classifier_last_trained)}
                   {isStatusStale(status.tasks.classifier_last_trained) && " · stale"}
                 </p>
+                <ErrorText>{status.tasks.classifier_error}</ErrorText>
                 {canRunTasks && (
                   <Button
                     size="sm"
@@ -465,6 +543,7 @@ export function SystemStatusView({
                   {formatDateTime(status.tasks.sanity_check_last_run)}
                   {isStatusStale(status.tasks.sanity_check_last_run) && " · stale"}
                 </p>
+                <ErrorText>{status.tasks.sanity_check_error}</ErrorText>
                 {canRunTasks && (
                   <Button
                     size="sm"
@@ -491,6 +570,7 @@ export function SystemStatusView({
                     {isStatusStale(status.tasks.llmindex_last_modified) &&
                       " · stale"}
                   </p>
+                  <ErrorText>{status.tasks.llmindex_error}</ErrorText>
                   {canRunTasks && (
                     <Button
                       size="sm"
