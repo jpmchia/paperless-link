@@ -20,7 +20,7 @@ export default async function CorrespondentsPage() {
 
   return (
     <AppShell initialPermissions={permissions} topbar={<TopBar title="Correspondents" />}>
-      <div className="p-6 flex flex-col gap-4">
+      <div className="flex-1 min-h-0 overflow-auto p-6 flex flex-col gap-4">
         <CorrespondentsTable initialCorrespondents={correspondents} />
       </div>
     </AppShell>

@@ -435,20 +435,20 @@ export function WorkflowsTable({
       </div>
 
       <div className="rounded-md border overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-8 px-2" />
-              <TableHead>Name</TableHead>
-              <TableHead className="w-20 text-center">Order</TableHead>
-              <TableHead className="w-20 text-center">Enabled</TableHead>
-              <TableHead className="w-28">Triggers</TableHead>
-              <TableHead className="w-28">Actions</TableHead>
-              <TableHead className="w-28 text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={items.map((workflow) => workflow.id)} strategy={verticalListSortingStrategy}>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={items.map((workflow) => workflow.id)} strategy={verticalListSortingStrategy}>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8 px-2" />
+                  <TableHead>Name</TableHead>
+                  <TableHead className="w-20 text-center">Order</TableHead>
+                  <TableHead className="w-20 text-center">Enabled</TableHead>
+                  <TableHead className="w-28">Triggers</TableHead>
+                  <TableHead className="w-28">Actions</TableHead>
+                  <TableHead className="w-28 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableRow>
@@ -470,9 +470,9 @@ export function WorkflowsTable({
                   ))
                 )}
               </TableBody>
-            </SortableContext>
-          </DndContext>
-        </Table>
+            </Table>
+          </SortableContext>
+        </DndContext>
       </div>
 
       <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>

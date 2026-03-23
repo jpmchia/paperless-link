@@ -3,15 +3,23 @@
 import { atom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import {
+  normalizeOpenDocuments,
   OPEN_DOCUMENTS_STORAGE_KEY,
   removeOpenDocument,
   type OpenDocumentItem,
   upsertOpenDocument,
 } from "@/lib/open-documents"
 
-export const openDocumentsAtom = atomWithStorage<OpenDocumentItem[]>(
+const rawOpenDocumentsAtom = atomWithStorage<OpenDocumentItem[]>(
   OPEN_DOCUMENTS_STORAGE_KEY,
   []
+)
+
+export const openDocumentsAtom = atom(
+  (get) => normalizeOpenDocuments(get(rawOpenDocumentsAtom)),
+  (_get, set, nextDocuments: OpenDocumentItem[]) => {
+    set(rawOpenDocumentsAtom, normalizeOpenDocuments(nextDocuments))
+  }
 )
 
 export const openDocumentAtom = atom(

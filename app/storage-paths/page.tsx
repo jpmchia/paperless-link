@@ -20,7 +20,7 @@ export default async function StoragePathsPage() {
 
   return (
     <AppShell initialPermissions={permissions} topbar={<TopBar title="Storage Paths" />}>
-      <div className="p-6 flex flex-col gap-4">
+      <div className="flex-1 min-h-0 overflow-auto p-6 flex flex-col gap-4">
         <StoragePathsTable initialItems={storagePaths} />
       </div>
     </AppShell>

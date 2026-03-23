@@ -11,9 +11,18 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
-import { Undo2, Trash2 } from "lucide-react"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import { RefreshCw, Undo2, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { getJson, withQuery } from "@/lib/paperless-client"
 
 interface TrashDoc {
   id: number
@@ -22,27 +31,68 @@ interface TrashDoc {
   deleted_at?: string
 }
 
-async function bulkTrashAction(ids: number[], method: string) {
+interface TrashResponse {
+  count?: number
+  results?: TrashDoc[]
+}
+
+const PAGE_SIZE = 25
+
+async function bulkTrashAction(ids: number[] | null, method: string) {
   const action = method === "untrash" ? "restore" : "empty"
   const res = await fetch("/api/proxy/trash/", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       action,
-      documents: ids,
+      ...(ids ? { documents: ids } : {}),
     }),
   })
   if (!res.ok) throw new Error("Action failed")
 }
 
-export function TrashTable({ documents }: { documents: TrashDoc[] }) {
+export function TrashTable({
+  initialDocuments,
+  totalDocuments: initialTotalDocuments,
+}: {
+  initialDocuments: TrashDoc[]
+  totalDocuments: number
+}) {
   const router = useRouter()
+  const [documents, setDocuments] = React.useState<TrashDoc[]>(initialDocuments)
+  const [totalDocuments, setTotalDocuments] = React.useState(initialTotalDocuments)
+  const [page, setPage] = React.useState(1)
+  const [loadingPage, setLoadingPage] = React.useState(false)
   const [selected, setSelected] = React.useState<Set<number>>(new Set())
   const [action, setAction] = React.useState<"restore" | "delete" | null>(null)
+  const [emptyingAll, setEmptyingAll] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const canRestore = usePermission("change", "document")
   const canDelete = usePermission("delete", "document")
   const canSelect = canRestore || canDelete
+  const totalPages = Math.max(1, Math.ceil(totalDocuments / PAGE_SIZE))
+
+  const fetchPage = React.useCallback(async (nextPage: number) => {
+    setLoadingPage(true)
+    try {
+      const data = await getJson<TrashResponse>(
+        withQuery("/api/proxy/trash/", {
+          page: nextPage,
+          page_size: PAGE_SIZE,
+        })
+      )
+      setDocuments(data.results ?? [])
+      setTotalDocuments(data.count ?? 0)
+      setPage(nextPage)
+      setSelected(new Set())
+    } catch (error) {
+      toast.error("Failed to load trash", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+    } finally {
+      setLoadingPage(false)
+    }
+  }, [])
 
   const toggleAll = () => {
     if (selected.size === documents.length) {
@@ -73,6 +123,7 @@ export function TrashTable({ documents }: { documents: TrashDoc[] }) {
           : `${selected.size} document(s) permanently deleted`
       )
       setSelected(new Set())
+      await fetchPage(Math.min(page, Math.max(1, Math.ceil((totalDocuments - selected.size) / PAGE_SIZE))))
       router.refresh()
     } catch (error) {
       toast.error("Action failed", {
@@ -84,6 +135,23 @@ export function TrashTable({ documents }: { documents: TrashDoc[] }) {
     }
   }
 
+  const handleEmptyTrash = async () => {
+    setEmptyingAll(true)
+    try {
+      await bulkTrashAction(null, "delete")
+      toast.success("Trash emptied")
+      setSelected(new Set())
+      await fetchPage(1)
+      router.refresh()
+    } catch (error) {
+      toast.error("Failed to empty trash", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+    } finally {
+      setEmptyingAll(false)
+    }
+  }
+
   return (
     <>
       {/* Action bar */}
@@ -91,33 +159,50 @@ export function TrashTable({ documents }: { documents: TrashDoc[] }) {
         <p className="text-sm text-muted-foreground">
           {documents.length === 0
             ? "Trash is empty"
-            : `${documents.length} document(s) in trash`}
+            : `${totalDocuments} document(s) in trash`}
         </p>
-        {selected.size > 0 && canSelect && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">{selected.size} selected</span>
-            {canRestore && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setAction("restore")}
-                disabled={busy}
-              >
-                <Undo2 className="mr-1 h-3.5 w-3.5" />Restore
-              </Button>
-            )}
-            {canDelete && (
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => setAction("delete")}
-                disabled={busy}
-              >
-                <Trash2 className="mr-1 h-3.5 w-3.5" />Delete Permanently
-              </Button>
-            )}
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {selected.size > 0 && canSelect && (
+            <>
+              <span className="text-sm font-medium">{selected.size} selected</span>
+              {canRestore && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setAction("restore")}
+                  disabled={busy || loadingPage}
+                >
+                  <Undo2 className="mr-1 h-3.5 w-3.5" />Restore Selected
+                </Button>
+              )}
+              {canDelete && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => setAction("delete")}
+                  disabled={busy || loadingPage}
+                >
+                  <Trash2 className="mr-1 h-3.5 w-3.5" />Delete Selected
+                </Button>
+              )}
+            </>
+          )}
+          {canDelete && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void handleEmptyTrash()}
+              disabled={emptyingAll || loadingPage || totalDocuments === 0}
+            >
+              {emptyingAll ? (
+                <RefreshCw className="mr-1 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+              )}
+              Empty Trash
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Table */}
@@ -141,28 +226,93 @@ export function TrashTable({ documents }: { documents: TrashDoc[] }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {documents.map((doc) => (
-                <TableRow key={doc.id}>
-                  {canSelect && (
-                    <TableCell>
-                      <Checkbox
-                        checked={selected.has(doc.id)}
-                        onCheckedChange={() => toggle(doc.id)}
-                      />
-                    </TableCell>
-                  )}
-                  <TableCell className="font-medium">{doc.title}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {doc.created ? new Date(doc.created).toLocaleDateString() : "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {doc.deleted_at ? new Date(doc.deleted_at).toLocaleDateString() : "—"}
+              {loadingPage ? (
+                <TableRow>
+                  <TableCell colSpan={canSelect ? 4 : 3} className="h-24 text-center text-muted-foreground">
+                    <RefreshCw className="mx-auto mb-2 h-4 w-4 animate-spin" />
+                    Loading trash…
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                documents.map((doc) => (
+                  <TableRow key={doc.id}>
+                    {canSelect && (
+                      <TableCell>
+                        <Checkbox
+                          checked={selected.has(doc.id)}
+                          onCheckedChange={() => toggle(doc.id)}
+                        />
+                      </TableCell>
+                    )}
+                    <TableCell className="font-medium">{doc.title}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {doc.created ? new Date(doc.created).toLocaleDateString() : "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {doc.deleted_at ? new Date(doc.deleted_at).toLocaleDateString() : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
+      )}
+
+      {totalDocuments > PAGE_SIZE && (
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault()
+                  if (page > 1 && !loadingPage) void fetchPage(page - 1)
+                }}
+                aria-disabled={page <= 1 || loadingPage}
+                className={page <= 1 || loadingPage ? "pointer-events-none opacity-50" : undefined}
+              />
+            </PaginationItem>
+            {Array.from({ length: totalPages }, (_, index) => index + 1)
+              .filter((candidate) =>
+                candidate === 1 ||
+                candidate === totalPages ||
+                Math.abs(candidate - page) <= 1
+              )
+              .map((candidate, index, candidates) => (
+                <React.Fragment key={candidate}>
+                  {index > 0 && candidate - candidates[index - 1] > 1 ? (
+                    <PaginationItem>
+                      <span className="px-2 text-sm text-muted-foreground">…</span>
+                    </PaginationItem>
+                  ) : null}
+                  <PaginationItem>
+                    <PaginationLink
+                      href="#"
+                      isActive={candidate === page}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        if (candidate !== page && !loadingPage) void fetchPage(candidate)
+                      }}
+                    >
+                      {candidate}
+                    </PaginationLink>
+                  </PaginationItem>
+                </React.Fragment>
+              ))}
+            <PaginationItem>
+              <PaginationNext
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault()
+                  if (page < totalPages && !loadingPage) void fetchPage(page + 1)
+                }}
+                aria-disabled={page >= totalPages || loadingPage}
+                className={page >= totalPages || loadingPage ? "pointer-events-none opacity-50" : undefined}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
       )}
 
       {/* Confirm dialog */}

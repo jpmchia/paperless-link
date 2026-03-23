@@ -20,7 +20,7 @@ export default async function DocumentTypesPage() {
 
   return (
     <AppShell initialPermissions={permissions} topbar={<TopBar title="Document Types" />}>
-      <div className="p-6 flex flex-col gap-4">
+      <div className="flex-1 min-h-0 overflow-auto p-6 flex flex-col gap-4">
         <DocumentTypesTable initialItems={documentTypes} />
       </div>
     </AppShell>

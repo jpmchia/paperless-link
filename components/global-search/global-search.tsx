@@ -4,6 +4,7 @@ import * as React from "react"
 import { startTransition, useDeferredValue } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import {
+  FileCog,
   Files,
   FolderOpen,
   GitBranch,
@@ -13,6 +14,7 @@ import {
   Search,
   Settings,
   SlidersHorizontal,
+  SquareStack,
   Tags,
   UserRound,
   Users,
@@ -44,8 +46,24 @@ interface SearchDocumentResult {
   title: string
 }
 
-interface DocumentSearchResponse {
-  results?: SearchDocumentResult[]
+interface SearchNamedResult {
+  id: number
+  name: string
+}
+
+interface GlobalSearchResponse {
+  documents?: SearchDocumentResult[]
+  saved_views?: SearchNamedResult[]
+  correspondents?: SearchNamedResult[]
+  document_types?: SearchNamedResult[]
+  storage_paths?: SearchNamedResult[]
+  tags?: SearchNamedResult[]
+  users?: SearchNamedResult[]
+  groups?: SearchNamedResult[]
+  mail_accounts?: SearchNamedResult[]
+  mail_rules?: SearchNamedResult[]
+  custom_fields?: SearchNamedResult[]
+  workflows?: SearchNamedResult[]
 }
 
 interface SearchNavItem {
@@ -129,7 +147,7 @@ export function GlobalSearch({
   const { can, canManageConfig } = usePermissions()
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
-  const [documents, setDocuments] = React.useState<SearchDocumentResult[]>([])
+  const [searchResults, setSearchResults] = React.useState<GlobalSearchResponse>({})
   const [loadingDocuments, setLoadingDocuments] = React.useState(false)
   const [shortcutLabel, setShortcutLabel] = React.useState("Ctrl+K")
   const deferredQuery = useDeferredValue(query.trim())
@@ -167,7 +185,7 @@ export function GlobalSearch({
 
   React.useEffect(() => {
     if (!deferredQuery || !canViewDocuments) {
-      setDocuments([])
+      setSearchResults({})
       setLoadingDocuments(false)
       return
     }
@@ -175,20 +193,19 @@ export function GlobalSearch({
     let cancelled = false
     setLoadingDocuments(true)
 
-    getJson<DocumentSearchResponse>(
-      withQuery("/api/proxy/documents/", {
-        page_size: 6,
+    getJson<GlobalSearchResponse>(
+      withQuery("/api/proxy/search/", {
         query: deferredQuery,
       })
     )
       .then((response) => {
         if (!cancelled) {
-          setDocuments(Array.isArray(response.results) ? response.results : [])
+          setSearchResults(response ?? {})
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setDocuments([])
+          setSearchResults({})
         }
       })
       .finally(() => {
@@ -201,6 +218,35 @@ export function GlobalSearch({
       cancelled = true
     }
   }, [canViewDocuments, deferredQuery])
+
+  const documents = Array.isArray(searchResults?.documents) ? searchResults.documents : []
+  const liveSavedViews = Array.isArray(searchResults?.saved_views)
+    ? searchResults.saved_views
+    : []
+  const correspondents = Array.isArray(searchResults?.correspondents)
+    ? searchResults.correspondents
+    : []
+  const documentTypes = Array.isArray(searchResults?.document_types)
+    ? searchResults.document_types
+    : []
+  const storagePaths = Array.isArray(searchResults?.storage_paths)
+    ? searchResults.storage_paths
+    : []
+  const tags = Array.isArray(searchResults?.tags) ? searchResults.tags : []
+  const users = Array.isArray(searchResults?.users) ? searchResults.users : []
+  const groups = Array.isArray(searchResults?.groups) ? searchResults.groups : []
+  const mailAccounts = Array.isArray(searchResults?.mail_accounts)
+    ? searchResults.mail_accounts
+    : []
+  const mailRules = Array.isArray(searchResults?.mail_rules)
+    ? searchResults.mail_rules
+    : []
+  const customFields = Array.isArray(searchResults?.custom_fields)
+    ? searchResults.custom_fields
+    : []
+  const workflows = Array.isArray(searchResults?.workflows)
+    ? searchResults.workflows
+    : []
 
   const navigationItems = NAV_ITEMS.filter((item) => {
     if (item.href === "/config") {
@@ -253,6 +299,27 @@ export function GlobalSearch({
     },
     [router]
   )
+
+  const handleFilteredDocumentsNavigate = React.useCallback(
+    (queryString: string) => {
+      handleNavigate(withQuery("/documents", { query: queryString }))
+    },
+    [handleNavigate]
+  )
+
+  const hasLiveSearchResults =
+    documents.length > 0 ||
+    liveSavedViews.length > 0 ||
+    correspondents.length > 0 ||
+    documentTypes.length > 0 ||
+    storagePaths.length > 0 ||
+    tags.length > 0 ||
+    users.length > 0 ||
+    groups.length > 0 ||
+    mailAccounts.length > 0 ||
+    mailRules.length > 0 ||
+    customFields.length > 0 ||
+    workflows.length > 0
 
   return (
     <>
@@ -314,7 +381,7 @@ export function GlobalSearch({
               </CommandGroup>
             )}
 
-            {matchingSavedViews.length > 0 && (
+            {!deferredQuery && matchingSavedViews.length > 0 && (
               <>
                 <CommandSeparator />
                 <CommandGroup heading="Saved Views">
@@ -357,11 +424,7 @@ export function GlobalSearch({
                       ))}
                       <CommandItem
                         value={`search-all-${deferredQuery}`}
-                        onSelect={() =>
-                          handleNavigate(
-                            withQuery("/documents", { query: deferredQuery })
-                          )
-                        }
+                        onSelect={() => handleFilteredDocumentsNavigate(deferredQuery)}
                       >
                         <Search className="size-4" />
                         <span>Search all documents for “{deferredQuery}”</span>
@@ -380,6 +443,227 @@ export function GlobalSearch({
                   )}
                 </CommandGroup>
               </>
+            )}
+
+            {deferredQuery && liveSavedViews.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="Saved Views">
+                  {liveSavedViews.map((view) => (
+                    <CommandItem
+                      key={view.id}
+                      value={`live-view-${view.id}-${view.name}`}
+                      onSelect={() => handleNavigate(`/view/${view.id}`)}
+                    >
+                      <FolderOpen className="size-4" />
+                      <span>{view.name}</span>
+                      <CommandShortcut>Saved view</CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            {deferredQuery && correspondents.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="Correspondents">
+                  {correspondents.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`correspondent-${item.id}-${item.name}`}
+                      onSelect={() =>
+                        handleFilteredDocumentsNavigate(`correspondent:${item.id}`)
+                      }
+                    >
+                      <UserRound className="size-4" />
+                      <span>{item.name}</span>
+                      <CommandShortcut>Filter docs</CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            {deferredQuery && documentTypes.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="Document Types">
+                  {documentTypes.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`document-type-${item.id}-${item.name}`}
+                      onSelect={() =>
+                        handleFilteredDocumentsNavigate(`document_type:${item.id}`)
+                      }
+                    >
+                      <FileCog className="size-4" />
+                      <span>{item.name}</span>
+                      <CommandShortcut>Filter docs</CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            {deferredQuery && storagePaths.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="Storage Paths">
+                  {storagePaths.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`storage-path-${item.id}-${item.name}`}
+                      onSelect={() =>
+                        handleFilteredDocumentsNavigate(`storage_path:${item.id}`)
+                      }
+                    >
+                      <FolderOpen className="size-4" />
+                      <span>{item.name}</span>
+                      <CommandShortcut>Filter docs</CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            {deferredQuery && tags.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="Tags">
+                  {tags.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`tag-${item.id}-${item.name}`}
+                      onSelect={() => handleFilteredDocumentsNavigate(`tag:${item.id}`)}
+                    >
+                      <Tags className="size-4" />
+                      <span>{item.name}</span>
+                      <CommandShortcut>Filter docs</CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            {deferredQuery && workflows.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="Workflows">
+                  {workflows.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`workflow-${item.id}-${item.name}`}
+                      onSelect={() => handleNavigate(`/workflows`)}
+                    >
+                      <GitBranch className="size-4" />
+                      <span>{item.name}</span>
+                      <CommandShortcut>Manage</CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            {deferredQuery && mailAccounts.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="Mail Accounts">
+                  {mailAccounts.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`mail-account-${item.id}-${item.name}`}
+                      onSelect={() => handleNavigate("/mail")}
+                    >
+                      <Mail className="size-4" />
+                      <span>{item.name}</span>
+                      <CommandShortcut>Manage</CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            {deferredQuery && mailRules.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="Mail Rules">
+                  {mailRules.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`mail-rule-${item.id}-${item.name}`}
+                      onSelect={() => handleNavigate("/mail")}
+                    >
+                      <Mail className="size-4" />
+                      <span>{item.name}</span>
+                      <CommandShortcut>Manage</CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            {deferredQuery && customFields.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="Custom Fields">
+                  {customFields.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`custom-field-${item.id}-${item.name}`}
+                      onSelect={() => handleNavigate("/custom-fields")}
+                    >
+                      <SquareStack className="size-4" />
+                      <span>{item.name}</span>
+                      <CommandShortcut>Manage</CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            {deferredQuery && users.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="Users">
+                  {users.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`user-${item.id}-${item.name}`}
+                      onSelect={() => handleNavigate("/users")}
+                    >
+                      <Users className="size-4" />
+                      <span>{item.name}</span>
+                      <CommandShortcut>Manage</CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            {deferredQuery && groups.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="Groups">
+                  {groups.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={`group-${item.id}-${item.name}`}
+                      onSelect={() => handleNavigate("/users")}
+                    >
+                      <Users className="size-4" />
+                      <span>{item.name}</span>
+                      <CommandShortcut>Manage</CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            {deferredQuery && !loadingDocuments && !hasLiveSearchResults && navigationItems.length === 0 && (
+              <div className="px-3 py-2 text-xs text-muted-foreground">
+                No results found.
+              </div>
             )}
           </CommandList>
         </Command>

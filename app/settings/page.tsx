@@ -11,7 +11,7 @@ export default async function SettingsPage() {
   return (
     <AppShell initialPermissions={permissions} topbar={<TopBar title="Settings" />}>
       <div className="px-6 max-w-3xl">
-        <p className="mb-8 mt-0 text-sm text-muted-foreground">
+        <p className="mb-8 mt-4 text-sm text-muted-foreground">
           Manage your display and notification preferences for this account.
         </p>
         <PreferencesForm initialSettings={uiSettings} />

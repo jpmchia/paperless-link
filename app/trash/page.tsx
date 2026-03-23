@@ -14,23 +14,29 @@ interface TrashDocument {
 async function getTrashedDocuments() {
   try {
     const data = (await getPaperlessApi(
-      "trash/?page=1&page_size=100"
-    )) as { results?: TrashDocument[] }
-    return data.results || []
+      "trash/?page=1&page_size=25"
+    )) as { count?: number; results?: TrashDocument[] }
+    return {
+      count: data.count ?? 0,
+      results: data.results || [],
+    }
   } catch {
-    return []
+    return {
+      count: 0,
+      results: [],
+    }
   }
 }
 
 export default async function TrashPage() {
   const permissions = await requireRoutePermission("/trash")
 
-  const documents = await getTrashedDocuments()
+  const trash = await getTrashedDocuments()
 
   return (
     <AppShell initialPermissions={permissions} topbar={<TopBar title="Trash" />}>
       <div className="p-6 flex flex-col gap-4 h-full">
-        <TrashTable documents={documents} />
+        <TrashTable initialDocuments={trash.results} totalDocuments={trash.count} />
       </div>
     </AppShell>
   )

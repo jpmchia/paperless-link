@@ -106,20 +106,19 @@ export async function AppShell({
               initialPermissions={resolvedPermissions}
               savedViews={savedViews}
             />
-            <SidebarInset className="h-full">
-              <header className="sticky top-0 flex h-20 shrink-0 items-center justify-between gap-2 px-4 z-10 bg-transparent transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-                <div className="flex items-center gap-2 w-full min-w-0">
-                  <SidebarTrigger className="-ml-1" />
-                  <Separator orientation="vertical" className="mr-2 h-4" />
-                  <div className="min-w-0 flex-1">{topbar}</div>
-                  <div className="flex items-center gap-2">
+            <SidebarInset className="h-full bg-sidebar">
+              <header className="sticky top-0 flex h-15 shrink-0 items-center justify-between gap-2 px-2 z-10 bg-transparent transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+                <div className="flex items-center w-full min-w-0">
+                  <SidebarTrigger className="" />
+                  <div className="min-w-0 flex-1 ml-4">{topbar}</div>
+                  <div className="flex items-center gap-10">
                     <GlobalSearch savedViews={savedViews} />
                     <ShellStatus />
                     <NotificationCenter />
                   </div>
                 </div>
               </header>
-              <main className="flex flex-1 flex-col min-h-0 overflow-hidden h-[calc(100%-1rem)] mb-[1rem] rounded-lg">
+              <main className="flex flex-1 flex-col min-h-0 overflow-hidden h-[calc(100vh-2rem)] mb-[1.25rem] rounded-xl bg-background">
                 {children}
               </main>
             </SidebarInset>

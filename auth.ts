@@ -1,7 +1,21 @@
-import NextAuth from "next-auth"
+import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 
-export const authOptions = {
+type PaperlessUser = {
+  id: string
+  name: string
+  token: string
+}
+
+type TokenWithAccessToken = {
+  accessToken?: string
+}
+
+type SessionWithAccessToken = {
+  accessToken?: string
+}
+
+export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "Paperless-ngx",
@@ -9,7 +23,7 @@ export const authOptions = {
         username: { label: "Username", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials, req) {
+      async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) {
           return null
         }
@@ -35,7 +49,7 @@ export const authOptions = {
                 id: credentials.username as string,
                 name: credentials.username as string,
                 token: data.token,
-              }
+              } as PaperlessUser
             }
           }
           return null
@@ -47,15 +61,17 @@ export const authOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }: any) {
+    async jwt({ token, user }) {
       // Initial sign in
       if (user) {
-        token.accessToken = user.token
+        ;(token as TokenWithAccessToken).accessToken = (user as PaperlessUser).token
       }
       return token
     },
-    async session({ session, token }: any) {
-      session.accessToken = token.accessToken as string
+    async session({ session, token }) {
+      ;(session as SessionWithAccessToken).accessToken = (
+        token as TokenWithAccessToken
+      ).accessToken
       return session
     },
   },
@@ -63,4 +79,3 @@ export const authOptions = {
     signIn: "/login",
   },
 }
-

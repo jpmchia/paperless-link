@@ -44,7 +44,7 @@ export default async function WorkflowsPage() {
 
   return (
     <AppShell initialPermissions={permissions} topbar={<TopBar title="Workflows" />}>
-      <div className="p-6 flex flex-col gap-4">
+      <div className="flex-1 min-h-0 overflow-auto p-6 flex flex-col gap-4">
         <WorkflowsTable
           initialItems={workflows}
           lookups={{

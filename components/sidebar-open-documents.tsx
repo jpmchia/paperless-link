@@ -20,20 +20,31 @@ import {
   closeOpenDocumentAtom,
   openDocumentsAtom,
 } from "@/lib/stores/open-documents"
+import { normalizeOpenDocuments } from "@/lib/open-documents"
 
 export function SidebarOpenDocuments() {
   const pathname = usePathname()
   const router = useRouter()
-  const [openDocuments] = useAtom(openDocumentsAtom)
+  const [openDocuments, setOpenDocuments] = useAtom(openDocumentsAtom)
   const [, closeDocument] = useAtom(closeOpenDocumentAtom)
   const [, closeAll] = useAtom(closeAllOpenDocumentsAtom)
   const [hasMounted, setHasMounted] = React.useState(false)
+  const normalizedOpenDocuments = React.useMemo(
+    () => normalizeOpenDocuments(openDocuments),
+    [openDocuments]
+  )
 
   React.useEffect(() => {
     setHasMounted(true)
   }, [])
 
-  if (!hasMounted || openDocuments.length === 0) {
+  React.useEffect(() => {
+    if (normalizedOpenDocuments.length !== openDocuments.length) {
+      setOpenDocuments(normalizedOpenDocuments)
+    }
+  }, [normalizedOpenDocuments, openDocuments.length, setOpenDocuments])
+
+  if (!hasMounted || normalizedOpenDocuments.length === 0) {
     return null
   }
 
@@ -65,8 +76,8 @@ export function SidebarOpenDocuments() {
       </SidebarGroupAction>
       <SidebarGroupContent>
         <SidebarMenu>
-          {openDocuments.map((document) => (
-            <SidebarMenuItem key={document.id}>
+          {normalizedOpenDocuments.map((document) => (
+            <SidebarMenuItem key={`${document.id}-${document.href}`}>
               <div className="group/open-doc flex items-center">
                 <SidebarMenuButton
                   asChild

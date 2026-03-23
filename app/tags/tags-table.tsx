@@ -9,6 +9,7 @@ import { usePermissions } from "@/hooks/use-permissions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -34,6 +35,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -58,6 +66,8 @@ const MATCHING_ALGORITHMS = [
   { id: 5, label: "Fuzzy match" },
   { id: 6, label: "Automatic" },
 ]
+
+const PAGE_SIZE = 25
 
 type Tag = {
   id: number
@@ -96,14 +106,25 @@ export function TagsTable({
   const [editTag, setEditTag] = React.useState<Partial<Tag> | null>(null)
   const [isNew, setIsNew] = React.useState(false)
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
+  const [selectedIds, setSelectedIds] = React.useState<number[]>([])
+  const [page, setPage] = React.useState(1)
 
   const filtered = tags.filter((t) =>
     t.name.toLowerCase().includes(search.toLowerCase())
   )
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const visibleIds = paged.map((tag) => tag.id)
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id))
 
   React.useEffect(() => {
     onItemsChange?.(tags)
   }, [onItemsChange, tags])
+
+  React.useEffect(() => {
+    setPage(1)
+  }, [search])
 
   const { pending: saving, run: saveTag } = useAsyncAction({
     action: async () => {
@@ -146,6 +167,15 @@ export function TagsTable({
     errorMessage: "Failed to delete tag",
   })
 
+  const { pending: bulkDeleting, run: removeSelectedTags } = useAsyncAction({
+    action: async () => {
+      const ids = [...selectedIds]
+      await Promise.all(ids.map((id) => deleteTag(id)))
+      return ids
+    },
+    errorMessage: "Failed to delete selected tags",
+  })
+
   const openCreate = () => {
     setIsNew(true)
     setEditTag(emptyTag())
@@ -178,6 +208,28 @@ export function TagsTable({
     }
   }
 
+  const toggleVisibleSelection = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])))
+      return
+    }
+
+    setSelectedIds((prev) => prev.filter((id) => !visibleIds.includes(id)))
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return
+
+    try {
+      const ids = await removeSelectedTags()
+      setTags((prev) => prev.filter((tag) => !ids.includes(tag.id)))
+      setSelectedIds([])
+      toast.success(`${ids.length} tag${ids.length === 1 ? "" : "s"} deleted`)
+    } catch {
+      // Error toast is handled by useAsyncAction.
+    }
+  }
+
   return (
     <>
       {/* Toolbar */}
@@ -197,6 +249,18 @@ export function TagsTable({
             Create Tag
           </Button>
         </CanCreate>
+        <CanDelete type="tag">
+          <Button
+            variant="outline"
+            onClick={() => void handleBulkDelete()}
+            size="sm"
+            className="h-8"
+            disabled={selectedIds.length === 0 || bulkDeleting}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Selected
+          </Button>
+        </CanDelete>
       </div>
 
       {/* Table */}
@@ -204,7 +268,13 @@ export function TagsTable({
         <Table>
           <TableHeader className="max-h-8">
             <TableRow className="bg-muted/50 text-xs max-h-8 p-0 m-0">
-              <TableHead className="!h-8 w-8" />
+              <TableHead className="!h-8 w-8">
+                <Checkbox
+                  checked={allVisibleSelected}
+                  onCheckedChange={(checked) => toggleVisibleSelection(Boolean(checked))}
+                  aria-label="Select visible tags"
+                />
+              </TableHead>
               <TableHead className="!h-8">Name</TableHead>
               <TableHead className="!h-8">Matching</TableHead>
               <TableHead className="!h-8">Match pattern</TableHead>
@@ -220,13 +290,26 @@ export function TagsTable({
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((tag) => (
+              paged.map((tag) => (
                 <TableRow key={tag.id}>
                   <TableCell>
-                    <span
-                      className="inline-block w-4 h-4 rounded-full border border-black/10"
-                      style={{ backgroundColor: tagColourHex(tag.color) }}
-                    />
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={selectedIds.includes(tag.id)}
+                        onCheckedChange={(checked) => {
+                          setSelectedIds((prev) =>
+                            checked
+                              ? [...prev, tag.id]
+                              : prev.filter((id) => id !== tag.id)
+                          )
+                        }}
+                        aria-label={`Select ${tag.name}`}
+                      />
+                      <span
+                        className="inline-block h-4 w-4 rounded-full border border-black/10"
+                        style={{ backgroundColor: tagColourHex(tag.color) }}
+                      />
+                    </div>
                   </TableCell>
                   <TableCell className="font-medium">
                     <span
@@ -287,6 +370,37 @@ export function TagsTable({
       <p className="text-sm text-muted-foreground">
         {filtered.length} of {tags.length} tags
       </p>
+      {pageCount > 1 && (
+        <Pagination className="justify-end">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault()
+                  setPage((current) => Math.max(1, current - 1))
+                }}
+                aria-disabled={currentPage === 1}
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+            <PaginationItem className="px-3 text-xs text-muted-foreground">
+              Page {currentPage} of {pageCount}
+            </PaginationItem>
+            <PaginationItem>
+              <PaginationNext
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault()
+                  setPage((current) => Math.min(pageCount, current + 1))
+                }}
+                aria-disabled={currentPage === pageCount}
+                className={currentPage === pageCount ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
 
       {/* Edit / Create Dialog */}
       <PermissionGate allowed={editTag !== null && can(isNew ? "create" : "change", "tag")}>

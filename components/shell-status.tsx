@@ -16,6 +16,11 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function ShellStatus() {
   const status = useAtomValue(realtimeConnectionAtom)
+
+  if (status === "idle" || status === "unsupported") {
+    return null
+  }
+
   const connected = status === "connected"
 
   return (

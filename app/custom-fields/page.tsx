@@ -20,7 +20,7 @@ export default async function CustomFieldsPage() {
 
   return (
     <AppShell initialPermissions={permissions} topbar={<TopBar title="Custom Fields" />}>
-      <div className="p-6 flex flex-col gap-4">
+      <div className="flex-1 min-h-0 overflow-auto p-6 flex flex-col gap-4">
         <CustomFieldsTable initialItems={customFields} />
       </div>
     </AppShell>

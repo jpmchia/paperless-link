@@ -25,6 +25,18 @@ export function upsertOpenDocument(
   )
 }
 
+export function normalizeOpenDocuments(documents: OpenDocumentItem[]) {
+  const deduped = new Map<number, OpenDocumentItem>()
+
+  for (const document of documents) {
+    if (!deduped.has(document.id)) {
+      deduped.set(document.id, document)
+    }
+  }
+
+  return Array.from(deduped.values()).slice(0, MAX_OPEN_DOCUMENTS)
+}
+
 export function removeOpenDocument(
   documents: OpenDocumentItem[],
   documentId: number

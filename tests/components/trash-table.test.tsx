@@ -36,17 +36,18 @@ describe("TrashTable", () => {
 
     render(
       <TrashTable
-        documents={[
+        initialDocuments={[
           {
             id: 42,
             title: "Trashed document",
           },
         ]}
+        totalDocuments={1}
       />
     )
 
     fireEvent.click(screen.getByLabelText("Select all"))
-    fireEvent.click(screen.getByText("Restore"))
+    fireEvent.click(screen.getByRole("button", { name: "Restore Selected" }))
     fireEvent.click(screen.getByRole("button", { name: "Restore" }))
 
     await waitFor(() => {
@@ -70,17 +71,18 @@ describe("TrashTable", () => {
 
     render(
       <TrashTable
-        documents={[
+        initialDocuments={[
           {
             id: 84,
             title: "Old trashed document",
           },
         ]}
+        totalDocuments={1}
       />
     )
 
     fireEvent.click(screen.getByLabelText("Select all"))
-    fireEvent.click(screen.getByText("Delete Permanently"))
+    fireEvent.click(screen.getByRole("button", { name: "Delete Selected" }))
     fireEvent.click(screen.getByRole("button", { name: "Delete Permanently" }))
 
     await waitFor(() => {
@@ -95,5 +97,35 @@ describe("TrashTable", () => {
     })
 
     expect(refreshMock).toHaveBeenCalled()
+  })
+
+  it("empties the full trash without requiring a selection", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+    })
+
+    render(
+      <TrashTable
+        initialDocuments={[
+          {
+            id: 9,
+            title: "Another trashed document",
+          },
+        ]}
+        totalDocuments={1}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Empty Trash" }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/proxy/trash/", {
+        body: JSON.stringify({
+          action: "empty",
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      })
+    })
   })
 })

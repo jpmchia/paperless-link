@@ -6,6 +6,7 @@ import { CanDelete } from "@/components/permissions/can-delete"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
@@ -16,6 +17,13 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
@@ -39,6 +47,8 @@ const DATA_TYPES = [
   { id: "select", label: "Select" },
 ]
 
+const PAGE_SIZE = 25
+
 type CustomField = {
   id: number
   name: string
@@ -60,6 +70,8 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
   const [search, setSearch] = React.useState("")
   const [creating, setCreating] = React.useState(false)
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
+  const [selectedIds, setSelectedIds] = React.useState<number[]>([])
+  const [page, setPage] = React.useState(1)
 
   // Create form state
   const [newName, setNewName] = React.useState("")
@@ -70,6 +82,15 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
   const filtered = items.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase())
   )
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const visibleIds = paged.map((item) => item.id)
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id))
+
+  React.useEffect(() => {
+    setPage(1)
+  }, [search])
 
   const { pending: saving, run: createField } = useAsyncAction({
     action: async () => {
@@ -149,6 +170,18 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
     }
   }
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return
+    try {
+      await Promise.all(selectedIds.map((id) => deleteCustomField(id)))
+      setItems((prev) => prev.filter((item) => !selectedIds.includes(item.id)))
+      toast.success(`${selectedIds.length} custom field${selectedIds.length === 1 ? "" : "s"} deleted`)
+      setSelectedIds([])
+    } catch {
+      toast.error("Failed to delete selected")
+    }
+  }
+
   return (
     <>
       <div className="flex items-center justify-between gap-3">
@@ -161,12 +194,36 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
             <Plus className="mr-2 h-4 w-4" />Create Custom Field
           </Button>
         </CanCreate>
+        <CanDelete type="customField">
+          <Button
+            variant="outline"
+            onClick={() => void handleBulkDelete()}
+            size="sm"
+            disabled={selectedIds.length === 0}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Selected
+          </Button>
+        </CanDelete>
       </div>
 
       <div className="rounded-md border overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8">
+                <Checkbox
+                  checked={allVisibleSelected}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])))
+                    } else {
+                      setSelectedIds((prev) => prev.filter((id) => !visibleIds.includes(id)))
+                    }
+                  }}
+                  aria-label="Select visible custom fields"
+                />
+              </TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Data type</TableHead>
               <TableHead>Options</TableHead>
@@ -177,13 +234,26 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground h-24">
+                <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
                   {search ? "No custom fields match your search." : "No custom fields yet."}
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((item) => (
+              paged.map((item) => (
                 <TableRow key={item.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.includes(item.id)}
+                      onCheckedChange={(checked) => {
+                        setSelectedIds((prev) =>
+                          checked
+                            ? Array.from(new Set([...prev, item.id]))
+                            : prev.filter((id) => id !== item.id)
+                        )
+                      }}
+                      aria-label={`Select ${item.name}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">{item.name}</TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="text-xs font-normal">
@@ -219,6 +289,37 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
       </div>
 
       <p className="text-sm text-muted-foreground">{filtered.length} of {items.length} custom fields</p>
+      {pageCount > 1 && (
+        <Pagination className="justify-end">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault()
+                  setPage((current) => Math.max(1, current - 1))
+                }}
+                aria-disabled={currentPage === 1}
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+            <PaginationItem className="px-3 text-xs text-muted-foreground">
+              Page {currentPage} of {pageCount}
+            </PaginationItem>
+            <PaginationItem>
+              <PaginationNext
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault()
+                  setPage((current) => Math.min(pageCount, current + 1))
+                }}
+                aria-disabled={currentPage === pageCount}
+                className={currentPage === pageCount ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
 
       {/* Create Dialog */}
       <CanCreate type="customField">

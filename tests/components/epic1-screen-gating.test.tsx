@@ -96,7 +96,10 @@ describe("Epic 1 screen gating", () => {
 
   it("hides trash selection controls without restore or delete permissions", () => {
     renderWithPermissions(
-      <TrashTable documents={[{ id: 1, title: "Trashed doc" }]} />,
+      <TrashTable
+        initialDocuments={[{ id: 1, title: "Trashed doc" }]}
+        totalDocuments={1}
+      />,
       ["view_document"]
     )
 
@@ -107,7 +110,10 @@ describe("Epic 1 screen gating", () => {
 
   it("shows trash selection controls when document change permission is granted", () => {
     renderWithPermissions(
-      <TrashTable documents={[{ id: 1, title: "Trashed doc" }]} />,
+      <TrashTable
+        initialDocuments={[{ id: 1, title: "Trashed doc" }]}
+        totalDocuments={1}
+      />,
       ["view_document", "change_document"]
     )
 
