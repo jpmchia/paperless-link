@@ -24,6 +24,7 @@ import { normalizeOpenDocuments } from "@/lib/open-documents"
 
 export function SidebarOpenDocuments() {
   const pathname = usePathname()
+  const pathnameValue = pathname ?? ""
   const router = useRouter()
   const [openDocuments, setOpenDocuments] = useAtom(openDocumentsAtom)
   const [, closeDocument] = useAtom(closeOpenDocumentAtom)
@@ -51,7 +52,7 @@ export function SidebarOpenDocuments() {
   const closeDocumentEntry = (documentId: number, href: string) => {
     closeDocument(documentId)
 
-    if (pathname === href) {
+    if (pathnameValue === href) {
       router.push("/documents")
     }
   }
@@ -59,7 +60,7 @@ export function SidebarOpenDocuments() {
   const closeAllDocuments = () => {
     closeAll()
 
-    if (pathname.startsWith("/documents/")) {
+    if (pathnameValue.startsWith("/documents/")) {
       router.push("/documents")
     }
   }
@@ -81,7 +82,7 @@ export function SidebarOpenDocuments() {
               <div className="group/open-doc flex items-center">
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname === document.href}
+                  isActive={pathnameValue === document.href}
                   className="min-w-0 flex-1"
                 >
                   <Link href={document.href}>

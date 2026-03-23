@@ -87,19 +87,19 @@ export function DataTableHeaderBar({
 }: DataTableHeaderBarProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const pageSize = Number(searchParams.get("page_size") || "25")
+  const pageSize = Number(searchParams?.get("page_size") || "25")
   const start = (currentPage - 1) * pageSize + 1
   const end = Math.min(currentPage * pageSize, totalCount)
   const isCardMode = displayMode !== "table"
 
   const buildPageUrl = (page: number) => {
-    const params = new URLSearchParams(searchParams.toString())
+    const params = new URLSearchParams(searchParams?.toString() ?? "")
     params.set("page", String(page))
     return `?${params.toString()}`
   }
 
   const buildPageSizeUrl = (size: number) => {
-    const params = new URLSearchParams(searchParams.toString())
+    const params = new URLSearchParams(searchParams?.toString() ?? "")
     params.set("page_size", String(size))
     params.delete("page")
     return `?${params.toString()}`

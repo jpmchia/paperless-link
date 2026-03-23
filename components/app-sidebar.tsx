@@ -191,6 +191,7 @@ export function AppSidebar({
   ...props
 }: AppSidebarProps) {
   const pathname = usePathname()
+  const pathnameValue = pathname ?? ""
   const hydratedPermissions = useAtomValue(currentUserPermissionsAtom)
   const pendingTaskCount = useAtomValue(pendingTaskCountAtom)
   const latestRealtimeEvent = useAtomValue(latestRealtimeEventAtom)
@@ -342,7 +343,7 @@ export function AppSidebar({
             <SidebarMenu>
               {navMain.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathname === item.url || (item.url !== "/dashboard" && pathname.startsWith(item.url))}>
+                  <SidebarMenuButton asChild isActive={pathnameValue === item.url || (item.url !== "/dashboard" && pathnameValue.startsWith(item.url))}>
                     <Link href={item.url}>
                       <item.icon />
                       <span>{item.title}</span>
@@ -382,7 +383,7 @@ export function AppSidebar({
                           {orderedViews.map((view) => {
                             const isActive =
                               pathname === `/view/${view.id}` ||
-                              pathname.includes(`view/${view.id}`)
+                              pathnameValue.includes(`view/${view.id}`)
                             return (
                               <SortableViewItem
                                 key={view.id}
@@ -399,7 +400,7 @@ export function AppSidebar({
                       {orderedViews.map((view) => {
                         const isActive =
                           pathname === `/view/${view.id}` ||
-                          pathname.includes(`view/${view.id}`)
+                          pathnameValue.includes(`view/${view.id}`)
                         return (
                           <SidebarMenuItem key={view.id}>
                             <SidebarMenuButton
@@ -431,7 +432,7 @@ export function AppSidebar({
               <SidebarMenu>
                 {managementItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith(item.url)}>
+                    <SidebarMenuButton asChild isActive={pathnameValue.startsWith(item.url)}>
                       <Link href={item.url}>
                         <item.icon />
                         <span>{item.title}</span>
@@ -451,7 +452,7 @@ export function AppSidebar({
             <SidebarMenu>
               {systemItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith(item.url)}>
+                  <SidebarMenuButton asChild isActive={pathnameValue.startsWith(item.url)}>
                     <Link href={item.url}>
                       <item.icon />
                       <span>{item.title}</span>

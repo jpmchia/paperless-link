@@ -316,7 +316,7 @@ export function DocumentsWorkspace({
     }
 
     const navigatePage = (nextPage: number) => {
-      const params = new URLSearchParams(searchParams.toString())
+      const params = new URLSearchParams(searchParams?.toString() ?? "")
       params.set("page", String(nextPage))
       router.push(`?${params.toString()}`)
     }

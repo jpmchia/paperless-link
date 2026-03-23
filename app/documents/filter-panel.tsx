@@ -255,7 +255,7 @@ export function FilterPanel({
       if (updated.sharedByUser != null) params.set("shared_by_user", String(updated.sharedByUser))
       if (updated.ordering) params.set("ordering", updated.ordering)
       const qs = params.toString()
-      router.push(`${pathname}${qs ? `?${qs}` : ""}`)
+      router.push(`${pathname ?? ""}${qs ? `?${qs}` : ""}`)
     },
     [setLocalFilters, setAtomFilters, onFilterChange, router, pathname, activeViewId]
   )
@@ -302,7 +302,7 @@ export function FilterPanel({
 
   const navigateToSavedView = React.useCallback(
     (viewId: number) => {
-      if (pathname.startsWith("/view/")) {
+      if (pathname?.startsWith("/view/")) {
         router.push(`/view/${viewId}`)
         return
       }

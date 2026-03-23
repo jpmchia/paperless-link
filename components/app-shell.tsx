@@ -106,8 +106,8 @@ export async function AppShell({
               initialPermissions={resolvedPermissions}
               savedViews={savedViews}
             />
-            <SidebarInset className="h-full bg-sidebar">
-              <header className="sticky top-0 flex h-15 shrink-0 items-center justify-between gap-2 px-2 z-10 bg-transparent transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+            <SidebarInset className="h-full bg-sidebar border-none shadow-none!">
+              <header className="sticky top-0 flex h-15 shrink-0 items-center justify-between gap-2 px-2 z-10 bg-transparent transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12  ">
                 <div className="flex items-center w-full min-w-0">
                   <SidebarTrigger className="" />
                   <div className="min-w-0 flex-1 ml-4">{topbar}</div>

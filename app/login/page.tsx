@@ -23,7 +23,7 @@ function LoginPageContent() {
     const formData = new FormData(event.currentTarget)
     const username = formData.get("username") as string
     const password = formData.get("password") as string
-    const requestedCallbackUrl = searchParams.get("callbackUrl") || "/"
+    const requestedCallbackUrl = searchParams?.get("callbackUrl") || "/"
 
     try {
       const res = await signIn("credentials", {
