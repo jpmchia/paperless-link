@@ -9,10 +9,12 @@ import {
   type OpenDocumentItem,
   upsertOpenDocument,
 } from "@/lib/open-documents"
+import { safeJsonStorage } from "@/lib/jotai-storage"
 
 const rawOpenDocumentsAtom = atomWithStorage<OpenDocumentItem[]>(
   OPEN_DOCUMENTS_STORAGE_KEY,
-  []
+  [],
+  safeJsonStorage<OpenDocumentItem[]>()
 )
 
 export const openDocumentsAtom = atom(

@@ -7,6 +7,7 @@ import type {
   NotificationPreferences,
 } from "@/lib/notifications"
 import { defaultNotificationPreferences } from "@/lib/notifications"
+import { safeJsonStorage } from "@/lib/jotai-storage"
 
 export interface UiNotification {
   actionLabel?: string
@@ -34,13 +35,15 @@ const MAX_NOTIFICATIONS = 50
 
 export const notificationsAtom = atomWithStorage<UiNotification[]>(
   "paperless-notifications",
-  []
+  [],
+  safeJsonStorage<UiNotification[]>()
 )
 
 export const notificationPreferencesAtom =
   atomWithStorage<NotificationPreferences>(
     "paperless-notification-preferences",
-    defaultNotificationPreferences
+    defaultNotificationPreferences,
+    safeJsonStorage<NotificationPreferences>()
   )
 
 export const setNotificationPreferencesAtom = atom(
