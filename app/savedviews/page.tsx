@@ -14,6 +14,7 @@ import { SavedViewsTable } from "./saved-views-table"
 
 export default async function SavedViewsPage() {
   const permissions = await requireRoutePermission("/savedviews")
+  type TableProps = React.ComponentProps<typeof SavedViewsTable>
 
   const [
     savedViews,
@@ -24,13 +25,13 @@ export default async function SavedViewsPage() {
     users,
     customFields,
   ] = await Promise.all([
-    getSavedViews(),
-    getCorrespondents(),
-    getDocumentTypes(),
-    getStoragePaths(),
-    getTags(),
-    getUsers(),
-    getCustomFields(),
+    getSavedViews<TableProps["initialViews"][number]>(),
+    getCorrespondents<TableProps["correspondents"][number]>(),
+    getDocumentTypes<TableProps["documentTypes"][number]>(),
+    getStoragePaths<TableProps["storagePaths"][number]>(),
+    getTags<TableProps["tags"][number]>(),
+    getUsers<TableProps["users"][number]>(),
+    getCustomFields<TableProps["customFields"][number]>(),
   ])
 
   return (

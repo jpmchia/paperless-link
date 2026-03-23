@@ -55,7 +55,10 @@ interface BulkActionBarProps {
   groupsList?: { id: number; name: string }[]
 }
 
-async function bulkEdit(documentIds: number[], method: string, parameters: Record<string, any>) {
+type BulkEditParameters = Record<string, unknown>
+type SelectableActor = { id: number; username?: string; name?: string }
+
+async function bulkEdit(documentIds: number[], method: string, parameters: BulkEditParameters) {
   const res = await fetch("/api/bulk-edit", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -84,7 +87,7 @@ async function bulkDownload(documentIds: number[]) {
   URL.revokeObjectURL(url)
 }
 
-async function proxyPost(path: string, body: Record<string, any>) {
+async function proxyPost(path: string, body: Record<string, unknown>) {
   const res = await fetch(`/api/proxy/${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -105,11 +108,11 @@ function MultiSelectCombobox({
   placeholder,
   labelKey = "username",
 }: {
-  items: any[]
+  items: SelectableActor[]
   selected: number[]
   onChange: (ids: number[]) => void
   placeholder: string
-  labelKey?: string
+  labelKey?: "username" | "name"
 }) {
   const [open, setOpen] = React.useState(false)
   return (
@@ -192,14 +195,16 @@ export function BulkActionBar({
   const count = selectedIds.length
   if (count === 0) return null
 
-  const run = async (method: string, parameters: Record<string, any>, message: string) => {
+  const run = async (method: string, parameters: BulkEditParameters, message: string) => {
     setBusy(true)
     try {
       await bulkEdit(selectedIds, method, parameters)
       toast.success(message)
       onComplete()
-    } catch (e: any) {
-      toast.error("Bulk operation failed", { description: e.message })
+    } catch (error) {
+      toast.error("Bulk operation failed", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setBusy(false)
     }
@@ -229,8 +234,10 @@ export function BulkActionBar({
       await bulkEdit(selectedIds, "delete", {})
       toast.success(`${count} document(s) moved to trash`)
       onComplete()
-    } catch (e: any) {
-      toast.error("Delete failed", { description: e.message })
+    } catch (error) {
+      toast.error("Delete failed", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setBusy(false)
       setShowDelete(false)
@@ -242,8 +249,10 @@ export function BulkActionBar({
     try {
       await bulkDownload(selectedIds)
       toast.success("Download started")
-    } catch (e: any) {
-      toast.error("Download failed", { description: e.message })
+    } catch (error) {
+      toast.error("Download failed", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setBusy(false)
     }
@@ -259,8 +268,10 @@ export function BulkActionBar({
       await proxyPost("documents/rotate/", { documents: selectedIds, degrees })
       toast.success(`Rotated ${count} document(s) by ${degrees}°`)
       onComplete()
-    } catch (e: any) {
-      toast.error("Rotate failed", { description: e.message })
+    } catch (error) {
+      toast.error("Rotate failed", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setBusy(false)
     }
@@ -276,8 +287,10 @@ export function BulkActionBar({
       toast.success(`Merging ${count} documents…`)
       setShowMerge(false)
       onComplete()
-    } catch (e: any) {
-      toast.error("Merge failed", { description: e.message })
+    } catch (error) {
+      toast.error("Merge failed", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setBusy(false)
     }
@@ -297,8 +310,10 @@ export function BulkActionBar({
       toast.success(`Permissions updated on ${count} documents`)
       setShowPermissions(false)
       onComplete()
-    } catch (e: any) {
-      toast.error("Permissions update failed", { description: e.message })
+    } catch (error) {
+      toast.error("Permissions update failed", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setBusy(false)
     }
@@ -316,8 +331,10 @@ export function BulkActionBar({
       setCfFieldId("")
       setCfValue("")
       onComplete()
-    } catch (e: any) {
-      toast.error("Custom field update failed", { description: e.message })
+    } catch (error) {
+      toast.error("Custom field update failed", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setBusy(false)
     }

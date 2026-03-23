@@ -6,8 +6,8 @@ export async function GET(
   props: { params: Promise<{ id: string }> }
 ) {
   const params = await props.params
-  const session = await getServerSession(authOptions as any)
-  const token = (session as any)?.accessToken
+  const session = await getServerSession(authOptions)
+  const token = session?.accessToken
 
   if (!token) {
     return new Response("Unauthorized", { status: 401 })

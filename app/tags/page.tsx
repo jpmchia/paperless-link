@@ -1,16 +1,18 @@
 import { AppShell } from "@/components/app-shell"
 import { TopBar } from "@/app/documents/topbar"
-import { getPaperlessApi } from "@/lib/api"
+import { getPaperlessApi, type PaginatedResults } from "@/lib/api"
 import { requireRoutePermission } from "@/lib/server-permissions"
 import { TagsTable } from "./tags-table"
 
+type TagTableItem = React.ComponentProps<typeof TagsTable>["initialTags"][number]
+
 async function getTagsWithCounts() {
   try {
-    const [tags, stats] = await Promise.all([
-      getPaperlessApi("tags/?page_size=100000"),
+    const [tags] = await Promise.all([
+      getPaperlessApi<PaginatedResults<TagTableItem>>("tags/?page_size=100000"),
       getPaperlessApi("statistics/").catch(() => null),
     ])
-    return (tags.results || []) as any[]
+    return tags.results || []
   } catch {
     return []
   }

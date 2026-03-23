@@ -46,8 +46,10 @@ export function UploadWidget() {
       toast.success(`${files.length} document(s) uploaded`)
       setFiles([])
       router.refresh()
-    } catch (e: any) {
-      toast.error("Upload failed", { description: e.message })
+    } catch (error) {
+      toast.error("Upload failed", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setUploading(false)
     }

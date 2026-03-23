@@ -13,7 +13,9 @@ export default async function ASNLookupPage({
   const asn = resolvedParams.id
 
   try {
-    const data = await getPaperlessApi(`documents/?archive_serial_number=${asn}&page_size=1`)
+    const data = await getPaperlessApi<{ results?: Array<{ id: number }> }>(
+      `documents/?archive_serial_number=${asn}&page_size=1`
+    )
     const results = data.results || []
     if (results.length === 1) {
       redirect(`/documents/${results[0].id}`)

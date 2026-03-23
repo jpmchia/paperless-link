@@ -3,9 +3,19 @@ import { authOptions } from "@/auth"
 
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
 
-export async function getPaperlessApi(endpoint: string, options: RequestInit = {}) {
-  const session = await getServerSession(authOptions as any)
-  const token = (session as any)?.accessToken
+export interface PaginatedResults<T> {
+  count?: number
+  next?: string | null
+  previous?: string | null
+  results?: T[]
+}
+
+export async function getPaperlessApi<T = unknown>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const session = await getServerSession(authOptions)
+  const token = session?.accessToken
 
   if (!token) {
     throw new Error("Unauthorized: No access token available")
@@ -33,7 +43,7 @@ export async function getPaperlessApi(endpoint: string, options: RequestInit = {
     throw new Error(`API Error ${response.status}: ${response.statusText}`)
   }
 
-  return response.json()
+  return response.json() as Promise<T>
 }
 
 // -----------------------------------------------------------------------
@@ -151,7 +161,13 @@ export function buildDocumentQueryString(
 // Filter rule type → FilterParams
 // Rule type IDs from NGX src/app/data/filter-rule-type.ts
 // -----------------------------------------------------------------------
-export function filterParamsFromSavedView(view: any): FilterParams {
+type SavedViewLike = {
+  filter_rules?: Array<{ rule_type?: number; value?: string | number | boolean | null }>
+  sort_field?: string | null
+  sort_reverse?: boolean | null
+}
+
+export function filterParamsFromSavedView(view: SavedViewLike): FilterParams {
   const params: FilterParams = {}
 
   if (view.sort_field) {
@@ -160,12 +176,14 @@ export function filterParamsFromSavedView(view: any): FilterParams {
 
   for (const rule of view.filter_rules || []) {
     const { rule_type, value } = rule
+    const stringValue =
+      typeof value === "string" ? value : value == null ? undefined : String(value)
     switch (rule_type) {
       // Text/content
-      case 0:  params.titleContains = value; break
-      case 1:  params.contentContains = value; break
-      case 19: params.titleContentContains = value; break
-      case 20: params.query = value; break
+      case 0:  params.titleContains = stringValue; break
+      case 1:  params.contentContains = stringValue; break
+      case 19: params.titleContentContains = stringValue; break
+      case 20: params.query = stringValue; break
       case 21: params.moreLikeId = Number(value); break
       // Correspondent
       case 3:  params.correspondent = Number(value); break
@@ -191,21 +209,21 @@ export function filterParamsFromSavedView(view: any): FilterParams {
       case 23: params.asnGte = Number(value); break
       case 24: params.asnLte = Number(value); break
       // Dates — created
-      case 8:  params.createdBefore = value; break
-      case 9:  params.createdAfter = value; break
-      case 43: params.createdBefore = value; break
-      case 44: params.createdAfter = value; break
+      case 8:  params.createdBefore = stringValue; break
+      case 9:  params.createdAfter = stringValue; break
+      case 43: params.createdBefore = stringValue; break
+      case 44: params.createdAfter = stringValue; break
       case 10: params.createdYear = Number(value); break
       case 11: params.createdMonth = Number(value); break
       case 12: params.createdDay = Number(value); break
       // Dates — added
-      case 13: params.addedBefore = value; break
-      case 14: params.addedAfter = value; break
-      case 45: params.addedBefore = value; break
-      case 46: params.addedAfter = value; break
+      case 13: params.addedBefore = stringValue; break
+      case 14: params.addedAfter = stringValue; break
+      case 45: params.addedBefore = stringValue; break
+      case 46: params.addedAfter = stringValue; break
       // Custom fields
-      case 36: params.customFieldsContain = value; break
-      case 42: params.customFieldQuery = value; break
+      case 36: params.customFieldsContain = stringValue; break
+      case 42: params.customFieldQuery = stringValue; break
       // Permissions / ownership
       case 32: params.owner = Number(value); break
       case 33: { if (!params.ownerAny) params.ownerAny = []; params.ownerAny.push(Number(value)); break }
@@ -221,18 +239,20 @@ export function filterParamsFromSavedView(view: any): FilterParams {
 // -----------------------------------------------------------------------
 // Higher level abstractions
 // -----------------------------------------------------------------------
-export async function getDocumentStatistics() {
+export async function getDocumentStatistics<T extends object = { documents_total: number; documents_inbox: number }>() {
   try {
-    return await getPaperlessApi("statistics/")
+    return await getPaperlessApi<T>("statistics/")
   } catch (error) {
     console.error("Failed to fetch document statistics:", error)
-    return { documents_total: 0, documents_inbox: 0 }
+    return { documents_total: 0, documents_inbox: 0 } as T
   }
 }
 
-export async function getRecentDocuments(limit: number = 5) {
+export async function getRecentDocuments<T = unknown>(limit: number = 5): Promise<T[]> {
   try {
-    const data = await getPaperlessApi(`documents/?ordering=-added&page_size=${limit}`) as any
+    const data = await getPaperlessApi<PaginatedResults<T>>(
+      `documents/?ordering=-added&page_size=${limit}`
+    )
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch recent documents:", error)
@@ -240,31 +260,31 @@ export async function getRecentDocuments(limit: number = 5) {
   }
 }
 
-export async function getSavedViews() {
+export async function getSavedViews<T = unknown>(): Promise<T[]> {
   try {
-    const data = await getPaperlessApi("saved_views/") as any
+    const data = await getPaperlessApi<PaginatedResults<T>>("saved_views/")
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch saved views", error)
-    return []
+    return [] as T[]
   }
 }
 
-export async function getSavedView(id: number | string) {
+export async function getSavedView<T = unknown>(id: number | string): Promise<T | null> {
   try {
-    return await getPaperlessApi(`saved_views/${id}/`)
+    return await getPaperlessApi<T>(`saved_views/${id}/`)
   } catch (error) {
     console.error(`Failed to fetch saved view ${id}:`, error)
     return null
   }
 }
 
-export async function getUiSettings() {
+export async function getUiSettings<T extends object = Record<string, unknown>>(): Promise<T> {
   try {
-    return await getPaperlessApi("ui_settings/")
+    return await getPaperlessApi<T>("ui_settings/")
   } catch (error) {
     console.error("Failed to fetch UI settings:", error)
-    return {}
+    return {} as T
   }
 }
 
@@ -275,7 +295,7 @@ export async function getDocuments(
 ) {
   try {
     const qs = buildDocumentQueryString(page, pageSize, filters)
-    const data = await getPaperlessApi(`documents/?${qs}`) as any
+    const data = await getPaperlessApi<PaginatedResults<unknown>>(`documents/?${qs}`)
     return {
       count: data.count,
       next: data.next,
@@ -290,9 +310,9 @@ export async function getDocuments(
 
 export async function getSearchAutocomplete(term: string, limit: number = 10): Promise<string[]> {
   try {
-    const data = await getPaperlessApi(
+    const data = await getPaperlessApi<unknown>(
       `search/autocomplete/?term=${encodeURIComponent(term)}&limit=${limit}`
-    ) as any
+    )
     return Array.isArray(data) ? data : []
   } catch (error) {
     console.error("Failed to fetch autocomplete:", error)
@@ -300,129 +320,129 @@ export async function getSearchAutocomplete(term: string, limit: number = 10): P
   }
 }
 
-export async function getDocument(id: number | string) {
+export async function getDocument<T = unknown>(id: number | string): Promise<T | null> {
   try {
-    return await getPaperlessApi(`documents/${id}/?full_perms=true`)
+    return await getPaperlessApi<T>(`documents/${id}/?full_perms=true`)
   } catch (error) {
     console.error(`Failed to fetch document ${id}:`, error)
     return null
   }
 }
 
-export async function getDocumentMetadata(id: number | string) {
+export async function getDocumentMetadata<T = unknown>(id: number | string): Promise<T | null> {
   try {
-    return await getPaperlessApi(`documents/${id}/metadata/`)
+    return await getPaperlessApi<T>(`documents/${id}/metadata/`)
   } catch (error) {
     console.error(`Failed to fetch metadata for document ${id}:`, error)
     return null
   }
 }
 
-export async function getDocumentHistory(id: number | string) {
+export async function getDocumentHistory<T = unknown>(id: number | string): Promise<T[]> {
   try {
-    const data = await getPaperlessApi(`documents/${id}/history/`) as any
-    return data || []
+    const data = await getPaperlessApi<unknown>(`documents/${id}/history/`)
+    return Array.isArray(data) ? (data as T[]) : []
   } catch (error) {
     console.error(`Failed to fetch history for document ${id}:`, error)
-    return []
+    return [] as T[]
   }
 }
 
-export async function getUsers() {
+export async function getUsers<T = unknown>(): Promise<T[]> {
   try {
-    const data = await getPaperlessApi("users/?page_size=100000") as any
+    const data = await getPaperlessApi<PaginatedResults<T>>("users/?page_size=100000")
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch users:", error)
-    return []
+    return [] as T[]
   }
 }
 
-export async function getGroups() {
+export async function getGroups<T = unknown>(): Promise<T[]> {
   try {
-    const data = await getPaperlessApi("groups/?page_size=100000") as any
+    const data = await getPaperlessApi<PaginatedResults<T>>("groups/?page_size=100000")
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch groups:", error)
-    return []
+    return [] as T[]
   }
 }
 
-export async function getCorrespondents() {
+export async function getCorrespondents<T = unknown>(): Promise<T[]> {
   try {
-    const data = await getPaperlessApi("correspondents/?page_size=100000") as any
+    const data = await getPaperlessApi<PaginatedResults<T>>("correspondents/?page_size=100000")
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch correspondents:", error)
-    return []
+    return [] as T[]
   }
 }
 
-export async function getDocumentTypes() {
+export async function getDocumentTypes<T = unknown>(): Promise<T[]> {
   try {
-    const data = await getPaperlessApi("document_types/?page_size=100000") as any
+    const data = await getPaperlessApi<PaginatedResults<T>>("document_types/?page_size=100000")
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch document types:", error)
-    return []
+    return [] as T[]
   }
 }
 
-export async function getStoragePaths() {
+export async function getStoragePaths<T = unknown>(): Promise<T[]> {
   try {
-    const data = await getPaperlessApi("storage_paths/?page_size=100000") as any
+    const data = await getPaperlessApi<PaginatedResults<T>>("storage_paths/?page_size=100000")
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch storage paths:", error)
-    return []
+    return [] as T[]
   }
 }
 
-export async function getTags() {
+export async function getTags<T = unknown>(): Promise<T[]> {
   try {
-    const data = await getPaperlessApi("tags/?page_size=100000") as any
+    const data = await getPaperlessApi<PaginatedResults<T>>("tags/?page_size=100000")
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch tags:", error)
-    return []
+    return [] as T[]
   }
 }
 
-export async function getCustomFields() {
+export async function getCustomFields<T = unknown>(): Promise<T[]> {
   try {
-    const data = await getPaperlessApi("custom_fields/?page_size=100000") as any
+    const data = await getPaperlessApi<PaginatedResults<T>>("custom_fields/?page_size=100000")
     return data.results || []
   } catch (error) {
     console.error("Failed to fetch custom fields:", error)
-    return []
+    return [] as T[]
   }
 }
 
-export async function getProfile() {
+export async function getProfile<T = unknown>(): Promise<T | null> {
   try {
-    return await getPaperlessApi("profile/")
+    return await getPaperlessApi<T>("profile/")
   } catch (error) {
     console.error("Failed to fetch profile:", error)
     return null
   }
 }
 
-export async function getSocialAccountProviders() {
+export async function getSocialAccountProviders<T = unknown>(): Promise<T[]> {
   try {
-    const data = await getPaperlessApi("profile/social_account_providers/")
+    const data = await getPaperlessApi<unknown>("profile/social_account_providers/")
     return Array.isArray(data) ? data : []
   } catch (error) {
     console.error("Failed to fetch social account providers:", error)
-    return []
+    return [] as T[]
   }
 }
 
-export async function getDocumentNotes(id: string | number) {
+export async function getDocumentNotes<T = unknown>(id: string | number): Promise<T[]> {
   try {
-    const data = await getPaperlessApi(`documents/${id}/notes/`) as any
-    return Array.isArray(data) ? data : []
+    const data = await getPaperlessApi<unknown>(`documents/${id}/notes/`)
+    return Array.isArray(data) ? (data as T[]) : []
   } catch (error) {
     console.error("Failed to fetch document notes:", error)
-    return []
+    return [] as T[]
   }
 }

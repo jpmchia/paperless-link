@@ -16,7 +16,7 @@
  *     is on the opposite side (right dock resizes from the left edge, etc.).
  */
 
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 
 type Size = { width: number; height: number }
 type ResizeDirection = "horizontal" | "vertical" | "both"
@@ -109,8 +109,33 @@ export function useResizable(options: UseResizableOptions): UseResizableReturn {
   const startYRef = useRef(0)
   const startSizeRef = useRef<Size>({ width: 0, height: 0 })
 
-  sizeRef.current = size
-  optionsRef.current = { direction, dockSide, minWidth, maxWidth, minHeight, maxHeight, onResizeStart, onResize, onResizeEnd }
+  useEffect(() => {
+    sizeRef.current = size
+  }, [size])
+
+  useEffect(() => {
+    optionsRef.current = {
+      direction,
+      dockSide,
+      minWidth,
+      maxWidth,
+      minHeight,
+      maxHeight,
+      onResizeStart,
+      onResize,
+      onResizeEnd,
+    }
+  }, [
+    direction,
+    dockSide,
+    minWidth,
+    maxWidth,
+    minHeight,
+    maxHeight,
+    onResizeStart,
+    onResize,
+    onResizeEnd,
+  ])
 
   const setSize = useCallback((s: Size) => {
     sizeRef.current = s

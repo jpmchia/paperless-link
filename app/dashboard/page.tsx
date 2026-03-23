@@ -15,11 +15,11 @@ export default async function DashboardPage() {
 
   const [statistics, recentDocuments, savedViews, correspondents, documentTypes] =
     await Promise.all([
-      getDocumentStatistics(),
-      getRecentDocuments(8),
-      getSavedViews(),
-      getCorrespondents(),
-      getDocumentTypes(),
+      getDocumentStatistics<DashboardData["statistics"]>(),
+      getRecentDocuments<DashboardData["recentDocuments"][number]>(8),
+      getSavedViews<DashboardData["savedViews"][number]>(),
+      getCorrespondents<DashboardData["correspondents"][number]>(),
+      getDocumentTypes<DashboardData["documentTypes"][number]>(),
     ])
 
   const initialData: DashboardData = {

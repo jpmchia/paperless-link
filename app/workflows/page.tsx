@@ -29,16 +29,17 @@ async function getMailRules() {
 
 export default async function WorkflowsPage() {
   const permissions = await requireRoutePermission("/workflows")
+  type Lookups = React.ComponentProps<typeof WorkflowsTable>["lookups"]
 
   const [workflows, tags, correspondents, documentTypes, storagePaths, customFields, users, groups, mailRules] = await Promise.all([
     getWorkflows(),
-    getTags(),
-    getCorrespondents(),
-    getDocumentTypes(),
-    getStoragePaths(),
-    getCustomFields(),
-    getUsers(),
-    getGroups(),
+    getTags<Lookups["tags"][number]>(),
+    getCorrespondents<Lookups["correspondents"][number]>(),
+    getDocumentTypes<Lookups["documentTypes"][number]>(),
+    getStoragePaths<Lookups["storagePaths"][number]>(),
+    getCustomFields<Lookups["customFields"][number]>(),
+    getUsers<Lookups["users"][number]>(),
+    getGroups<Lookups["groups"][number]>(),
     getMailRules(),
   ])
 

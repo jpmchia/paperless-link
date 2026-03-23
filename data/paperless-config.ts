@@ -74,8 +74,8 @@ export interface ConfigOption {
   note?: string
 }
 
-function mapToItems(enumObj: any): Array<{ id: string; name: string }> {
-  return Object.values(enumObj).map((value: any) => {
+function mapToItems<T extends Record<string, string>>(enumObj: T): Array<{ id: string; name: string }> {
+  return Object.values(enumObj).map((value) => {
     return {
       id: value,
       name: value,

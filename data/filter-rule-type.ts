@@ -372,5 +372,5 @@ export interface FilterRuleType {
   isnull_filtervar?: string
   datatype: string //number, string, boolean, date
   multi: boolean
-  default?: any
+  default?: unknown
 }

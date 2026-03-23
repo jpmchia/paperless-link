@@ -3,14 +3,14 @@ import { User } from './user'
 
 export interface UiSettings {
   user: User
-  settings: Object
+  settings: Record<string, unknown>
   permissions: string[]
 }
 
 export interface UiSetting {
   key: string
   type: string
-  default: any
+  default: unknown
 }
 
 export enum GlobalSearchType {

@@ -49,15 +49,21 @@ type ActiveSavedView = PermissionedObject & {
   display_mode?: string | null
   display_fields?: string[] | null
   page_size?: number | null
+  show_on_dashboard?: boolean | null
+  show_in_sidebar?: boolean | null
 }
 
+type LookupItem = { id: number; name: string }
+type TagLookupItem = LookupItem & { color?: string | number }
+type SavedViewSummary = ActiveSavedView & { id: number; name: string }
+
 interface FilterPanelProps {
-  correspondents: any[]
-  documentTypes: any[]
-  storagePaths: any[]
-  tags: any[]
+  correspondents: LookupItem[]
+  documentTypes: LookupItem[]
+  storagePaths: LookupItem[]
+  tags: TagLookupItem[]
   users?: Array<{ id: number; username?: string; first_name?: string; last_name?: string }>
-  savedViews: any[]
+  savedViews: SavedViewSummary[]
   activeViewId?: number | null
   activeViewName?: string | null
   activeView?: ActiveSavedView | null
@@ -100,6 +106,20 @@ const DATE_PRESETS = [
 
 type DatePresetId = (typeof DATE_PRESETS)[number]["id"]
 type DateTarget = "created" | "added"
+type ClearableFilterKey =
+  | "query"
+  | "correspondent"
+  | "documentType"
+  | "storagePath"
+  | "createdAfter"
+  | "createdBefore"
+  | "addedAfter"
+  | "addedBefore"
+  | "isInInbox"
+  | "moreLikeId"
+  | "owner"
+  | "ownerIsNull"
+  | "sharedByUser"
 
 function toIsoDate(date: Date) {
   return date.toISOString().split("T")[0]
@@ -260,7 +280,7 @@ export function FilterPanel({
     [setLocalFilters, setAtomFilters, onFilterChange, router, pathname, activeViewId]
   )
 
-  const loadSavedView = async (view: any) => {
+  const loadSavedView = async (view: SavedViewSummary) => {
     if (activeViewId && activeViewIsDirty) {
       const confirmed = await confirm({
         actionLabel: "Discard changes",
@@ -295,8 +315,8 @@ export function FilterPanel({
   const buildEditorValueFromActiveView = React.useCallback(() => {
     return {
       ...buildEditorValueFromCurrentState(activeViewName ?? "Saved view", activeViewId ?? undefined),
-      show_on_dashboard: Boolean((activeView as { show_on_dashboard?: boolean } | null | undefined)?.show_on_dashboard),
-      show_in_sidebar: Boolean((activeView as { show_in_sidebar?: boolean } | null | undefined)?.show_in_sidebar),
+      show_on_dashboard: Boolean(activeView?.show_on_dashboard),
+      show_in_sidebar: Boolean(activeView?.show_in_sidebar),
     } satisfies SavedViewEditorValue
   }, [activeView, activeViewId, activeViewName, buildEditorValueFromCurrentState])
 
@@ -474,7 +494,7 @@ export function FilterPanel({
     }
   }
 
-  const removeChip = (key: keyof FilterParams, value?: number) => {
+  const removeChip = (key: keyof FilterParams | ClearableFilterKey, value?: number) => {
     const updated = { ...filters }
     if (key === "tags" && value !== undefined) {
       updated.tags = (updated.tags || []).filter((t) => t !== value)
@@ -489,21 +509,32 @@ export function FilterPanel({
       updated.ownerExclude = (updated.ownerExclude || []).filter((id) => id !== value)
       if (updated.ownerExclude.length === 0) delete updated.ownerExclude
     } else {
-      delete (updated as any)[key]
+      delete updated[key as ClearableFilterKey]
     }
     applyFilters(updated)
   }
 
   const toggleTag = (id: number) => {
     const key = tagMode === "not" ? "tagsExclude" : tagMode === "any" ? "tagsAny" : "tags"
-    const current = (filters as any)[key] as number[] || []
+    const current =
+      key === "tagsExclude"
+        ? filters.tagsExclude || []
+        : key === "tagsAny"
+          ? filters.tagsAny || []
+          : filters.tags || []
     const next = current.includes(id) ? current.filter((t: number) => t !== id) : [...current, id]
     applyFilters({ ...filters, [key]: next.length ? next : undefined })
   }
 
   const isTagSelected = (id: number) => {
     const key = tagMode === "not" ? "tagsExclude" : tagMode === "any" ? "tagsAny" : "tags"
-    return ((filters as any)[key] as number[] || []).includes(id)
+    const current =
+      key === "tagsExclude"
+        ? filters.tagsExclude || []
+        : key === "tagsAny"
+          ? filters.tagsAny || []
+          : filters.tags || []
+    return current.includes(id)
   }
 
   // Save active view
@@ -525,8 +556,10 @@ export function FilterPanel({
       }
       setSavedViewBaseline(currentSavedViewState)
       toast.success(`View "${activeViewName}" saved`)
-    } catch (e: any) {
-      toast.error("Failed to save view", { description: e.message })
+    } catch (error) {
+      toast.error("Failed to save view", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setSaving(false)
     }
@@ -588,9 +621,9 @@ export function FilterPanel({
       setEditorOpen(false)
       setEditorValue(null)
       navigateToSavedView(editorValue.id)
-    } catch (e: any) {
+    } catch (error) {
       toast.error(editorIsNew ? "Failed to create view" : "Failed to save view", {
-        description: e.message,
+        description: error instanceof Error ? error.message : "Unknown error",
       })
     } finally {
       setSaving(false)
@@ -601,23 +634,23 @@ export function FilterPanel({
   const chips: { label: string; onRemove: () => void }[] = []
   if (filters.query) chips.push({ label: `Search: "${filters.query}"`, onRemove: () => removeChip("query") })
   if (filters.correspondent) {
-    const c = correspondents.find((x: any) => x.id === filters.correspondent)
+    const c = correspondents.find((x) => x.id === filters.correspondent)
     chips.push({ label: `From: ${c?.name ?? filters.correspondent}`, onRemove: () => removeChip("correspondent") })
   }
   if (filters.documentType) {
-    const dt = documentTypes.find((x: any) => x.id === filters.documentType)
+    const dt = documentTypes.find((x) => x.id === filters.documentType)
     chips.push({ label: `Type: ${dt?.name ?? filters.documentType}`, onRemove: () => removeChip("documentType") })
   }
   if (filters.storagePath) {
-    const sp = storagePaths.find((x: any) => x.id === filters.storagePath)
+    const sp = storagePaths.find((x) => x.id === filters.storagePath)
     chips.push({ label: `Path: ${sp?.name ?? filters.storagePath}`, onRemove: () => removeChip("storagePath") })
   }
   ;(filters.tags || []).forEach((id: number) => {
-    const t = tags.find((x: any) => x.id === id)
+    const t = tags.find((x) => x.id === id)
     chips.push({ label: `Tag: ${t?.name ?? id}`, onRemove: () => removeChip("tags", id) })
   })
   ;(filters.tagsExclude || []).forEach((id: number) => {
-    const t = tags.find((x: any) => x.id === id)
+    const t = tags.find((x) => x.id === id)
     chips.push({ label: `−Tag: ${t?.name ?? id}`, onRemove: () => removeChip("tagsExclude", id) })
   })
   if (filters.createdAfter) chips.push({ label: `Created after: ${filters.createdAfter}`, onRemove: () => removeChip("createdAfter") })
@@ -695,7 +728,7 @@ export function FilterPanel({
             <Button variant="outline" size="sm" className={"h-8 min-h-8 hover:border-accent/50 hover:bg-accent/20" + (filters.correspondent ? " border-primary text-primary" : " border-muted-foreground/20")}>
               <User className="mr-2 h-4 w-4" />
               {filters.correspondent
-                ? correspondents.find((c: any) => c.id === filters.correspondent)?.name ?? "Correspondent"
+                ? correspondents.find((c) => c.id === filters.correspondent)?.name ?? "Correspondent"
                 : "Correspondent"}
               <ChevronDown className="ml-2 h-3 w-3" />
             </Button>
@@ -705,7 +738,7 @@ export function FilterPanel({
               <span className="text-muted-foreground">Any correspondent</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {correspondents.map((c: any) => (
+            {correspondents.map((c) => (
               <DropdownMenuItem
                 key={c.id}
                 onClick={() => applyFilters({ ...filters, correspondent: c.id })}
@@ -723,7 +756,7 @@ export function FilterPanel({
             <Button variant="outline" size="sm" className={"h-8 min-h-8 hover:border-accent/50 hover:bg-accent/20" + (filters.documentType ? " border-primary text-primary" : " border-muted-foreground/20")}>
               <FileType className="mr-2 h-4 w-4" />
               {filters.documentType
-                ? documentTypes.find((t: any) => t.id === filters.documentType)?.name ?? "Type"
+                ? documentTypes.find((t) => t.id === filters.documentType)?.name ?? "Type"
                 : "Type"}
               <ChevronDown className="ml-2 h-3 w-3" />
             </Button>
@@ -733,7 +766,7 @@ export function FilterPanel({
               <span className="text-muted-foreground">Any type</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {documentTypes.map((t: any) => (
+            {documentTypes.map((t) => (
               <DropdownMenuItem
                 key={t.id}
                 onClick={() => applyFilters({ ...filters, documentType: t.id })}
@@ -779,7 +812,7 @@ export function FilterPanel({
             </div>
             <DropdownMenuSeparator />
             <div className="max-h-[250px] overflow-y-auto">
-              {tags.map((t: any) => (
+              {tags.map((t) => (
                 <DropdownMenuCheckboxItem
                   key={t.id}
                   checked={isTagSelected(t.id)}
@@ -994,7 +1027,7 @@ export function FilterPanel({
             {allViews.length > 0 && (
               <>
                 <DropdownMenuLabel className="text-xs text-muted-foreground">Saved views</DropdownMenuLabel>
-                {allViews.map((v: any) => (
+                {allViews.map((v) => (
                   <DropdownMenuItem
                     key={v.id}
                     onClick={() => loadSavedView(v)}

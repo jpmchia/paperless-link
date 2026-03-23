@@ -6,7 +6,7 @@ import { PreferencesForm } from "@/app/profile/preferences-form"
 
 export default async function SettingsPage() {
   const permissions = await requireRoutePermission("/settings")
-  const uiSettings = await getUiSettings().catch(() => null)
+  const uiSettings = await getUiSettings<NonNullable<React.ComponentProps<typeof PreferencesForm>["initialSettings"]>>().catch(() => null)
 
   return (
     <AppShell initialPermissions={permissions} topbar={<TopBar title="Settings" />}>

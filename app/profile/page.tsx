@@ -2,11 +2,12 @@ import { AppShell } from "@/components/app-shell"
 import { getProfile, getSocialAccountProviders } from "@/lib/api"
 import { notFound } from "next/navigation"
 import { ProfileTabs } from "./profile-tabs"
+import type { ProfileData, SocialAccountProvider } from "./types"
 
 export default async function ProfilePage() {
   const [profile, socialAccountProviders] = await Promise.all([
-    getProfile(),
-    getSocialAccountProviders(),
+    getProfile<ProfileData>(),
+    getSocialAccountProviders<SocialAccountProvider>(),
   ])
 
   if (!profile) {

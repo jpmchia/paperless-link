@@ -10,7 +10,6 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
 import { getSavedViews, getUiSettings } from "@/lib/api"
 import {
   emptyPermissions,
@@ -41,6 +40,10 @@ interface SavedViewEntry {
   show_in_sidebar: boolean
 }
 
+type UiSettingsPayload = {
+  settings?: Record<string, unknown>
+}
+
 function resolvePaperlessAssetUrl(value: string | null) {
   if (!value) return null
 
@@ -66,8 +69,8 @@ export async function AppShell({
   try {
     const session = await getServerSession(authOptions)
     if (session) {
-      savedViews = (await getSavedViews()) as SavedViewEntry[]
-      const uiSettings = await getUiSettings().catch(() => null)
+      savedViews = await getSavedViews<SavedViewEntry>()
+      const uiSettings = await getUiSettings<UiSettingsPayload>().catch(() => null)
       const uiSettingsValues =
         (uiSettings?.settings as Record<string, unknown> | undefined) ?? {}
       appTitle =

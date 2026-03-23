@@ -7,8 +7,8 @@ import { revalidatePath } from "next/cache"
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
 
 async function getToken() {
-  const session = await getServerSession(authOptions as any)
-  const token = (session as any)?.accessToken
+  const session = await getServerSession(authOptions)
+  const token = session?.accessToken
   if (!token) throw new Error("Unauthorized")
   return token
 }

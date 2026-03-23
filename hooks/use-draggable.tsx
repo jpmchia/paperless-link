@@ -143,11 +143,31 @@ export function useDraggable(options: UseDraggableOptions): UseDraggableReturn {
   const isDraggingRef = useRef(false)
   const hasDraggedRef = useRef(false)
 
-  positionRef.current = position
-  elementSizeRef.current = elementSize
-  enabledRef.current = enabled
-  constrainInsetsRef.current = constrainInsets
-  optionsRef.current = { onDragStart, onDragMove, onDragEnd, shouldConstrain, edgeMargin }
+  useEffect(() => {
+    positionRef.current = position
+  }, [position])
+
+  useEffect(() => {
+    elementSizeRef.current = elementSize
+  }, [elementSize])
+
+  useEffect(() => {
+    enabledRef.current = enabled
+  }, [enabled])
+
+  useEffect(() => {
+    constrainInsetsRef.current = constrainInsets
+  }, [constrainInsets])
+
+  useEffect(() => {
+    optionsRef.current = {
+      onDragStart,
+      onDragMove,
+      onDragEnd,
+      shouldConstrain,
+      edgeMargin,
+    }
+  }, [edgeMargin, onDragEnd, onDragMove, onDragStart, shouldConstrain])
 
   const setPosition = useCallback((pos: Position) => {
     positionRef.current = pos
@@ -164,7 +184,10 @@ export function useDraggable(options: UseDraggableOptions): UseDraggableReturn {
     ) {
       prevInitialRef.current = initialPosition
       positionRef.current = initialPosition
-      setPositionState(initialPosition)
+      const frame = window.requestAnimationFrame(() => {
+        setPositionState(initialPosition)
+      })
+      return () => window.cancelAnimationFrame(frame)
     }
   }, [initialPosition])
 

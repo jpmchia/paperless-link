@@ -1,5 +1,5 @@
 import * as React from "react"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes"
 
@@ -18,7 +18,7 @@ function TestComponent({ dirty }: { dirty: boolean }) {
 
   return (
     <div>
-      <a href="/documents?view=2">Go to another view</a>
+      <button type="button">Go to another view</button>
     </div>
   )
 }

@@ -179,8 +179,7 @@ export function normalizeCustomFieldValue(
 
 export function buildUpdateDocumentPayload(
   values: DocumentFormValues,
-  customFieldsList: CustomFieldDefinition[],
-  _visibleCustomFields: number[]
+  customFieldsList: CustomFieldDefinition[]
 ) {
   const payload: Record<string, unknown> = {
     title: values.title,

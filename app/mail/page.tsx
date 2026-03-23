@@ -42,19 +42,20 @@ async function getProcessedMail() {
 
 export default async function MailPage() {
   const permissions = await requireRoutePermission("/mail")
+  type Lookups = React.ComponentProps<typeof MailTable>
 
   const [accounts, rules, processedMail, uiSettings, tags, correspondents, documentTypes] = await Promise.all([
     getMailAccounts(),
     getMailRules(),
     getProcessedMail(),
-    getUiSettings(),
-    getTags(),
-    getCorrespondents(),
-    getDocumentTypes(),
+    getUiSettings<UiSettingsPayload>(),
+    getTags<Lookups["tags"][number]>(),
+    getCorrespondents<Lookups["correspondents"][number]>(),
+    getDocumentTypes<Lookups["documentTypes"][number]>(),
   ])
 
-  const gmailOAuthUrl = (uiSettings as UiSettingsPayload)?.gmail_oauth_url ?? null
-  const outlookOAuthUrl = (uiSettings as UiSettingsPayload)?.outlook_oauth_url ?? null
+  const gmailOAuthUrl = uiSettings.gmail_oauth_url ?? null
+  const outlookOAuthUrl = uiSettings.outlook_oauth_url ?? null
 
   return (
     <AppShell initialPermissions={permissions} topbar={<TopBar title="Mail Configuration" />}>

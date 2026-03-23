@@ -49,15 +49,23 @@ export default async function DocumentsPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const permissions = await requireRoutePermission("/documents")
+  type WorkspaceProps = React.ComponentProps<typeof DocumentsWorkspace>
+  type ActiveView = NonNullable<WorkspaceProps["activeView"]>
+  type LookupItem = WorkspaceProps["correspondents"][number]
+  type TagOption = LookupMaps["tags"][number]
+  type CustomFieldOption = LookupMaps["customFields"][number]
+  type UserOption = NonNullable<WorkspaceProps["users"]>[number]
+  type AppDocument = WorkspaceProps["data"][number]
+  type GroupOption = NonNullable<WorkspaceProps["groupsList"]>[number]
 
   const params = await searchParams
 
   // ---- If ?view=<id> is present, load the saved view config ----
-  let activeView: Awaited<ReturnType<typeof getSavedView>> = null
+  let activeView: ActiveView | null = null
   let initialFilters: FilterParams = {}
 
   if (params.view) {
-    activeView = await getSavedView(String(params.view))
+    activeView = await getSavedView<ActiveView>(String(params.view))
     if (activeView) {
       initialFilters = filterParamsFromSavedView(activeView)
     }
@@ -88,17 +96,22 @@ export default async function DocumentsPage({
   // ---- Parallel fetch everything ----
   const [documentsData, tagsList, correspondentsList, typesList, pathsList, savedViewsList, customFieldsList, usersList, groupsList, profile, uiSettings] =
     await Promise.all([
-      getDocuments(currentPage, pageSize, initialFilters),
-      getTags(),
-      getCorrespondents(),
-      getDocumentTypes(),
-      getStoragePaths(),
-      getSavedViews(),
-      getCustomFields(),
-      getUsers(),
-      getGroups(),
-      getProfile(),
-      getUiSettings(),
+      getDocuments(currentPage, pageSize, initialFilters) as Promise<{
+        count?: number
+        next?: string | null
+        previous?: string | null
+        results: AppDocument[]
+      }>,
+      getTags<TagOption>(),
+      getCorrespondents<LookupItem>(),
+      getDocumentTypes<LookupItem>(),
+      getStoragePaths<LookupItem>(),
+      getSavedViews<WorkspaceProps["savedViews"][number]>(),
+      getCustomFields<CustomFieldOption>(),
+      getUsers<UserOption>(),
+      getGroups<GroupOption>(),
+      getProfile<{ id: number }>(),
+      getUiSettings<UiSettingsRecord>(),
     ])
 
   const currentUserId: number | null =
@@ -139,8 +152,8 @@ export default async function DocumentsPage({
         totalCount={documentsData.count || 0}
         users={usersList}
         currentUserId={currentUserId}
-        initialDisplayMode={(uiSettings as UiSettingsRecord)?.settings?.document_list_display_mode ?? null}
-        initialTableLayouts={(uiSettings as UiSettingsRecord)?.settings?.document_table_layouts ?? null}
+        initialDisplayMode={uiSettings.settings?.document_list_display_mode ?? null}
+        initialTableLayouts={uiSettings.settings?.document_table_layouts ?? null}
       />
     </AppShell>
   )

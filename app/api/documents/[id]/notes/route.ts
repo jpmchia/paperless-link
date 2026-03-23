@@ -5,8 +5,8 @@ import { NextResponse } from "next/server"
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
 
 async function getToken() {
-  const session = await getServerSession(authOptions as any)
-  const token = (session as any)?.accessToken
+  const session = await getServerSession(authOptions)
+  const token = session?.accessToken
   if (!token) return null
   return token
 }

@@ -1,13 +1,19 @@
 import { AppShell } from "@/components/app-shell"
 import { TopBar } from "@/app/documents/topbar"
-import { getPaperlessApi } from "@/lib/api"
+import { getPaperlessApi, type PaginatedResults } from "@/lib/api"
 import { requireRoutePermission } from "@/lib/server-permissions"
 import { DocumentTypesTable } from "./document-types-table"
 
+type DocumentTypeTableItem = React.ComponentProps<
+  typeof DocumentTypesTable
+>["initialItems"][number]
+
 async function getDocumentTypes() {
   try {
-    const data = await getPaperlessApi("document_types/?page_size=100000")
-    return (data.results || []) as any[]
+    const data = await getPaperlessApi<PaginatedResults<DocumentTypeTableItem>>(
+      "document_types/?page_size=100000"
+    )
+    return data.results || []
   } catch {
     return []
   }

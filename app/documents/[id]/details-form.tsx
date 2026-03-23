@@ -723,10 +723,7 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
     try {
       const payload = buildUpdateDocumentPayload(
         values,
-        customFieldDefinitions,
-        detailFieldLayout
-          .map(parseDetailCustomFieldId)
-          .filter((fieldId): fieldId is number => fieldId !== null)
+        customFieldDefinitions
       )
 
       await updateDocument(document.id!, payload)

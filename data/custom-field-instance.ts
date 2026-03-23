@@ -4,5 +4,5 @@ export interface CustomFieldInstance extends ObjectWithId {
   document: number // Document
   field: number // CustomField
   created: Date
-  value?: any
+  value?: unknown
 }

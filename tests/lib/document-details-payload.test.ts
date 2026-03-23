@@ -113,8 +113,7 @@ describe("document details payload", () => {
         { data_type: "string", id: 10 },
         { data_type: "documentlink", id: 11 },
         { data_type: "boolean", id: 12 },
-      ],
-      [10, 11, 12]
+      ]
     ) as {
       archive_serial_number: null
       correspondent: null
@@ -147,8 +146,7 @@ describe("document details payload", () => {
       [
         { data_type: "string", id: 20 },
         { data_type: "string", id: 21 },
-      ],
-      [20]
+      ]
     ) as {
       custom_fields: Array<{ field: number; value: unknown }>
     }

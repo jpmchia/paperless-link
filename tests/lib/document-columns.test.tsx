@@ -20,6 +20,13 @@ import {
   type Document,
 } from "@/app/documents/columns"
 
+type TestCellContext = {
+  row: {
+    original?: Document
+    getValue?: (key: string) => unknown
+  }
+}
+
 function getColumnKey(column: ColumnDef<Document>) {
   if ("id" in column && column.id) return column.id
   if ("accessorKey" in column && typeof column.accessorKey === "string") {
@@ -27,6 +34,18 @@ function getColumnKey(column: ColumnDef<Document>) {
   }
 
   return undefined
+}
+
+function renderColumnCell(
+  column: ColumnDef<Document>,
+  context: TestCellContext
+) {
+  const cell = column.cell as unknown as ((context: TestCellContext) => React.ReactNode) | undefined
+  if (!cell) {
+    throw new Error("Expected column to define a cell renderer")
+  }
+
+  return renderToStaticMarkup(cell(context))
 }
 
 describe("document list columns", () => {
@@ -84,32 +103,32 @@ describe("document list columns", () => {
         .filter((entry): entry is [string, ColumnDef<Document>] => Boolean(entry[0]))
     )
 
-    expect(renderToStaticMarkup((byId.get("owner")!.cell as any)({
+    expect(renderColumnCell(byId.get("owner")!, {
       row: {
         getValue: (key: string) => row[key as keyof Document],
         original: row,
       },
-    }))).toContain("Alice Smith")
+    })).toContain("Alice Smith")
 
-    expect(renderToStaticMarkup((byId.get("num_notes")!.cell as any)({
+    expect(renderColumnCell(byId.get("num_notes")!, {
       row: { original: row },
-    }))).toContain("3")
+    })).toContain("3")
 
-    expect(renderToStaticMarkup((byId.get("shared")!.cell as any)({
+    expect(renderColumnCell(byId.get("shared")!, {
       row: { original: row },
-    }))).toContain("Yes")
+    })).toContain("Yes")
 
-    expect(renderToStaticMarkup((byId.get("page_count")!.cell as any)({
+    expect(renderColumnCell(byId.get("page_count")!, {
       row: {
         getValue: (key: string) => row[key as keyof Document],
       },
-    }))).toContain("12")
+    })).toContain("12")
 
-    expect(renderToStaticMarkup((byId.get("storage_path")!.cell as any)({
+    expect(renderColumnCell(byId.get("storage_path")!, {
       row: {
         getValue: (key: string) => row[key as keyof Document],
       },
-    }))).toContain("Cabinet A")
+    })).toContain("Cabinet A")
   })
 
   it("orders custom fields according to the active display-fields list", () => {

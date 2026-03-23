@@ -17,6 +17,7 @@ import { requireRoutePermission } from "@/lib/server-permissions"
 import type { LookupMaps } from "@/app/documents/columns"
 import { DocumentsWorkspace } from "@/app/documents/documents-workspace"
 import { TopBar } from "@/app/documents/topbar"
+import type { FilterParams } from "@/lib/api"
 
 type UiSettingsRecord = {
   settings?: {
@@ -49,14 +50,21 @@ export default async function SavedViewPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const permissions = await requireRoutePermission("/savedviews")
+  type WorkspaceProps = React.ComponentProps<typeof DocumentsWorkspace>
+  type ActiveView = NonNullable<WorkspaceProps["activeView"]>
+  type LookupItem = WorkspaceProps["correspondents"][number]
+  type TagOption = LookupMaps["tags"][number]
+  type CustomFieldOption = LookupMaps["customFields"][number]
+  type UserOption = NonNullable<WorkspaceProps["users"]>[number]
+  type AppDocument = WorkspaceProps["data"][number]
 
   const { id } = await params
   const sp = await searchParams
 
-  const view = await getSavedView(id)
+  const view = await getSavedView<ActiveView>(id)
   if (!view) redirect("/documents")
 
-  const filters = filterParamsFromSavedView(view)
+  const filters: FilterParams = filterParamsFromSavedView(view)
   if (sp.query) filters.query = sp.query as string
   if (sp.correspondent) filters.correspondent = Number(sp.correspondent)
   if (sp.document_type) filters.documentType = Number(sp.document_type)
@@ -80,15 +88,20 @@ export default async function SavedViewPage({
 
   const [documentsData, tagsList, correspondentsList, typesList, pathsList, savedViewsList, customFieldsList, usersList, uiSettings] =
     await Promise.all([
-      getDocuments(currentPage, pageSize, filters),
-      getTags(),
-      getCorrespondents(),
-      getDocumentTypes(),
-      getStoragePaths(),
-      getSavedViews(),
-      getCustomFields(),
-      getUsers(),
-      getUiSettings(),
+      getDocuments(currentPage, pageSize, filters) as Promise<{
+        count?: number
+        next?: string | null
+        previous?: string | null
+        results: AppDocument[]
+      }>,
+      getTags<TagOption>(),
+      getCorrespondents<LookupItem>(),
+      getDocumentTypes<LookupItem>(),
+      getStoragePaths<LookupItem>(),
+      getSavedViews<WorkspaceProps["savedViews"][number]>(),
+      getCustomFields<CustomFieldOption>(),
+      getUsers<UserOption>(),
+      getUiSettings<UiSettingsRecord>(),
     ])
 
   const pageCount = Math.ceil((documentsData.count || 0) / pageSize)
@@ -120,8 +133,8 @@ export default async function SavedViewPage({
         tags={tagsList}
         totalCount={documentsData.count || 0}
         users={usersList}
-        initialDisplayMode={(uiSettings as UiSettingsRecord)?.settings?.document_list_display_mode ?? null}
-        initialTableLayouts={(uiSettings as UiSettingsRecord)?.settings?.document_table_layouts ?? null}
+        initialDisplayMode={uiSettings.settings?.document_list_display_mode ?? null}
+        initialTableLayouts={uiSettings.settings?.document_table_layouts ?? null}
       />
     </AppShell>
   )

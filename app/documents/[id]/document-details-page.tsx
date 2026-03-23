@@ -50,6 +50,16 @@ export async function DocumentDetailsPageContent({
 }) {
   const permissions = await requireRoutePermission("/documents")
   const paperlessBaseUrl = getPaperlessBaseUrl()
+  type TabProps = React.ComponentProps<typeof DocumentTabs>
+  type CorrespondentItem = TabProps["correspondents"][number]
+  type DocumentTypeItem = TabProps["documentTypes"][number]
+  type StoragePathItem = TabProps["storagePaths"][number]
+  type TagItem = TabProps["tagsList"][number]
+  type CustomFieldDefinition = TabProps["customFieldsList"][number]
+  type HistoryEntry = TabProps["history"][number]
+  type DocumentMetadata = TabProps["metadata"]
+  type DocumentNote = TabProps["notes"][number]
+  type AccessPrincipal = TabProps["usersList"][number]
 
   const [
     documentResp,
@@ -65,31 +75,31 @@ export async function DocumentDetailsPageContent({
     usersList,
     groupsList,
   ] = await Promise.all([
-    getDocument(id),
-    getDocumentMetadata(id),
-    getDocumentHistory(id),
-    getDocumentNotes(id),
-    getCorrespondents(),
-    getDocumentTypes(),
-    getStoragePaths(),
-    getTags(),
-    getCustomFields(),
+    getDocument<Document>(id),
+    getDocumentMetadata<DocumentMetadata>(id),
+    getDocumentHistory<HistoryEntry>(id),
+    getDocumentNotes<DocumentNote>(id),
+    getCorrespondents<CorrespondentItem>(),
+    getDocumentTypes<DocumentTypeItem>(),
+    getStoragePaths<StoragePathItem>(),
+    getTags<TagItem>(),
+    getCustomFields<CustomFieldDefinition>(),
     getUiSettings(),
-    getUsers(),
-    getGroups(),
+    getUsers<AccessPrincipal>(),
+    getGroups<AccessPrincipal>(),
   ])
 
   if (!documentResp) {
     notFound()
   }
 
-  const document = documentResp as Document
   const doc = documentResp as Document & {
     versions?: unknown[]
     duplicate_documents?: unknown[]
     archived_file_name?: string | null
     mime_type?: string | null
   }
+  const document = documentResp
   const uiSettingsRecord = uiSettings as { settings?: Record<string, unknown> }
   const metadataRecord = metadata as
     | {
