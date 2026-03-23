@@ -407,6 +407,16 @@ export async function getProfile() {
   }
 }
 
+export async function getSocialAccountProviders() {
+  try {
+    const data = await getPaperlessApi("profile/social_account_providers/")
+    return Array.isArray(data) ? data : []
+  } catch (error) {
+    console.error("Failed to fetch social account providers:", error)
+    return []
+  }
+}
+
 export async function getDocumentNotes(id: string | number) {
   try {
     const data = await getPaperlessApi(`documents/${id}/notes/`) as any

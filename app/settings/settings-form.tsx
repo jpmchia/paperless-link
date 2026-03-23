@@ -1,305 +1,416 @@
 "use client"
 
 import * as React from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
+import { ExternalLink, RotateCcw, Save } from "lucide-react"
 import { toast } from "sonner"
-import { Save } from "lucide-react"
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+import { configCategories, configOptions, configOptionTypes, type ConfigOption } from "@/app/config/config-options"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+type ConfigRecord = Record<string, unknown> & { id?: number }
+
+function normalizeConfig(initialConfig: unknown): ConfigRecord {
+  if (Array.isArray(initialConfig)) {
+    const first = initialConfig[0]
+    return first && typeof first === "object" ? (first as ConfigRecord) : {}
+  }
+
+  return initialConfig && typeof initialConfig === "object" ? (initialConfig as ConfigRecord) : {}
+}
+
+function comparableConfig(config: ConfigRecord) {
+  return JSON.stringify(config)
+}
+
+function toJsonEditorValue(value: unknown) {
+  if (value == null || value === "") return ""
+  if (typeof value === "string") return value
+  return JSON.stringify(value, null, 2)
+}
+
+function parseJsonEditorValue(value: string) {
+  if (!value.trim()) {
+    return null
+  }
+  return JSON.parse(value)
+}
+
+function getFieldError(option: ConfigOption, value: unknown) {
+  if (option.type !== configOptionTypes.json) {
+    return null
+  }
+
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return null
+  }
+
+  try {
+    JSON.parse(value)
+    return null
+  } catch {
+    return "Invalid JSON"
+  }
+}
+
+function docsUrl(configKey: string) {
+  return `https://docs.paperless-ngx.com/configuration/#${configKey.toLowerCase()}`
+}
+
+function FieldCard({
+  children,
+  onReset,
+  option,
+  resetDisabled,
+}: {
+  children: React.ReactNode
+  onReset: () => void
+  option: ConfigOption
+  resetDisabled: boolean
+}) {
   return (
-    <div className="space-y-4">
-      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{title}</h2>
-      {children}
-      <Separator />
-    </div>
+    <Card size="sm" className="bg-muted/15">
+      <CardHeader className="gap-2 border-b">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle>{option.title}</CardTitle>
+            <CardDescription className="mt-1">
+              {option.description ?? option.note ?? option.configKey}
+            </CardDescription>
+            {option.description && (
+              <div className="mt-1 text-[0.7rem] text-muted-foreground/80">
+                {option.configKey}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" asChild>
+              <a href={docsUrl(option.configKey)} target="_blank" rel="noreferrer" aria-label={`Open docs for ${option.title}`}>
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </Button>
+            <Button type="button" variant="ghost" size="sm" disabled={resetDisabled} onClick={onReset}>
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+              Reset
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-2">{children}</CardContent>
+    </Card>
   )
 }
 
-function Field({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-2 gap-4 items-start">
-      <div>
-        <p className="text-sm font-medium">{label}</p>
-        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
-      </div>
-      <div>{children}</div>
-    </div>
-  )
-}
-
-// ── OCR mode & output type options ────────────────────────────────────────────
-
-const OCR_MODES = [
-  { value: "skip", label: "Skip — only run OCR when no text layer is found" },
-  { value: "redo", label: "Redo — always re-run OCR" },
-  { value: "force", label: "Force — force OCR even on non-image PDFs" },
-  { value: "skip_noarchive", label: "Skip (no archive) — skip OCR without creating archive" },
-]
-
-const OUTPUT_TYPES = [
-  { value: "pdf", label: "PDF" },
-  { value: "pdfa", label: "PDF/A (archival)" },
-  { value: "pdfa-1", label: "PDF/A-1" },
-  { value: "pdfa-2", label: "PDF/A-2" },
-  { value: "pdfa-3", label: "PDF/A-3" },
-  { value: "none", label: "None (don't create archive copy)" },
-]
-
-const SKIP_ARCHIVE_OPTIONS = [
-  { value: "never", label: "Never" },
-  { value: "with_text", label: "When document has a text layer" },
-  { value: "always", label: "Always" },
-]
-
-// ── Component ──────────────────────────────────────────────────────────────────
-
-export function SettingsForm({ initialConfig }: { initialConfig: any }) {
-  const [config, setConfig] = React.useState<any>(initialConfig ?? {})
+export function SettingsForm({ initialConfig }: { initialConfig: unknown }) {
+  const normalizedInitialConfig = React.useMemo(() => normalizeConfig(initialConfig), [initialConfig])
+  const [config, setConfig] = React.useState<ConfigRecord>(normalizedInitialConfig)
+  const [initialSnapshot, setInitialSnapshot] = React.useState(() => comparableConfig(normalizedInitialConfig))
   const [saving, setSaving] = React.useState(false)
-  const isEmpty = !initialConfig || Object.keys(initialConfig).length === 0
+  const [logoFile, setLogoFile] = React.useState<File | null>(null)
 
-  const set = (key: string, value: any) =>
-    setConfig((prev: any) => ({ ...prev, [key]: value }))
+  React.useEffect(() => {
+    setConfig(normalizedInitialConfig)
+    setInitialSnapshot(comparableConfig(normalizedInitialConfig))
+    setLogoFile(null)
+  }, [normalizedInitialConfig])
 
-  const handleSave = async () => {
+  const jsonErrors = React.useMemo(() => {
+    return Object.fromEntries(
+      configOptions
+        .filter((option) => option.key in config)
+        .map((option) => [option.key, getFieldError(option, config[option.key])])
+        .filter((entry) => entry[1] != null)
+    ) as Record<string, string>
+  }, [config])
+
+  const availableOptions = React.useMemo(
+    () => configOptions.filter((option) => option.key in config),
+    [config]
+  )
+
+  const categories = React.useMemo(() => {
+    return Object.values(configCategories).filter((category) =>
+      availableOptions.some((option) => option.category === category)
+    )
+  }, [availableOptions])
+
+  const unknownOptions = React.useMemo(() => {
+    const knownKeys = new Set(configOptions.map((option) => option.key))
+    return Object.fromEntries(
+      Object.entries(config).filter(([key]) => !knownKeys.has(key))
+    )
+  }, [config])
+
+  const isEmpty = Object.keys(config).length === 0
+  const isDirty = initialSnapshot !== comparableConfig(config) || Boolean(logoFile)
+  const hasErrors = Object.keys(jsonErrors).length > 0
+
+  const setValue = React.useCallback((key: string, value: unknown) => {
+    setConfig((current) => ({ ...current, [key]: value }))
+  }, [])
+
+  const resetValue = React.useCallback((key: string) => {
+    setConfig((current) => ({ ...current, [key]: null }))
+    if (key === "app_logo") {
+      setLogoFile(null)
+    }
+  }, [])
+
+  const saveConfig = React.useCallback(async () => {
+    if (!config.id) {
+      toast.error("Configuration record is missing an id")
+      return
+    }
+    if (hasErrors) {
+      toast.error("Fix invalid JSON fields before saving")
+      return
+    }
+
     setSaving(true)
     try {
-      const res = await fetch("/api/proxy/config/", {
+      let workingConfig = config
+
+      if (logoFile) {
+        const formData = new FormData()
+        formData.append("app_logo", logoFile)
+
+        const fileResponse = await fetch(`/api/proxy/config/${config.id}/`, {
+          method: "PATCH",
+          body: formData,
+        })
+
+        if (!fileResponse.ok) {
+          throw new Error(`${fileResponse.status}: ${fileResponse.statusText}`)
+        }
+
+        workingConfig = (await fileResponse.json()) as ConfigRecord
+      }
+
+      const payload = Object.fromEntries(
+        Object.entries(workingConfig)
+          .filter(([key]) => key !== "id" && key !== "app_logo")
+          .map(([key, value]) => {
+            const option = configOptions.find((candidate) => candidate.key === key)
+            if (option?.type === configOptionTypes.json && typeof value === "string") {
+              return [key, parseJsonEditorValue(value)]
+            }
+            if ((option?.type === configOptionTypes.string || option?.type === configOptionTypes.password) && value === "") {
+              return [key, null]
+            }
+            return [key, value]
+          })
+      )
+
+      const response = await fetch(`/api/proxy/config/${config.id}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
+        body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`)
-      const updated = await res.json()
-      setConfig(updated)
-      toast.success("Settings saved")
-    } catch (e: any) {
-      toast.error("Failed to save settings", { description: e.message })
+
+      if (!response.ok) {
+        throw new Error(`${response.status}: ${response.statusText}`)
+      }
+
+      const updated = (await response.json()) as ConfigRecord
+      const nextState = {
+        ...updated,
+        user_args: toJsonEditorValue(updated.user_args),
+        barcode_tag_mapping: toJsonEditorValue(updated.barcode_tag_mapping),
+      }
+
+      setConfig(nextState)
+      setInitialSnapshot(comparableConfig(nextState))
+      setLogoFile(null)
+      toast.success("Configuration updated")
+    } catch (error) {
+      toast.error("Failed to save configuration", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setSaving(false)
     }
-  }
+  }, [config, hasErrors, logoFile])
+
+  const discardChanges = React.useCallback(() => {
+    setConfig(normalizedInitialConfig)
+    setInitialSnapshot(comparableConfig(normalizedInitialConfig))
+    setLogoFile(null)
+  }, [normalizedInitialConfig])
 
   if (isEmpty) {
     return (
       <div className="rounded-lg border p-8 text-center text-muted-foreground">
         <p className="text-sm">Application configuration is not available.</p>
-        <p className="text-xs mt-1">This feature requires Paperless-NGX v2.0 or newer.</p>
+        <p className="mt-1 text-xs">This feature requires a Paperless-ngx version that exposes the config endpoint.</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-8">
-      {/* ── General ── */}
-      <Section title="General">
-        {"app_title" in config && (
-          <Field label="Application title" description="Custom name displayed in the UI">
-            <Input
-              className="h-8 text-sm"
-              value={config.app_title ?? ""}
-              onChange={(e) => set("app_title", e.target.value)}
-              placeholder="Paperless-ngx"
-            />
-          </Field>
-        )}
-        {"app_logo" in config && (
-          <Field label="Application logo URL" description="URL to a custom logo image">
-            <Input
-              className="h-8 text-sm"
-              value={config.app_logo ?? ""}
-              onChange={(e) => set("app_logo", e.target.value)}
-              placeholder="https://example.com/logo.png"
-            />
-          </Field>
-        )}
-      </Section>
+    <div className="grid gap-6">
+      <div className="max-w-3xl">
+        <h1 className="text-2xl font-semibold">Application Configuration</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Global configuration options for this Paperless-ngx installation. Values set here override defaults for every user.
+        </p>
+      </div>
 
-      {/* ── OCR ── */}
-      <Section title="OCR">
-        {"language" in config && (
-          <Field label="OCR language" description="ISO 639-2 language codes, comma-separated (e.g. eng, deu)">
-            <Input
-              className="h-8 text-sm font-mono"
-              value={config.language ?? ""}
-              onChange={(e) => set("language", e.target.value)}
-              placeholder="eng"
-            />
-          </Field>
-        )}
-        {"mode" in config && (
-          <Field label="OCR mode" description="When to apply OCR to incoming documents">
-            <Select value={config.mode ?? "skip"} onValueChange={(v) => set("mode", v)}>
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {OCR_MODES.map((o) => (
-                  <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        )}
-        {"output_type" in config && (
-          <Field label="Output type" description="PDF output format for archive files">
-            <Select value={config.output_type ?? "pdfa"} onValueChange={(v) => set("output_type", v)}>
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {OUTPUT_TYPES.map((o) => (
-                  <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        )}
-        {"skip_archive_file" in config && (
-          <Field label="Skip archive file" description="Condition under which an archive copy is skipped">
-            <Select value={config.skip_archive_file ?? "never"} onValueChange={(v) => set("skip_archive_file", v)}>
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SKIP_ARCHIVE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        )}
-        {"pages" in config && (
-          <Field label="Max pages" description="Maximum pages to process with OCR (0 = unlimited)">
-            <Input
-              type="number"
-              min={0}
-              className="h-8 text-sm w-28"
-              value={config.pages ?? 0}
-              onChange={(e) => set("pages", Number(e.target.value))}
-            />
-          </Field>
-        )}
-        {"image_dpi" in config && (
-          <Field label="Image DPI" description="DPI for rendering image-based PDFs">
-            <Input
-              type="number"
-              min={72}
-              className="h-8 text-sm w-28"
-              value={config.image_dpi ?? 300}
-              onChange={(e) => set("image_dpi", Number(e.target.value))}
-            />
-          </Field>
-        )}
-        {"rotate_pages" in config && (
-          <Field label="Auto-rotate pages" description="Automatically rotate pages based on text orientation">
-            <Switch
-              checked={!!config.rotate_pages}
-              onCheckedChange={(v) => set("rotate_pages", v)}
-            />
-          </Field>
-        )}
-        {"deskew" in config && (
-          <Field label="Deskew pages" description="Correct slight rotations in scanned documents">
-            <Switch
-              checked={!!config.deskew}
-              onCheckedChange={(v) => set("deskew", v)}
-            />
-          </Field>
-        )}
-        {"unpaper_clean" in config && (
-          <Field label="Clean pages" description="Run unpaper to remove scanning artefacts">
-            <Switch
-              checked={!!config.unpaper_clean}
-              onCheckedChange={(v) => set("unpaper_clean", v)}
-            />
-          </Field>
-        )}
-      </Section>
-
-      {/* ── Barcodes ── */}
-      {"barcodes_enabled" in config && (
-        <Section title="Barcodes">
-          <Field label="Barcode detection" description="Detect barcodes and use them for document processing">
-            <Switch
-              checked={!!config.barcodes_enabled}
-              onCheckedChange={(v) => set("barcodes_enabled", v)}
-            />
-          </Field>
-          {"barcode_string" in config && config.barcodes_enabled && (
-            <Field label="ASN barcode prefix" description="String that identifies an ASN barcode">
-              <Input
-                className="h-8 text-sm font-mono"
-                value={config.barcode_string ?? "ASN"}
-                onChange={(e) => set("barcode_string", e.target.value)}
-              />
-            </Field>
-          )}
-          {"barcodes_tiff_support" in config && (
-            <Field label="TIFF barcode support" description="Enable barcode detection in TIFF files">
-              <Switch
-                checked={!!config.barcodes_tiff_support}
-                onCheckedChange={(v) => set("barcodes_tiff_support", v)}
-              />
-            </Field>
-          )}
-        </Section>
-      )}
-
-      {/* ── Permissions ── */}
-      {"default_perms_owner" in config && (
-        <Section title="Permissions">
-          <Field label="Default document owner" description="User ID to assign as owner of newly consumed documents (0 = none)">
-            <Input
-              type="number"
-              min={0}
-              className="h-8 text-sm w-28"
-              value={config.default_perms_owner ?? 0}
-              onChange={(e) => set("default_perms_owner", Number(e.target.value))}
-            />
-          </Field>
-        </Section>
-      )}
-
-      {/* ── Raw JSON fallback for unknown keys ── */}
-      {Object.keys(config).some((k) => ![
-        "app_title", "app_logo", "language", "mode", "output_type", "skip_archive_file",
-        "pages", "image_dpi", "rotate_pages", "deskew", "unpaper_clean",
-        "barcodes_enabled", "barcode_string", "barcodes_tiff_support", "default_perms_owner",
-      ].includes(k)) && (
-        <Section title="Other settings">
-          <div className="text-xs text-muted-foreground bg-muted rounded-md p-3 font-mono overflow-auto max-h-[300px] whitespace-pre">
-            {JSON.stringify(
-              Object.fromEntries(
-                Object.entries(config).filter(([k]) => ![
-                  "app_title", "app_logo", "language", "mode", "output_type", "skip_archive_file",
-                  "pages", "image_dpi", "rotate_pages", "deskew", "unpaper_clean",
-                  "barcodes_enabled", "barcode_string", "barcodes_tiff_support", "default_perms_owner",
-                ].includes(k))
-              ),
-              null, 2
+      <Tabs defaultValue={categories[0]} className="gap-4">
+        <div className="overflow-x-auto">
+          <TabsList variant="line" className="min-w-max justify-start border-b p-0">
+            {categories.map((category) => (
+              <TabsTrigger key={category} value={category} className="px-3">
+                {category}
+              </TabsTrigger>
+            ))}
+            {Object.keys(unknownOptions).length > 0 && (
+              <TabsTrigger value="other-settings" className="px-3">
+                Other Settings
+              </TabsTrigger>
             )}
-          </div>
-        </Section>
-      )}
+          </TabsList>
+        </div>
 
-      <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={saving}>
+        {categories.map((category) => (
+          <TabsContent key={category} value={category} className="m-0">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {availableOptions
+                .filter((option) => option.category === category)
+                .map((option) => {
+                  const value = config[option.key]
+                  const error = jsonErrors[option.key]
+
+                  return (
+                    <FieldCard
+                      key={option.key}
+                      option={option}
+                      onReset={() => resetValue(option.key)}
+                      resetDisabled={value == null && !(option.key === "app_logo" && logoFile)}
+                    >
+                      {option.type === configOptionTypes.select && option.choices ? (
+                        <Select
+                          value={typeof value === "string" ? value : "__unset__"}
+                          onValueChange={(nextValue) => setValue(option.key, nextValue === "__unset__" ? null : nextValue)}
+                        >
+                          <SelectTrigger className="h-9 w-full text-sm">
+                            <SelectValue placeholder="Use default" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__unset__">Use default</SelectItem>
+                            {option.choices.map((choice) => (
+                              <SelectItem key={choice.id} value={choice.id}>
+                                {choice.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : null}
+
+                      {option.type === configOptionTypes.number ? (
+                        <Input
+                          type="number"
+                          className="h-9 text-sm"
+                          value={typeof value === "number" ? String(value) : ""}
+                          onChange={(event) =>
+                            setValue(option.key, event.target.value === "" ? null : Number(event.target.value))
+                          }
+                          placeholder="Use default"
+                        />
+                      ) : null}
+
+                      {option.type === configOptionTypes.boolean ? (
+                        <div className="flex items-center justify-between rounded-md border border-border/70 bg-background px-3 py-2">
+                          <div>
+                            <div className="text-sm font-medium">{value == null ? "Use default" : value ? "Enabled" : "Disabled"}</div>
+                            <div className="text-xs text-muted-foreground">Unset to inherit the backend default.</div>
+                          </div>
+                          <Switch
+                            checked={Boolean(value)}
+                            onCheckedChange={(checked) => setValue(option.key, checked)}
+                          />
+                        </div>
+                      ) : null}
+
+                      {option.type === configOptionTypes.string || option.type === configOptionTypes.password ? (
+                        <Input
+                          type={option.type === configOptionTypes.password ? "password" : "text"}
+                          className="h-9 text-sm"
+                          value={typeof value === "string" ? value : ""}
+                          onChange={(event) => setValue(option.key, event.target.value)}
+                          placeholder="Use default"
+                        />
+                      ) : null}
+
+                      {option.type === configOptionTypes.json ? (
+                        <>
+                          <Textarea
+                            className="min-h-28 font-mono text-xs"
+                            value={typeof value === "string" ? value : ""}
+                            onChange={(event) => setValue(option.key, event.target.value)}
+                            placeholder='{"example": true}'
+                          />
+                          {error ? <p className="text-xs text-destructive">{error}</p> : null}
+                        </>
+                      ) : null}
+
+                      {option.type === configOptionTypes.file ? (
+                        <div className="grid gap-3">
+                          {typeof value === "string" && value ? (
+                            <div className="grid gap-1">
+                              <div className="text-xs font-medium text-muted-foreground">Current file</div>
+                              <code className="rounded-md border bg-background px-3 py-2 text-[0.7rem]">{value}</code>
+                            </div>
+                          ) : (
+                            <Badge variant="outline">No file configured</Badge>
+                          )}
+                          {logoFile ? (
+                            <Badge variant="secondary">Ready to upload: {logoFile.name}</Badge>
+                          ) : null}
+                          <Input
+                            type="file"
+                            accept="image/*,.svg"
+                            className="h-9 text-sm"
+                            onChange={(event) => setLogoFile(event.target.files?.[0] ?? null)}
+                          />
+                        </div>
+                      ) : null}
+                    </FieldCard>
+                  )
+                })}
+            </div>
+          </TabsContent>
+        ))}
+
+        {Object.keys(unknownOptions).length > 0 && (
+          <TabsContent value="other-settings" className="m-0">
+            <Card>
+              <CardHeader>
+                <CardTitle>Other settings</CardTitle>
+                <CardDescription>Backend keys not yet described in the UI metadata.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <pre className="max-h-[28rem] overflow-auto rounded-md bg-muted/30 p-4 text-xs">
+                  {JSON.stringify(unknownOptions, null, 2)}
+                </pre>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
+
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" disabled={saving || !isDirty} onClick={discardChanges}>
+          Discard
+        </Button>
+        <Button type="button" disabled={saving || !isDirty || hasErrors} onClick={() => void saveConfig()}>
           <Save className="mr-2 h-4 w-4" />
-          {saving ? "Saving…" : "Save settings"}
+          {saving ? "Saving…" : "Save configuration"}
         </Button>
       </div>
     </div>

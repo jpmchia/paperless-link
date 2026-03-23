@@ -5,8 +5,8 @@ import { NextResponse } from "next/server"
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
 
 async function getToken() {
-  const session = await getServerSession(authOptions as any)
-  const token = (session as any)?.accessToken
+  const session = (await getServerSession(authOptions)) as { accessToken?: string } | null
+  const token = session?.accessToken
   if (!token) return null
   return token
 }
@@ -19,13 +19,15 @@ async function proxyRequest(req: Request, params: Promise<{ path: string[] }>) {
   const path = resolvedParams.path.join("/")
   const url = new URL(req.url)
   const queryString = url.search
+  const hasTrailingSlash = url.pathname.endsWith("/")
+  const proxiedPath = `${path}${hasTrailingSlash ? "/" : ""}`
 
   const headers: Record<string, string> = {
     Authorization: `Token ${token}`,
     Accept: "application/json; version=2",
   }
 
-  let body: any = undefined
+  let body: BodyInit | undefined
   if (req.method !== "GET" && req.method !== "HEAD") {
     const contentType = req.headers.get("content-type")
     if (contentType?.includes("application/json")) {
@@ -36,7 +38,7 @@ async function proxyRequest(req: Request, params: Promise<{ path: string[] }>) {
     }
   }
 
-  const res = await fetch(`${baseUrl}api/${path}${queryString}`, {
+  const res = await fetch(`${baseUrl}api/${proxiedPath}${queryString}`, {
     method: req.method,
     headers,
     body,

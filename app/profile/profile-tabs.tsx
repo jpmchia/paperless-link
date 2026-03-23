@@ -1,14 +1,16 @@
 "use client"
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ProfileForm, type ProfileFormProps } from "./profile-form"
+import { ProfileForm } from "./profile-form"
 import { User, Lock } from "lucide-react"
+import type { ProfileData, SocialAccountProvider } from "./types"
 
 interface ProfileTabsProps {
-  profile: ProfileFormProps["profile"]
+  profile: ProfileData
+  socialAccountProviders: SocialAccountProvider[]
 }
 
-export function ProfileTabs({ profile }: ProfileTabsProps) {
+export function ProfileTabs({ profile, socialAccountProviders }: ProfileTabsProps) {
   return (
     <Tabs defaultValue="profile" className="w-full gap-6">
       <div className="overflow-x-auto">
@@ -27,7 +29,12 @@ export function ProfileTabs({ profile }: ProfileTabsProps) {
       </TabsContent>
 
       <TabsContent value="security" className="m-0">
-        <ProfileForm profile={profile} showPasswordSection showProfileSection={false} />
+        <ProfileForm
+          profile={profile}
+          socialAccountProviders={socialAccountProviders}
+          showPasswordSection
+          showProfileSection={false}
+        />
       </TabsContent>
     </Tabs>
   )

@@ -19,7 +19,7 @@ export default async function ConfigPage() {
       initialPermissions={permissions}
       topbar={<TopBar title="Application Configuration" />}
     >
-      <div className="max-w-3xl p-6">
+      <div className="max-w-7xl p-6">
         <SettingsForm initialConfig={config} />
       </div>
     </AppShell>
