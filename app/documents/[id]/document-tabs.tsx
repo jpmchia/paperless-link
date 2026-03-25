@@ -7,7 +7,10 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { documentDetailAvailableFieldsAtom, documentSectionAtom } from "@/lib/store"
+import {
+  documentDetailAvailableFieldsAtom,
+  documentSectionAtom,
+} from "@/lib/store"
 import type { Document } from "../columns"
 import { DetailsForm } from "./details-form"
 import { MetadataTab } from "./metadata-tab"
@@ -17,6 +20,7 @@ import { NotesTab } from "./notes-tab"
 import { VersionsTab } from "./versions-tab"
 import { ShareLinksTab } from "./share-links-tab"
 import { DuplicatesTab } from "./duplicates-tab"
+import { DocumentContextTab } from "./document-context-tab"
 import {
   type DocumentSection,
   getDocumentSectionHref,
@@ -77,7 +81,8 @@ export function DocumentTabs({
 }: DocumentTabsProps) {
   const setDocumentSection = useSetAtom(documentSectionAtom)
   const setDetailAvailableFields = useSetAtom(documentDetailAvailableFieldsAtom)
-  const [currentSection, setCurrentSection] = React.useState<DocumentSection>(initialSection)
+  const [currentSection, setCurrentSection] =
+    React.useState<DocumentSection>(initialSection)
   const [notesPanelOpen, setNotesPanelOpen] = React.useState(false)
 
   React.useEffect(() => {
@@ -112,41 +117,66 @@ export function DocumentTabs({
     <Tabs
       value={currentSection}
       onValueChange={updateSection}
-      className="flex h-full w-full flex-col bg-background border-none overflow-y-hidden"
+      className="flex h-full w-full flex-col overflow-y-hidden border-none bg-background"
     >
-      <ScrollArea className="w-full rounded-md border-none whitespace-nowrap pb-2">
-        
-        <TabsList
-          className="h-auto w-max min-w-full justify-start border-b bg-transparent p-0 overflow-x-auto flex-nowrap scrollbar-thin scrollbar-track-transparent scrollbar-thumb-transparent data-[state=active]:border-b-accent"
-        >
-          <TabsTrigger value="details" className={TAB_TRIGGER}>Details</TabsTrigger>
-          <TabsTrigger value="content" className={TAB_TRIGGER}>Content</TabsTrigger>
-          <TabsTrigger value="metadata" className={TAB_TRIGGER}>Metadata</TabsTrigger>
-          <TabsTrigger value="history" className={TAB_TRIGGER}>History</TabsTrigger>
+      <ScrollArea className="w-full rounded-md border-none pb-2 whitespace-nowrap">
+        <TabsList className="scrollbar-thin scrollbar-track-transparent scrollbar-thumb-transparent h-auto w-max min-w-full flex-nowrap justify-start overflow-x-auto border-b bg-transparent p-0 data-[state=active]:border-b-accent">
+          <TabsTrigger value="details" className={TAB_TRIGGER}>
+            Details
+          </TabsTrigger>
+          <TabsTrigger value="context" className={TAB_TRIGGER}>
+            Context
+          </TabsTrigger>
+          <TabsTrigger value="content" className={TAB_TRIGGER}>
+            Content
+          </TabsTrigger>
+          <TabsTrigger value="metadata" className={TAB_TRIGGER}>
+            Metadata
+          </TabsTrigger>
+          <TabsTrigger value="history" className={TAB_TRIGGER}>
+            History
+          </TabsTrigger>
           {canChangeDocument && (
-            <TabsTrigger value="permissions" className={TAB_TRIGGER}>Permissions</TabsTrigger>
+            <TabsTrigger value="permissions" className={TAB_TRIGGER}>
+              Permissions
+            </TabsTrigger>
           )}
           <TabsTrigger value="versions" className={TAB_TRIGGER}>
             Versions
             {versions.length > 0 && (
-              <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px]">{versions.length}</Badge>
+              <Badge
+                variant="secondary"
+                className="ml-1.5 h-4 px-1 text-[10px]"
+              >
+                {versions.length}
+              </Badge>
             )}
           </TabsTrigger>
           {canManageShareLinks && (
-            <TabsTrigger value="share" className={TAB_TRIGGER}>Share</TabsTrigger>
+            <TabsTrigger value="share" className={TAB_TRIGGER}>
+              Share
+            </TabsTrigger>
           )}
           <TabsTrigger value="duplicates" className={TAB_TRIGGER}>
             Duplicates
             {duplicates.length > 0 && (
-              <Badge variant="destructive" className="ml-1.5 h-4 px-1 text-[10px]">{duplicates.length}</Badge>
+              <Badge
+                variant="destructive"
+                className="ml-1.5 h-4 px-1 text-[10px]"
+              >
+                {duplicates.length}
+              </Badge>
             )}
           </TabsTrigger>
         </TabsList>
-      
-        <ScrollBar orientation="horizontal"  />
+
+        <ScrollBar orientation="horizontal" />
       </ScrollArea>
       <div className="flex-1 overflow-hidden">
-        <TabsContent value="details" className="m-0 h-full w-full overflow-y-auto px-6 outline-none">
+        <TabsContent
+          value="details"
+          className="m-0 h-full w-full overflow-y-auto px-6 outline-none"
+        >
           <div>
             <h3 className="mb-6 text-lg font-medium">Document Details</h3>
           </div>
@@ -188,24 +218,48 @@ export function DocumentTabs({
           </section>
         </TabsContent>
 
-        <TabsContent value="content" className="m-0 flex h-full w-full flex-col space-y-4 overflow-y-auto px-6 pb-6 outline-none">
-          <div>
-            <h3 className="text-lg font-medium">Extracted Content</h3>
-            <p className="text-sm text-muted-foreground">The raw text extracted by OCR.</p>
-          </div>
-          <Textarea
-            className="flex-1 font-mono text-sm"
-            defaultValue={("content" in document && typeof document.content === "string")
-              ? document.content
-              : "No OCR content available."}
+        <TabsContent
+          value="context"
+          className="m-0 h-full w-full overflow-hidden outline-none"
+        >
+          <DocumentContextTab
+            canChangeDocument={canChangeDocument}
+            documentId={document.id}
+            documentTypes={documentTypes}
           />
         </TabsContent>
 
-        <TabsContent value="metadata" className="m-0 h-full w-full overflow-hidden outline-none">
+        <TabsContent
+          value="content"
+          className="m-0 flex h-full w-full flex-col space-y-4 overflow-y-auto px-6 pb-6 outline-none"
+        >
+          <div>
+            <h3 className="text-lg font-medium">Extracted Content</h3>
+            <p className="text-sm text-muted-foreground">
+              The raw text extracted by OCR.
+            </p>
+          </div>
+          <Textarea
+            className="flex-1 font-mono text-sm"
+            defaultValue={
+              "content" in document && typeof document.content === "string"
+                ? document.content
+                : "No OCR content available."
+            }
+          />
+        </TabsContent>
+
+        <TabsContent
+          value="metadata"
+          className="m-0 h-full w-full overflow-hidden outline-none"
+        >
           <MetadataTab metadata={metadata} document={document} />
         </TabsContent>
 
-        <TabsContent value="history" className="m-0 h-full w-full overflow-hidden outline-none p-0">
+        <TabsContent
+          value="history"
+          className="m-0 h-full w-full overflow-hidden p-0 outline-none"
+        >
           <HistoryTab
             history={history}
             documentTypes={documentTypes}
@@ -216,12 +270,22 @@ export function DocumentTabs({
         </TabsContent>
 
         {canChangeDocument && (
-          <TabsContent value="permissions" className="m-0 h-full w-full overflow-hidden outline-none p-0">
-            <PermissionsTab document={document} usersList={usersList} groupsList={groupsList} />
+          <TabsContent
+            value="permissions"
+            className="m-0 h-full w-full overflow-hidden p-0 outline-none"
+          >
+            <PermissionsTab
+              document={document}
+              usersList={usersList}
+              groupsList={groupsList}
+            />
           </TabsContent>
         )}
 
-        <TabsContent value="versions" className="m-0 h-full overflow-hidden outline-none">
+        <TabsContent
+          value="versions"
+          className="m-0 h-full overflow-hidden outline-none"
+        >
           <VersionsTab
             documentId={document.id}
             initialVersions={versions}
@@ -230,7 +294,10 @@ export function DocumentTabs({
         </TabsContent>
 
         {canManageShareLinks && (
-          <TabsContent value="share" className="m-0 h-full overflow-hidden outline-none">
+          <TabsContent
+            value="share"
+            className="m-0 h-full overflow-hidden outline-none"
+          >
             <ShareLinksTab
               documentId={document.id}
               paperlessBaseUrl={paperlessBaseUrl}
@@ -239,12 +306,20 @@ export function DocumentTabs({
           </TabsContent>
         )}
 
-        <TabsContent value="duplicates" className="m-0 h-full overflow-hidden outline-none">
+        <TabsContent
+          value="duplicates"
+          className="m-0 h-full overflow-hidden outline-none"
+        >
           <DuplicatesTab duplicates={duplicates} />
         </TabsContent>
       </div>
       <DraggableDialog open={notesPanelOpen} onOpenChange={setNotesPanelOpen}>
-        <DraggableDialogContent initialWidth={760} initialHeight={680} maxWidth={960} maxHeight={900}>
+        <DraggableDialogContent
+          initialWidth={760}
+          initialHeight={680}
+          maxWidth={960}
+          maxHeight={900}
+        >
           <DraggableDialogHeader>
             <DraggableDialogTitle>Notes</DraggableDialogTitle>
             <DraggableDialogDescription>
@@ -253,7 +328,11 @@ export function DocumentTabs({
           </DraggableDialogHeader>
           <DraggableDialogBody className="pb-6">
             <div className="h-full rounded-lg border bg-card">
-              <NotesTab documentId={document.id} initialNotes={notes} className="h-full p-5" />
+              <NotesTab
+                documentId={document.id}
+                initialNotes={notes}
+                className="h-full p-5"
+              />
             </div>
           </DraggableDialogBody>
         </DraggableDialogContent>

@@ -19,6 +19,7 @@ export interface RoutePermissionRequirement {
 export type RoutePermissionKey =
   | "/config"
   | "/dashboard"
+  | "/domain-models"
   | "/correspondents"
   | "/custom-fields"
   | "/document-types"
@@ -31,6 +32,7 @@ export type RoutePermissionKey =
   | "/system-status"
   | "/tags"
   | "/tasks"
+  | "/taxonomy"
   | "/trash"
   | "/users"
   | "/workflows"
@@ -44,6 +46,9 @@ export const routePermissionRequirements: Record<
   },
   "/config": {
     anyOf: [{ action: "view", type: "appConfig" }],
+  },
+  "/domain-models": {
+    requireAdmin: true,
   },
   "/correspondents": {
     anyOf: [{ action: "view", type: "correspondent" }],
@@ -84,6 +89,9 @@ export const routePermissionRequirements: Record<
   },
   "/tasks": {
     anyOf: [{ action: "view", type: "paperlessTask" }],
+  },
+  "/taxonomy": {
+    requireAdmin: true,
   },
   "/trash": {
     anyOf: [{ action: "view", type: "document" }],

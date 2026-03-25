@@ -178,9 +178,14 @@ export async function DocumentDetailsPageContent({
         <ResizablePanelGroup
           // @ts-expect-error ResizablePrimitive type conflict in react-resizable-panels v4
           direction="horizontal"
+          id={`document-${document.id}-panel-group`}
           className="h-full w-full rounded-lg border bg-background"
         >
-          <ResizablePanel defaultSize={40} minSize={30}>
+          <ResizablePanel
+            id={`document-${document.id}-details-panel`}
+            defaultSize={40}
+            minSize={30}
+          >
             <DocumentTabs
               correspondents={correspondents}
               customFieldsList={customFieldsList}
@@ -203,9 +208,13 @@ export async function DocumentDetailsPageContent({
             />
           </ResizablePanel>
 
-          <ResizableHandle withHandle />
+          <ResizableHandle id={`document-${document.id}-panel-handle`} withHandle />
 
-          <ResizablePanel defaultSize={60} minSize={30}>
+          <ResizablePanel
+            id={`document-${document.id}-preview-panel`}
+            defaultSize={60}
+            minSize={30}
+          >
             <PdfViewer documentId={id} totalPages={metadataRecord?.pages ?? 1} />
           </ResizablePanel>
         </ResizablePanelGroup>

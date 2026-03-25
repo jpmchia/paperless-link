@@ -8,8 +8,13 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog"
+  Dialog as DraggableDialog,
+  DialogBody as DraggableDialogBody,
+  DialogContent as DraggableDialogContent,
+  DialogFooter as DraggableDialogFooter,
+  DialogHeader as DraggableDialogHeader,
+  DialogTitle as DraggableDialogTitle,
+} from "@/components/draggable-dialog"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -323,61 +328,62 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
 
       {/* Create Dialog */}
       <CanCreate type="customField">
-        <Dialog open={creating} onOpenChange={(o: boolean) => !o && setCreating(false)}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Create Custom Field</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="cf-name">Name</Label>
-              <Input id="cf-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Field name" autoFocus />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Data type</Label>
-              <Select value={newType} onValueChange={setNewType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {DATA_TYPES.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Data type cannot be changed after creation.</p>
-            </div>
+        <DraggableDialog open={creating} onOpenChange={(o: boolean) => !o && setCreating(false)}>
+          <DraggableDialogContent initialWidth={560} maxWidth={720}>
+            <DraggableDialogHeader>
+              <DraggableDialogTitle>Create Custom Field</DraggableDialogTitle>
+            </DraggableDialogHeader>
+            <DraggableDialogBody>
+              <div className="grid gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="cf-name">Name</Label>
+                  <Input id="cf-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Field name" autoFocus />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Data type</Label>
+                  <Select value={newType} onValueChange={setNewType}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {DATA_TYPES.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Data type cannot be changed after creation.</p>
+                </div>
 
-            {/* Select options builder */}
-            {newType === "select" && (
-              <div className="space-y-1.5">
-                <Label>Options</Label>
-                {selectOptions.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {selectOptions.map((o, i) => (
-                      <Badge key={i} variant="secondary" className="flex items-center gap-1 pr-1">
-                        {o}
-                        <button type="button" onClick={() => removeOption(i)} className="rounded-full hover:bg-muted p-0.5">
-                          <X className="h-2.5 w-2.5" />
-                        </button>
-                      </Badge>
-                    ))}
+                {newType === "select" && (
+                  <div className="space-y-1.5">
+                    <Label>Options</Label>
+                    {selectOptions.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-1">
+                        {selectOptions.map((o, i) => (
+                          <Badge key={i} variant="secondary" className="flex items-center gap-1 pr-1">
+                            {o}
+                            <button type="button" onClick={() => removeOption(i)} className="rounded-full p-0.5 hover:bg-muted">
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Input
+                        value={newOption}
+                        onChange={(e) => setNewOption(e.target.value)}
+                        placeholder="Add option…"
+                        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addOption())}
+                        className="flex-1"
+                      />
+                      <Button type="button" variant="outline" size="sm" onClick={addOption} disabled={!newOption.trim()}>
+                        Add
+                      </Button>
+                    </div>
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <Input
-                    value={newOption}
-                    onChange={(e) => setNewOption(e.target.value)}
-                    placeholder="Add option…"
-                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addOption())}
-                    className="flex-1"
-                  />
-                  <Button type="button" variant="outline" size="sm" onClick={addOption} disabled={!newOption.trim()}>
-                    Add
-                  </Button>
-                </div>
               </div>
-            )}
-            </div>
-            <DialogFooter>
+            </DraggableDialogBody>
+            <DraggableDialogFooter>
               <Button variant="outline" onClick={() => setCreating(false)}>Cancel</Button>
               <Button
                 onClick={() => void handleCreate()}
@@ -385,9 +391,9 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
               >
                 {saving ? "Creating…" : "Create"}
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DraggableDialogFooter>
+          </DraggableDialogContent>
+        </DraggableDialog>
       </CanCreate>
 
       {/* Delete Confirmation */}

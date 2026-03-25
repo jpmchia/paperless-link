@@ -10,12 +10,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  Dialog as DraggableDialog,
+  DialogBody as DraggableDialogBody,
+  DialogContent as DraggableDialogContent,
+  DialogFooter as DraggableDialogFooter,
+  DialogHeader as DraggableDialogHeader,
+  DialogTitle as DraggableDialogTitle,
+} from "@/components/draggable-dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -366,68 +367,70 @@ export function CorrespondentsTable({
 
       {/* Edit / Create Dialog */}
       <PermissionGate allowed={editing !== null && can(isNew ? "create" : "change", "correspondent")}>
-        <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
-          <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{isNew ? "Create Correspondent" : "Edit Correspondent"}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="c-name">Name</Label>
-              <Input
-                id="c-name"
-                value={editing?.name ?? ""}
-                onChange={(e) => setEditing((p) => ({ ...p, name: e.target.value }))}
-                placeholder="Correspondent name"
-                autoFocus
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Matching algorithm</Label>
-              <Select
-                value={String(editing?.matching_algorithm ?? 6)}
-                onValueChange={(v) => setEditing((p) => ({ ...p, matching_algorithm: Number(v) }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MATCHING_ALGORITHMS.map((a) => (
-                    <SelectItem key={a.id} value={String(a.id)}>
-                      {a.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {(editing?.matching_algorithm ?? 6) !== 6 && (editing?.matching_algorithm ?? 6) !== 0 && (
-              <div className="space-y-1.5">
-                <Label htmlFor="c-match">Match pattern</Label>
-                <Input
-                  id="c-match"
-                  value={editing?.match ?? ""}
-                  onChange={(e) => setEditing((p) => ({ ...p, match: e.target.value }))}
-                  placeholder="Pattern to match"
-                />
+        <DraggableDialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
+          <DraggableDialogContent initialWidth={560} maxWidth={720}>
+            <DraggableDialogHeader>
+              <DraggableDialogTitle>{isNew ? "Create Correspondent" : "Edit Correspondent"}</DraggableDialogTitle>
+            </DraggableDialogHeader>
+            <DraggableDialogBody>
+              <div className="grid gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="c-name">Name</Label>
+                  <Input
+                    id="c-name"
+                    value={editing?.name ?? ""}
+                    onChange={(e) => setEditing((p) => ({ ...p, name: e.target.value }))}
+                    placeholder="Correspondent name"
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Matching algorithm</Label>
+                  <Select
+                    value={String(editing?.matching_algorithm ?? 6)}
+                    onValueChange={(v) => setEditing((p) => ({ ...p, matching_algorithm: Number(v) }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MATCHING_ALGORITHMS.map((a) => (
+                        <SelectItem key={a.id} value={String(a.id)}>
+                          {a.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(editing?.matching_algorithm ?? 6) !== 6 && (editing?.matching_algorithm ?? 6) !== 0 && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="c-match">Match pattern</Label>
+                    <Input
+                      id="c-match"
+                      value={editing?.match ?? ""}
+                      onChange={(e) => setEditing((p) => ({ ...p, match: e.target.value }))}
+                      placeholder="Pattern to match"
+                    />
+                  </div>
+                )}
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="c-insensitive"
+                    checked={editing?.is_insensitive ?? false}
+                    onCheckedChange={(v) => setEditing((p) => ({ ...p, is_insensitive: v }))}
+                  />
+                  <Label htmlFor="c-insensitive">Case insensitive</Label>
+                </div>
               </div>
-            )}
-            <div className="flex items-center gap-3">
-              <Switch
-                id="c-insensitive"
-                checked={editing?.is_insensitive ?? false}
-                onCheckedChange={(v) => setEditing((p) => ({ ...p, is_insensitive: v }))}
-              />
-              <Label htmlFor="c-insensitive">Case insensitive</Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving || !editing?.name?.trim()}>
-              {saving ? "Saving…" : isNew ? "Create" : "Save"}
-            </Button>
-          </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DraggableDialogBody>
+            <DraggableDialogFooter>
+              <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+              <Button onClick={handleSave} disabled={saving || !editing?.name?.trim()}>
+                {saving ? "Saving…" : isNew ? "Create" : "Save"}
+              </Button>
+            </DraggableDialogFooter>
+          </DraggableDialogContent>
+        </DraggableDialog>
       </PermissionGate>
 
       {/* Delete Confirmation */}

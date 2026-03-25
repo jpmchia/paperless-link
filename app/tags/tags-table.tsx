@@ -11,12 +11,13 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  Dialog as DraggableDialog,
+  DialogBody as DraggableDialogBody,
+  DialogContent as DraggableDialogContent,
+  DialogFooter as DraggableDialogFooter,
+  DialogHeader as DraggableDialogHeader,
+  DialogTitle as DraggableDialogTitle,
+} from "@/components/draggable-dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -404,110 +405,110 @@ export function TagsTable({
 
       {/* Edit / Create Dialog */}
       <PermissionGate allowed={editTag !== null && can(isNew ? "create" : "change", "tag")}>
-        <Dialog open={editTag !== null} onOpenChange={(o: boolean) => !o && setEditTag(null)}>
-          <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{isNew ? "Create Tag" : "Edit Tag"}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="tag-name">Name</Label>
-              <Input
-                id="tag-name"
-                value={editTag?.name ?? ""}
-                onChange={(e) => setEditTag((p: Partial<Tag> | null) => ({ ...p, name: e.target.value }))}
-                placeholder="Tag name"
-                autoFocus
-              />
-            </div>
+        <DraggableDialog open={editTag !== null} onOpenChange={(o: boolean) => !o && setEditTag(null)}>
+          <DraggableDialogContent initialWidth={560} maxWidth={720}>
+            <DraggableDialogHeader>
+              <DraggableDialogTitle>{isNew ? "Create Tag" : "Edit Tag"}</DraggableDialogTitle>
+            </DraggableDialogHeader>
+            <DraggableDialogBody>
+              <div className="grid gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="tag-name">Name</Label>
+                  <Input
+                    id="tag-name"
+                    value={editTag?.name ?? ""}
+                    onChange={(e) => setEditTag((p: Partial<Tag> | null) => ({ ...p, name: e.target.value }))}
+                    placeholder="Tag name"
+                    autoFocus
+                  />
+                </div>
 
-            {/* Colour preview */}
-            <div className="space-y-1.5">
-              <Label>Preview</Label>
-              <div>
-                <span
-                  className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-                  style={tagPillStyle(editTag?.color ?? TAG_COLOUR_OPTIONS[0].hex)}
-                >
-                  {editTag?.name || "Tag name"}
-                </span>
-              </div>
-            </div>
+                <div className="space-y-1.5">
+                  <Label>Preview</Label>
+                  <div>
+                    <span
+                      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                      style={tagPillStyle(editTag?.color ?? TAG_COLOUR_OPTIONS[0].hex)}
+                    >
+                      {editTag?.name || "Tag name"}
+                    </span>
+                  </div>
+                </div>
 
-            <div className="space-y-1.5">
-              <Label>Colour</Label>
-              <div className="flex flex-wrap gap-2">
-                {TAG_COLOUR_OPTIONS.map((c) => {
-                  // Compare by hex — the API returns hex strings
-                  const currentHex = tagColourHex(editTag?.color)
-                  const isSelected = currentHex.toLowerCase() === c.hex.toLowerCase()
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      className="w-6 h-6 rounded-full border-2 transition-all hover:scale-110"
-                      title={c.hex}
-                      style={{
-                        backgroundColor: c.hex,
-                        borderColor: isSelected ? "#ffffff" : "transparent",
-                        outline: isSelected ? `2px solid ${c.hex}` : "none",
-                        outlineOffset: "1px",
-                      }}
-                      onClick={() => setEditTag((p: Partial<Tag> | null) => ({ ...p, color: c.hex }))}
+                <div className="space-y-1.5">
+                  <Label>Colour</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {TAG_COLOUR_OPTIONS.map((c) => {
+                      const currentHex = tagColourHex(editTag?.color)
+                      const isSelected = currentHex.toLowerCase() === c.hex.toLowerCase()
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          className="h-6 w-6 rounded-full border-2 transition-all hover:scale-110"
+                          title={c.hex}
+                          style={{
+                            backgroundColor: c.hex,
+                            borderColor: isSelected ? "#ffffff" : "transparent",
+                            outline: isSelected ? `2px solid ${c.hex}` : "none",
+                            outlineOffset: "1px",
+                          }}
+                          onClick={() => setEditTag((p: Partial<Tag> | null) => ({ ...p, color: c.hex }))}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Matching algorithm</Label>
+                  <Select
+                    value={String(editTag?.matching_algorithm ?? 6)}
+                    onValueChange={(v) => setEditTag((p: Partial<Tag> | null) => ({ ...p, matching_algorithm: Number(v) }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MATCHING_ALGORITHMS.map((a) => (
+                        <SelectItem key={a.id} value={String(a.id)}>
+                          {a.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {(editTag?.matching_algorithm ?? 6) !== 6 && (editTag?.matching_algorithm ?? 6) !== 0 && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tag-match">Match pattern</Label>
+                    <Input
+                      id="tag-match"
+                      value={editTag?.match ?? ""}
+                      onChange={(e) => setEditTag((p: Partial<Tag> | null) => ({ ...p, match: e.target.value }))}
+                      placeholder="Pattern to match"
                     />
-                  )
-                })}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="tag-inbox"
+                    checked={editTag?.is_inbox_tag ?? false}
+                    onCheckedChange={(v) => setEditTag((p: Partial<Tag> | null) => ({ ...p, is_inbox_tag: v }))}
+                  />
+                  <Label htmlFor="tag-inbox">Inbox tag</Label>
+                </div>
               </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Matching algorithm</Label>
-              <Select
-                value={String(editTag?.matching_algorithm ?? 6)}
-                onValueChange={(v) => setEditTag((p: Partial<Tag> | null) => ({ ...p, matching_algorithm: Number(v) }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MATCHING_ALGORITHMS.map((a) => (
-                    <SelectItem key={a.id} value={String(a.id)}>
-                      {a.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {(editTag?.matching_algorithm ?? 6) !== 6 && (editTag?.matching_algorithm ?? 6) !== 0 && (
-              <div className="space-y-1.5">
-                <Label htmlFor="tag-match">Match pattern</Label>
-                <Input
-                  id="tag-match"
-                  value={editTag?.match ?? ""}
-                  onChange={(e) => setEditTag((p: Partial<Tag> | null) => ({ ...p, match: e.target.value }))}
-                  placeholder="Pattern to match"
-                />
-              </div>
-            )}
-
-            <div className="flex items-center gap-3">
-              <Switch
-                id="tag-inbox"
-                checked={editTag?.is_inbox_tag ?? false}
-                onCheckedChange={(v) => setEditTag((p: Partial<Tag> | null) => ({ ...p, is_inbox_tag: v }))}
-              />
-              <Label htmlFor="tag-inbox">Inbox tag</Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditTag(null)}>Cancel</Button>
-            <Button onClick={() => void handleSave()} disabled={saving || !editTag?.name?.trim()}>
-              {saving ? "Saving…" : isNew ? "Create" : "Save"}
-            </Button>
-          </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DraggableDialogBody>
+            <DraggableDialogFooter>
+              <Button variant="outline" onClick={() => setEditTag(null)}>Cancel</Button>
+              <Button onClick={() => void handleSave()} disabled={saving || !editTag?.name?.trim()}>
+                {saving ? "Saving…" : isNew ? "Create" : "Save"}
+              </Button>
+            </DraggableDialogFooter>
+          </DraggableDialogContent>
+        </DraggableDialog>
       </PermissionGate>
 
       {/* Delete Confirmation */}

@@ -41,6 +41,7 @@ import {
   Mail,
   GripVertical,
   HeartPulse,
+  FileCode2,
 } from "lucide-react"
 
 import {
@@ -59,6 +60,10 @@ import { Badge } from "@/components/ui/badge"
 import { NavUser } from "@/components/nav-user"
 import { ModeToggle } from "@/components/theme-toggle"
 import { SidebarOpenDocuments } from "@/components/sidebar-open-documents"
+import {
+  SidebarManagementDialog,
+  type SidebarManagementDialogKind,
+} from "@/components/sidebar-management-dialog"
 import {
   Collapsible,
   CollapsibleContent,
@@ -104,7 +109,9 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 }
 
 interface NavItem {
+  adminOnly?: boolean
   icon: React.ComponentType<{ className?: string }>
+  managementDialogKind?: SidebarManagementDialogKind
   permissionType?: PermissionType
   title: string
   url: string
@@ -116,18 +123,20 @@ const navMain: NavItem[] = [
 ]
 
 const navManagement: NavItem[] = [
-  { title: "Tags", url: "/tags", icon: Tags, permissionType: "tag" },
-  { title: "Correspondents", url: "/correspondents", icon: Users, permissionType: "correspondent" },
-  { title: "Document Types", url: "/document-types", icon: FileType, permissionType: "documentType" },
-  { title: "Storage Paths", url: "/storage-paths", icon: FolderOpen, permissionType: "storagePath" },
-  { title: "Custom Fields", url: "/custom-fields", icon: FormInput, permissionType: "customField" },
-  { title: "Saved Views", url: "/savedviews", icon: LayoutList, permissionType: "savedView" },
-  { title: "Workflows", url: "/workflows", icon: GitBranch, permissionType: "workflow" },
-  { title: "Mail", url: "/mail", icon: Mail, permissionType: "mailAccount" },
-  { title: "Users", url: "/users", icon: Users },
+  { title: "Taxonomy", url: "/taxonomy", icon: GitBranch, adminOnly: true },
+  { title: "Domain Models", url: "/domain-models", icon: FileCode2, adminOnly: true },
+  { title: "Tags", url: "/tags", icon: Tags, managementDialogKind: "tags", permissionType: "tag" },
+  { title: "Correspondents", url: "/correspondents", icon: Users, managementDialogKind: "correspondents", permissionType: "correspondent" },
+  { title: "Document Types", url: "/document-types", icon: FileType, managementDialogKind: "documentTypes", permissionType: "documentType" },
+  { title: "Custom Fields", url: "/custom-fields", icon: FormInput, managementDialogKind: "customFields", permissionType: "customField" },
 ]
 
-const navSettings: NavItem[] = [
+const navSystem: NavItem[] = [
+  { title: "Mail", url: "/mail", icon: Mail, permissionType: "mailAccount" },
+  { title: "Users", url: "/users", icon: Users },
+  { title: "Saved Views", url: "/savedviews", icon: LayoutList, permissionType: "savedView" },
+  { title: "Storage Paths", url: "/storage-paths", icon: FolderOpen, permissionType: "storagePath" },
+  { title: "Workflows", url: "/workflows", icon: GitBranch, permissionType: "workflow" },
   { title: "Trash", url: "/trash", icon: Trash2 },
   { title: "Tasks", url: "/tasks", icon: Activity },
   { title: "Logs", url: "/logs", icon: ScrollText },
@@ -198,6 +207,11 @@ export function AppSidebar({
   const realtimeConnection = useAtomValue(realtimeConnectionAtom)
   const setPendingTaskCount = useSetAtom(setPendingTaskCountAtom)
   const adjustPendingTaskCount = useSetAtom(adjustPendingTaskCountAtom)
+  const [applicationOpen, setApplicationOpen] = React.useState(true)
+  const [managementOpen, setManagementOpen] = React.useState(true)
+  const [managementDialogKind, setManagementDialogKind] =
+    React.useState<SidebarManagementDialogKind | null>(null)
+  const [systemOpen, setSystemOpen] = React.useState(false)
   const [viewsOpen, setViewsOpen] = React.useState(true)
   const [hasMounted, setHasMounted] = React.useState(false)
 
@@ -262,6 +276,14 @@ export function AppSidebar({
   )
 
   const managementItems = navManagement.filter((item) => {
+    if (item.adminOnly) {
+      return canManageConfig(currentUserPermissions)
+    }
+    if (!item.permissionType) return true
+    return currentUserCan(currentUserPermissions, "view", item.permissionType)
+  })
+
+  const systemItems = navSystem.filter((item) => {
     if (item.title === "Users") {
       return (
         currentUserCan(currentUserPermissions, "view", "user") ||
@@ -270,11 +292,6 @@ export function AppSidebar({
       )
     }
 
-    if (!item.permissionType) return true
-    return currentUserCan(currentUserPermissions, "view", item.permissionType)
-  })
-
-  const systemItems = navSettings.filter((item) => {
     if (item.title === "Configuration" || item.title === "System Status") {
       return canManageConfig(currentUserPermissions)
     }
@@ -338,21 +355,34 @@ export function AppSidebar({
       <SidebarContent>
         {/* Main Navigation */}
         <SidebarGroup>
-          <SidebarGroupLabel>Application</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navMain.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathnameValue === item.url || (item.url !== "/dashboard" && pathnameValue.startsWith(item.url))}>
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
+          <Collapsible open={applicationOpen} onOpenChange={setApplicationOpen}>
+            <SidebarGroupLabel asChild>
+              <CollapsibleTrigger className="flex cursor-pointer items-center justify-between transition-colors hover:text-foreground">
+                <span>Application</span>
+                {applicationOpen ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+              </CollapsibleTrigger>
+            </SidebarGroupLabel>
+            <CollapsibleContent>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {navMain.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={pathnameValue === item.url || (item.url !== "/dashboard" && pathnameValue.startsWith(item.url))}>
+                        <Link href={item.url}>
+                          <item.icon />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </CollapsibleContent>
+          </Collapsible>
         </SidebarGroup>
 
         <SidebarOpenDocuments />
@@ -361,12 +391,12 @@ export function AppSidebar({
         {orderedViews.length > 0 && (
           <SidebarGroup>
             <Collapsible open={viewsOpen} onOpenChange={setViewsOpen}>
-              <CollapsibleTrigger asChild>
-                <SidebarGroupLabel className="flex items-center justify-between cursor-pointer hover:text-foreground transition-colors">
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="flex cursor-pointer items-center justify-between transition-colors hover:text-foreground">
                   <span>Saved Views</span>
                   {viewsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                </SidebarGroupLabel>
-              </CollapsibleTrigger>
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
               <CollapsibleContent>
                 <SidebarGroupContent>
                   {hasMounted ? (
@@ -427,49 +457,85 @@ export function AppSidebar({
         {/* Management Navigation */}
         {managementItems.length > 0 && (
           <SidebarGroup>
-            <SidebarGroupLabel>Management</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {managementItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={pathnameValue.startsWith(item.url)}>
-                      <Link href={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
+            <Collapsible open={managementOpen} onOpenChange={setManagementOpen}>
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="flex cursor-pointer items-center justify-between transition-colors hover:text-foreground">
+                  <span>Management</span>
+                  {managementOpen ? (
+                    <ChevronDown className="h-3 w-3" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3" />
+                  )}
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {managementItems.map((item) => (
+                      <SidebarMenuItem key={item.title}>
+                        {item.managementDialogKind ? (
+                          <SidebarMenuButton
+                            isActive={managementDialogKind === item.managementDialogKind}
+                            onClick={() => setManagementDialogKind(item.managementDialogKind ?? null)}
+                          >
+                            <item.icon />
+                            <span>{item.title}</span>
+                          </SidebarMenuButton>
+                        ) : (
+                          <SidebarMenuButton asChild isActive={pathnameValue.startsWith(item.url)}>
+                            <Link href={item.url}>
+                              <item.icon />
+                              <span>{item.title}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        )}
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </Collapsible>
           </SidebarGroup>
         )}
 
-        {/* Settings Navigation */}
+        {/* System Navigation */}
         <SidebarGroup>
-          <SidebarGroupLabel>System</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {systemItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathnameValue.startsWith(item.url)}>
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                      {item.title === "Tasks" && pendingTaskCount > 0 && (
-                        <Badge
-                          variant="destructive"
-                          className="ml-auto h-5 min-w-[20px] px-1 text-[10px] leading-none"
-                        >
-                          {pendingTaskCount}
-                        </Badge>
-                      )}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
+          <Collapsible open={systemOpen} onOpenChange={setSystemOpen}>
+            <SidebarGroupLabel asChild>
+              <CollapsibleTrigger className="flex cursor-pointer items-center justify-between transition-colors hover:text-foreground">
+                <span>System</span>
+                {systemOpen ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+              </CollapsibleTrigger>
+            </SidebarGroupLabel>
+            <CollapsibleContent>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {systemItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={pathnameValue.startsWith(item.url)}>
+                        <Link href={item.url}>
+                          <item.icon />
+                          <span>{item.title}</span>
+                          {item.title === "Tasks" && pendingTaskCount > 0 && (
+                            <Badge
+                              variant="destructive"
+                              className="ml-auto h-5 min-w-[20px] px-1 text-[10px] leading-none"
+                            >
+                              {pendingTaskCount}
+                            </Badge>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </CollapsibleContent>
+          </Collapsible>
         </SidebarGroup>
       </SidebarContent>
 
@@ -479,6 +545,15 @@ export function AppSidebar({
           <ModeToggle />
         </div>
       </SidebarFooter>
+
+      <SidebarManagementDialog
+        kind={managementDialogKind}
+        onOpenChange={(open) => {
+          if (!open) {
+            setManagementDialogKind(null)
+          }
+        }}
+      />
     </Sidebar>
   )
 }

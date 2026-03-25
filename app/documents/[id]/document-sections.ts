@@ -2,6 +2,7 @@ export const DEFAULT_DOCUMENT_SECTION = "details"
 
 export const DOCUMENT_SECTIONS = [
   "details",
+  "context",
   "content",
   "metadata",
   "history",
@@ -39,7 +40,10 @@ export function resolveDocumentSection(
   return allowedSections[0] ?? DEFAULT_DOCUMENT_SECTION
 }
 
-export function getDocumentSectionHref(documentId: number | string, section: DocumentSection) {
+export function getDocumentSectionHref(
+  documentId: number | string,
+  section: DocumentSection
+) {
   if (section === DEFAULT_DOCUMENT_SECTION) {
     return `/documents/${documentId}`
   }

@@ -32,7 +32,7 @@ import {
 
 export function NavUser() {
   const { isMobile } = useSidebar()
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [hasMounted, setHasMounted] = React.useState(false)
 
   const user = session?.user
@@ -41,8 +41,23 @@ export function NavUser() {
     setHasMounted(true)
   }, [])
 
-  if (!hasMounted || !user) {
+  if (!hasMounted || status === "loading") {
     return null
+  }
+
+  if (!user) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton asChild size="lg">
+            <Link href="/login">
+              <UserRound className="size-4" />
+              <span>Sign in</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    )
   }
 
   return (

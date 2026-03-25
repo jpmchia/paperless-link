@@ -13,5 +13,8 @@
 			"path": "../../../link-iq"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"chatgpt.runCodexInWindowsSubsystemForLinux": true,
+		"chatgpt.openOnStartup": true
+	}
 }

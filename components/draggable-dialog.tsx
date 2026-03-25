@@ -20,6 +20,7 @@ interface DraggableDialogContextValue {
     onPointerCancel: (e: React.PointerEvent) => void
   }
   isDragging: boolean
+  modal: boolean
 }
 
 const DraggableDialogContext =
@@ -31,10 +32,30 @@ export function useDraggableDialogContext() {
 
 // ── Unchanged Radix primitives ──────────────────────────────────────────
 
-const Dialog = DialogPrimitive.Root
+interface DialogProps extends React.ComponentProps<typeof DialogPrimitive.Root> {
+  modal?: boolean
+}
+
+function Dialog({ modal = true, ...props }: DialogProps) {
+  return (
+    <DraggableDialogContext.Provider value={null}>
+      <DialogModeContext.Provider value={{ modal }}>
+        <DialogPrimitive.Root modal={modal} {...props} />
+      </DialogModeContext.Provider>
+    </DraggableDialogContext.Provider>
+  )
+}
 const DialogTrigger = DialogPrimitive.Trigger
 const DialogPortal = DialogPrimitive.Portal
 const DialogClose = DialogPrimitive.Close
+
+interface DialogModeContextValue {
+  modal: boolean
+}
+
+const DialogModeContext = React.createContext<DialogModeContextValue>({
+  modal: true,
+})
 
 // ── Overlay ─────────────────────────────────────────────────────────────
 
@@ -87,7 +108,7 @@ interface DraggableDialogContentProps
   borderWidth?: number
   /** Inner bg opacity 0-1 (default: 0.825) */
   bgOpacity?: number
-  /** Show overlay behind dialog (default: true) */
+  /** Show overlay behind dialog (defaults to the dialog root's modal setting) */
   overlay?: boolean
 }
 
@@ -114,13 +135,14 @@ const DialogContent = React.forwardRef<
       contrast = 1,
       borderWidth = 1,
       bgOpacity = 0.975,
-      overlay = true,
+      overlay,
       onInteractOutside,
       onEscapeKeyDown,
       ...props
     },
     ref,
   ) => {
+    const { modal } = React.useContext(DialogModeContext)
     const panelRef = React.useRef<HTMLDivElement>(null)
     React.useImperativeHandle(ref, () => panelRef.current!)
 
@@ -187,7 +209,7 @@ const DialogContent = React.forwardRef<
 
     return (
       <DialogPortal>
-        {overlay && <DialogOverlay />}
+        {(overlay ?? modal) && <DialogOverlay />}
         <DialogPrimitive.Content
           asChild
           onInteractOutside={(e) => {
@@ -230,7 +252,7 @@ const DialogContent = React.forwardRef<
 
             {/* Children — DialogHeader becomes drag handle via context */}
             <DraggableDialogContext.Provider
-              value={{ dragHandleProps, isDragging }}
+              value={{ dragHandleProps, isDragging, modal }}
             >
               <div className="relative flex min-h-0 flex-1 flex-col">
                 {children}
