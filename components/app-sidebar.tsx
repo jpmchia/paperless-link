@@ -127,6 +127,7 @@ const navMain: NavItem[] = [
 const navManagement: NavItem[] = [
   { title: "Taxonomy", url: "/taxonomy", icon: GitBranch, adminOnly: true },
   { title: "Domain Models", url: "/domain-models", icon: FileCode2, adminOnly: true },
+  { title: "Business Context", url: "/business-context", icon: Building2, adminOnly: true },
   { title: "Tags", url: "/tags", icon: Tags, managementDialogKind: "tags", permissionType: "tag" },
   { title: "Correspondents", url: "/correspondents", icon: Users, managementDialogKind: "correspondents", permissionType: "correspondent" },
   { title: "Document Types", url: "/document-types", icon: FileType, managementDialogKind: "documentTypes", permissionType: "documentType" },
@@ -135,7 +136,6 @@ const navManagement: NavItem[] = [
 
 const navSystem: NavItem[] = [
   { title: "AI & NLP", url: "/ai-nlp", icon: BrainCircuit, adminOnly: true },
-  { title: "Business Context", url: "/business-context", icon: Building2, adminOnly: true },
   { title: "Mail", url: "/mail", icon: Mail, permissionType: "mailAccount" },
   { title: "Users", url: "/users", icon: Users },
   { title: "Saved Views", url: "/savedviews", icon: LayoutList, permissionType: "savedView" },

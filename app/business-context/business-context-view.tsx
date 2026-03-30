@@ -92,10 +92,20 @@ function describeDynamicSource(field: ContextField) {
   }
 }
 
+function slugifyKey(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+}
+
 export function BusinessContextView({ initialFields, initialLoadError = null }: Props) {
   const [fields, setFields] = React.useState(initialFields)
   const [scope, setScope] = React.useState<FieldScope>("system")
   const [selectedFieldId, setSelectedFieldId] = React.useState("")
+  const [creatingNew, setCreatingNew] = React.useState(false)
+  const [keyManuallyEdited, setKeyManuallyEdited] = React.useState(false)
   const [draft, setDraft] = React.useState<ContextField>(() => emptyField("system"))
   const [history, setHistory] = React.useState<ContextFieldHistoryEntry[]>([])
   const [loading, setLoading] = React.useState(false)
@@ -184,27 +194,42 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
   const schemaLocked = Boolean(draft.schema_locked)
   const isInputField = (draft.field_mode || "input") === "input"
   const isDynamicField = (draft.value_source || "manual") === "dynamic"
+  const editorTitle = draft.field_id
+    ? draft.label.trim()
+      ? `Editing ${draft.label.trim()} business context`
+      : "Editing business context"
+    : "Creating new business context definition"
+  const editorDescription = draft.field_id
+    ? "Maintain prompt context definitions and keep an auditable record of every change that can affect model output."
+    : "Create a new business context definition and capture the information that should guide prompts and workflow behavior."
 
   React.useEffect(() => {
+    if (creatingNew) {
+      setKeyManuallyEdited(false)
+      setDraft(emptyField(scope))
+      return
+    }
     if (selectedField) {
+      setKeyManuallyEdited(true)
       setDraft({ ...selectedField })
       return
     }
     if (selectedFieldId) {
       setSelectedFieldId("")
     }
+    setKeyManuallyEdited(false)
     setDraft(emptyField(scope))
-  }, [scope, selectedField, selectedFieldId])
+  }, [creatingNew, scope, selectedField, selectedFieldId])
 
   React.useEffect(() => {
-    if (!selectedFieldId) {
+    if (!selectedFieldId && !creatingNew) {
       const fallbackField = SCOPES.flatMap((value) => fieldsByScope[value])[0]
       if (fallbackField) {
         setScope(fallbackField.scope as FieldScope)
         setSelectedFieldId(fallbackField.field_id)
       }
     }
-  }, [fieldsByScope, selectedFieldId])
+  }, [creatingNew, fieldsByScope, selectedFieldId])
 
   const loadHistory = React.useCallback(async (fieldId: string) => {
     const trimmedFieldId = fieldId.trim()
@@ -248,6 +273,7 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
         nextFieldId && nextScoped.some((field) => field.field_id === nextFieldId)
           ? nextFieldId
           : nextScoped[0]?.field_id ?? ""
+      setCreatingNew(false)
       setSelectedFieldId(resolvedFieldId)
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error"
@@ -268,6 +294,8 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
   }, [])
 
   function handleNewField(nextScope: FieldScope = scope) {
+    setCreatingNew(true)
+    setKeyManuallyEdited(false)
     setScope(nextScope)
     setSelectedFieldId("")
     setHistory([])
@@ -287,6 +315,7 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
           ? "Business context field updated"
           : "Business context field created"
       )
+      setCreatingNew(false)
       await reloadFields(scope, stored.field_id)
       await loadHistory(stored.field_id)
     } catch (error) {
@@ -382,6 +411,8 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
                         key={field.field_id}
                         type="button"
                         onClick={() => {
+                          setCreatingNew(false)
+                          setKeyManuallyEdited(true)
                           setScope(field.scope as FieldScope)
                           setSelectedFieldId(field.field_id)
                         }}
@@ -426,21 +457,31 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
           </CardContent>
         </Card>       
 
-        <Card className="min-h-0 overflow-hidden my-4">
+        <Card className="min-h-0 overflow-hidden">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Database className="size-4" />
-                  {draft.field_id ? "Edit Business Context Field" : "Create Business Context Field"}
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Database className="size-4 mr-2" />
+                  {draft.field_id ? (
+                    <>
+                      <span>Editing</span>
+                      <span className="rounded bg-primary/10 px-2 py-0.5 text-primary">
+                        {draft.label.trim() || "Business Context"}
+                      </span>
+                      <span>business context</span>
+                    </>
+                  ) : (
+                    editorTitle
+                  )}
                 </CardTitle>
                 <CardDescription>
-                  Maintain prompt context definitions and keep an auditable record of every change that can affect model output.
-                <div className="text-xs text-muted-foreground">
-                {loading
-                  ? "Reloading fields..."
-                  : "These values are injected into AI prompt execution as shared context."}
-              </div>
+                  {editorDescription}
+                  <div className="text-xs text-muted-foreground">
+                    {loading
+                      ? "Reloading fields..."
+                      : "These values are injected into AI prompt execution as shared context."}
+                  </div>
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -468,7 +509,16 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
                 value={draft.label}
                 disabled={schemaLocked}
                 onChange={(event) =>
-                  setDraft((current) => ({ ...current, label: event.target.value }))
+                  setDraft((current) => {
+                    const nextLabel = event.target.value
+                    const nextDraft = { ...current, label: nextLabel }
+
+                    if (creatingNew && !keyManuallyEdited) {
+                      nextDraft.key = slugifyKey(nextLabel)
+                    }
+
+                    return nextDraft
+                  })
                 }
               />
             </div>
@@ -481,10 +531,10 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
                 id="context-field-key"
                 value={draft.key}
                 disabled={schemaLocked}
-                onChange={(event) =>
+                onChange={(event) => {
+                  setKeyManuallyEdited(true)
                   setDraft((current) => ({ ...current, key: event.target.value }))
-                }
-                placeholder="organisation_name"
+                }}
               />
             </div>
             <div className="grid gap-2 mt-2">
