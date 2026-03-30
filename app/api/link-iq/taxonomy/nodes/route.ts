@@ -35,6 +35,16 @@ async function requireAdmin() {
   return canManageConfig(permissions)
 }
 
+async function syncGeneratedBusinessContext() {
+  try {
+    await invokeLinkIQAction<{ updated_count?: number }>({
+      capability: "context_field.sync_dynamic",
+    })
+  } catch (error) {
+    console.error("Failed to sync generated business context fields after taxonomy save:", error)
+  }
+}
+
 export async function GET(request: Request) {
   return handleGet(request)
 }
@@ -100,6 +110,8 @@ export async function POST(request: Request) {
         source_scope: sourceScope,
       },
     })
+
+    await syncGeneratedBusinessContext()
 
     return NextResponse.json(result.node ?? {})
   } catch (error) {

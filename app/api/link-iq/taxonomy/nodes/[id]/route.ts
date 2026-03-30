@@ -19,6 +19,16 @@ async function requireAdmin() {
   return canManageConfig(permissions)
 }
 
+async function syncGeneratedBusinessContext() {
+  try {
+    await invokeLinkIQAction<{ updated_count?: number }>({
+      capability: "context_field.sync_dynamic",
+    })
+  } catch (error) {
+    console.error("Failed to sync generated business context fields after taxonomy delete:", error)
+  }
+}
+
 function nodeIdFromParams(params: { id: string }) {
   return String(params.id ?? "").trim()
 }
@@ -48,6 +58,8 @@ export async function DELETE(
         taxonomy_node_id: taxonomyNodeID,
       },
     })
+
+    await syncGeneratedBusinessContext()
 
     return NextResponse.json({ deleted: true })
   } catch (error) {

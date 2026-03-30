@@ -3,8 +3,20 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 import { revalidatePath } from "next/cache"
+import { invokeLinkIQAction } from "@/lib/link-iq"
 
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
+
+async function syncGeneratedBusinessContext() {
+  try {
+    await invokeLinkIQAction<{ updated_count?: number }>({
+      capability: "context_field.sync_dynamic",
+    })
+    revalidatePath("/business-context")
+  } catch (error) {
+    console.error("Failed to sync generated business context fields:", error)
+  }
+}
 
 async function getToken() {
   const session = await getServerSession(authOptions)
@@ -72,6 +84,7 @@ export async function createCorrespondent(data: {
   is_insensitive?: boolean
 }) {
   const result = await apiRequest("POST", "correspondents/", data)
+  await syncGeneratedBusinessContext()
   revalidatePath("/correspondents")
   return result
 }
@@ -83,12 +96,14 @@ export async function updateCorrespondent(id: number, data: Partial<{
   is_insensitive: boolean
 }>) {
   const result = await apiRequest("PATCH", `correspondents/${id}/`, data)
+  await syncGeneratedBusinessContext()
   revalidatePath("/correspondents")
   return result
 }
 
 export async function deleteCorrespondent(id: number) {
   await apiRequest("DELETE", `correspondents/${id}/`)
+  await syncGeneratedBusinessContext()
   revalidatePath("/correspondents")
 }
 
@@ -101,6 +116,7 @@ export async function createDocumentType(data: {
   is_insensitive?: boolean
 }) {
   const result = await apiRequest("POST", "document_types/", data)
+  await syncGeneratedBusinessContext()
   revalidatePath("/document-types")
   return result
 }
@@ -112,12 +128,14 @@ export async function updateDocumentType(id: number, data: Partial<{
   is_insensitive: boolean
 }>) {
   const result = await apiRequest("PATCH", `document_types/${id}/`, data)
+  await syncGeneratedBusinessContext()
   revalidatePath("/document-types")
   return result
 }
 
 export async function deleteDocumentType(id: number) {
   await apiRequest("DELETE", `document_types/${id}/`)
+  await syncGeneratedBusinessContext()
   revalidatePath("/document-types")
 }
 

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Building2, Database, Divide, Plus, Save, Trash2 } from "lucide-react"
+import { Building2, Database, Divide, Plus, RefreshCw, Save, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -102,6 +102,7 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
   const [historyLoading, setHistoryLoading] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
+  const [regenerating, setRegenerating] = React.useState(false)
   const [loadError, setLoadError] = React.useState<string | null>(initialLoadError)
 
   const historyColumns = React.useMemo<AuditHistoryColumn<ContextFieldHistoryEntry>[]>(
@@ -313,6 +314,32 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
     }
   }
 
+  async function handleRegenerateDynamicField() {
+    if (!isDynamicField || !selectedFieldId) return
+
+    setRegenerating(true)
+    try {
+      const result = await postJson<{ updated_count?: number }>(
+        "/api/link-iq/context-fields/sync",
+        {}
+      )
+      await reloadFields(scope, selectedFieldId)
+      await loadHistory(selectedFieldId)
+      toast.success("Generated fields refreshed", {
+        description:
+          (result.updated_count ?? 0) > 0
+            ? `${result.updated_count} generated field${result.updated_count === 1 ? "" : "s"} updated`
+            : "No generated values changed",
+      })
+    } catch (error) {
+      toast.error("Failed to refresh generated fields", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-1 gap-0 overflow-hidden px-4">
       <div className="grid min-h-0 flex-1 grid-cols-[320px_minmax(0,1fr)] gap-6 overflow-hidden">
@@ -368,12 +395,20 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
                         <div className="flex items-center justify-between gap-2">
                           <div className="font-medium text-sm">{field.label}</div>
                           <div className="flex items-center gap-1.5">
-                            {field.schema_locked ? <Badge variant="secondary">locked</Badge> : null}
                             {field.value_source === "dynamic" ? (
-                              <Badge variant="outline">dynamic</Badge>
+                              <Badge variant="secondary">generated</Badge>
+                            ) : field.schema_locked ? (
+                              <Badge variant="secondary">locked</Badge>
                             ) : null}
-                            <Badge variant="outline">{field.field_mode || "input"}</Badge>
-                            <Badge variant="outline">{field.data_type}</Badge>
+                            {field.value_source === "dynamic" ? (
+                              <Badge variant="outline">{field.data_type}</Badge>
+                            ) : null}
+                            {field.value_source !== "dynamic" ? (
+                              <Badge variant="outline">{field.field_mode || "input"}</Badge>
+                            ) : null}
+                            {field.value_source !== "dynamic" ? (
+                              <Badge variant="outline">{field.data_type}</Badge>
+                            ) : null}
                           </div>
                         </div>
                         <div className="mt-1 truncate text-xs text-muted-foreground">{field.key}</div>
@@ -410,7 +445,7 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="secondary">{scope}</Badge>
-                {isDynamicField ? <Badge variant="outline">dynamic</Badge> : null}
+                {isDynamicField ? <Badge variant="secondary">generated</Badge> : null}
                 <Badge variant="outline">{draft.field_mode || "input"}</Badge>
                 <Badge variant="outline">{BUSINESS_SECTION}</Badge>
               </div>
@@ -612,6 +647,16 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
             </div>
 
               <div className="flex items-center gap-2">
+                {isDynamicField ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleRegenerateDynamicField()}
+                    disabled={regenerating || saving || loading}
+                  >
+                    <RefreshCw className={regenerating ? "size-4 animate-spin" : "size-4"} />
+                    Re-generate
+                  </Button>
+                ) : null}
                 {draft.field_id && !schemaLocked ? (
                   <Button
                     variant="outline"
