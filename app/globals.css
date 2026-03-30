@@ -20,9 +20,11 @@
     --secondary: oklch(0.967 0.001 286.375);
     --secondary-foreground: oklch(0.21 0.006 285.885);
     --muted: oklch(0.967 0.001 286.375);
-    --muted-foreground: oklch(0.552 0.016 285.938);
+    /* --muted-foreground: oklch(0.552 0.016 285.938); */
+    --muted-foreground:  oklch(0.453 0.124 130.933);
     --accent: oklch(0.532 0.157 131.589);
-    --accent-foreground: oklch(0.986 0.031 120.757);
+    /* --accent-foreground: oklch(0.986 0.031 120.757); */
+    --accent-foreground: oklch(0.648 0.2 131.684);
     --destructive: oklch(0.577 0.245 27.325);
     --border: oklch(0.92 0.004 286.32);
     --input: oklch(0.92 0.004 286.32);
@@ -55,9 +57,11 @@
     --secondary: oklch(0.274 0.006 286.033);
     --secondary-foreground: oklch(0.985 0 0);
     --muted: oklch(0.274 0.006 286.033);
-    --muted-foreground: oklch(0.705 0.015 286.067);
+    /* --muted-foreground: oklch(0.705 0.015 286.067); */
+    --muted-foreground:  oklch(0.648 0.2 131.684);
     --accent: oklch(0.453 0.124 130.933);
-    --accent-foreground: oklch(0.986 0.031 120.757);
+    /* --accent-foreground: oklch(0.986 0.031 120.757); */
+    --accent-foreground: oklch(0.648 0.2 131.684);
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
@@ -234,4 +238,9 @@
   z-index: 0;
   cursor: default;
   user-select: none;
+}
+
+
+.dark.inset-shadow-xl {
+  box-shadow: inset 0px 5px 15px -3px rgba(0, 0, 0, 0.2);
 }

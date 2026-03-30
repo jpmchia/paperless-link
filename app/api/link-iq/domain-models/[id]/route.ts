@@ -32,20 +32,20 @@ export async function DELETE(
   }
 
   const resolvedParams = await params
-  const definitionID = definitionIdFromParams(resolvedParams)
-  if (!definitionID) {
+  const profileID = definitionIdFromParams(resolvedParams)
+  if (!profileID) {
     return NextResponse.json(
-      { error: "definition_id is required" },
+      { error: "profile_id is required" },
       { status: 400 }
     )
   }
 
   try {
     await invokeLinkIQAction<{ deleted?: boolean }>({
-      capability: "domain_model.delete_definition",
-      resource_id: definitionID,
+      capability: "context_profile.delete",
+      resource_id: profileID,
       input: {
-        definition_id: definitionID,
+        profile_id: profileID,
       },
     })
 

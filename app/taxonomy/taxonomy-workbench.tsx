@@ -1,30 +1,30 @@
 "use client"
 
 import * as React from "react"
-import {
-  AlertCircle,
-  ChevronRight,
-  GitBranch,
-  Loader2,
-  Plus,
-  RefreshCcw,
-  Save,
-  Trash2,
-} from "lucide-react"
+import { GitBranch, Loader2, Plus, RefreshCcw, Save, Sparkles, Trash2 } from "lucide-react"
 import { toast } from "sonner"
+import { TaxonomyFlowSurface } from "./taxonomy-flow-surface"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/draggable-dialog"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { cn } from "@/lib/utils"
 import { deleteJson, getJson, postJson } from "@/lib/paperless-client"
 
 type TaxonomyNode = {
@@ -65,6 +65,8 @@ const scopeOptions = [
   { label: "Source Specific", value: "source_specific" },
   { label: "Source Aligned", value: "source_aligned" },
 ]
+
+const ROOT_PARENT_VALUE = "__root__"
 
 const mappingOptions = [
   { label: "None", value: "none" },
@@ -135,6 +137,8 @@ export function TaxonomyWorkbench({ initialNodes, sourceID }: Props) {
   const [saving, setSaving] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
   const [refreshing, setRefreshing] = React.useState(false)
+  const [generatingDescription, setGeneratingDescription] = React.useState(false)
+  const [editorOpen, setEditorOpen] = React.useState(true)
 
   const selectedNode = React.useMemo(
     () => nodes.find((node) => node.taxonomy_node_id === selectedNodeID) ?? null,
@@ -145,18 +149,9 @@ export function TaxonomyWorkbench({ initialNodes, sourceID }: Props) {
     setDraft(buildDraft(selectedNode, sourceID))
   }, [selectedNode, sourceID])
 
-  const filteredNodes = React.useMemo(() => {
-    const query = search.trim().toLowerCase()
-    if (!query) return nodes
-
-    return nodes.filter((node) => {
-      return (
-        node.label.toLowerCase().includes(query) ||
-        node.path.toLowerCase().includes(query) ||
-        (node.description || "").toLowerCase().includes(query)
-      )
-    })
-  }, [nodes, search])
+  React.useEffect(() => {
+    setEditorOpen(true)
+  }, [selectedNodeID])
 
   const availableParents = React.useMemo(() => {
     const selectedPath = selectedNode?.path || ""
@@ -182,14 +177,10 @@ export function TaxonomyWorkbench({ initialNodes, sourceID }: Props) {
     return serializeDraft(draft) !== serializeDraft(buildDraft(selectedNode, sourceID))
   }, [draft, selectedNode, sourceID])
 
-  const rootCount = React.useMemo(
-    () => nodes.filter((node) => node.depth === 0).length,
-    [nodes]
-  )
-  const sourceBoundCount = React.useMemo(
-    () => nodes.filter((node) => node.source_scope !== "link_global").length,
-    [nodes]
-  )
+  React.useEffect(() => {
+    void reloadNodes(selectedNodeID !== "__new__" ? selectedNodeID : undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function reloadNodes(nextSelectedNodeID?: string) {
     setRefreshing(true)
@@ -270,233 +261,247 @@ export function TaxonomyWorkbench({ initialNodes, sourceID }: Props) {
     }
   }
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Total Nodes</CardTitle>
-            <CardDescription>Link-native hierarchy currently defined.</CardDescription>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{nodes.length}</CardContent>
-        </Card>
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Root Branches</CardTitle>
-            <CardDescription>Top-level entry points into the taxonomy.</CardDescription>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{rootCount}</CardContent>
-        </Card>
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Source-Bound Nodes</CardTitle>
-            <CardDescription>Scoped to the active repository connector.</CardDescription>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {sourceBoundCount}
-          </CardContent>
-        </Card>
-      </div>
+  async function handleMoveNode(nodeID: string, parentNodeID: string | null) {
+    await postJson(`/api/link-iq/taxonomy/nodes/${nodeID}/move`, {
+      parent_node_id: parentNodeID || undefined,
+    })
+    toast.success("Taxonomy node moved")
+    await reloadNodes(nodeID)
+  }
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]">
-        <Card className="min-h-0">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <CardTitle>Taxonomy Browser</CardTitle>
-                <CardDescription>
-                  Search the existing hierarchy and select a node to edit.
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void reloadNodes()}
-                  disabled={refreshing}
-                >
-                  {refreshing ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <RefreshCcw className="size-4" />
-                  )}
-                  Refresh
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => setSelectedNodeID("__new__")}
-                >
-                  <Plus className="size-4" />
-                  New Node
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+  async function handleGenerateDescription() {
+    if (!draft.label.trim()) {
+      toast.error("Add a node label before generating a description")
+      return
+    }
+
+    setGeneratingDescription(true)
+    try {
+      const result = await postJson<{ output_text?: string }>(
+        "/api/link-iq/ai/generate/taxonomy-description",
+        {
+          existing_description: draft.description,
+          label: draft.label,
+          parent_path: parentNode?.path || "",
+          path_preview: pathPreview,
+          source_id: draft.source_id || sourceID,
+          source_scope: draft.source_scope,
+        }
+      )
+
+      const nextDescription = result.output_text?.trim()
+      if (!nextDescription) {
+        throw new Error("The configured model returned no description")
+      }
+
+      setDraft((current) => ({ ...current, description: nextDescription }))
+      toast.success("Description generated")
+    } catch (error) {
+      toast.error("Failed to generate taxonomy description", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+    } finally {
+      setGeneratingDescription(false)
+    }
+  }
+
+  const handleSelectNode = React.useCallback((nodeID: string) => {
+    setSelectedNodeID(nodeID)
+    setEditorOpen(true)
+  }, [])
+
+  const handleCreateNode = React.useCallback(() => {
+    setSelectedNodeID("__new__")
+    setEditorOpen(true)
+  }, [])
+
+  return (
+    <div className="flex min-h-0 flex-1 p-6">
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl border bg-card shadow-sm">
+        <div className="absolute inset-0">
+          <TaxonomyFlowSurface
+            nodes={nodes}
+            search={search}
+            selectedNodeID={selectedNodeID}
+            onMoveNode={handleMoveNode}
+            onSelectNode={handleSelectNode}
+            layoutInsetLeft={40}
+            layoutInsetTop={116}
+          />
+        </div>
+
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 p-4">
+          <div className="pointer-events-auto flex w-full max-w-4xl items-center gap-3 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/85">
             <Input
               placeholder="Search taxonomy path, label, or description"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              className="flex-1"
             />
-            <div className="min-h-0 flex-1 overflow-y-auto rounded-md border">
-              {filteredNodes.length === 0 ? (
-                <div className="flex h-full min-h-48 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
-                  <AlertCircle className="size-4" />
-                  <p>No taxonomy nodes match the current search.</p>
-                </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void reloadNodes()}
+              disabled={refreshing}
+            >
+              {refreshing ? (
+                <Loader2 className="size-4 animate-spin" />
               ) : (
-                <div className="divide-y">
-                  {filteredNodes.map((node) => {
-                    const isActive = node.taxonomy_node_id === selectedNodeID
-                    return (
-                      <button
-                        key={node.taxonomy_node_id}
-                        type="button"
-                        className={cn(
-                          "flex w-full flex-col gap-2 px-3 py-3 text-left transition-colors hover:bg-muted/50",
-                          isActive && "bg-muted"
-                        )}
-                        onClick={() => setSelectedNodeID(node.taxonomy_node_id)}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <ChevronRight
-                              className="size-4 shrink-0 text-muted-foreground"
-                              style={{ marginLeft: node.depth * 10 }}
-                            />
-                            <span className="truncate font-medium">{node.label}</span>
-                          </div>
-                          <Badge variant={node.status === "active" ? "secondary" : "outline"}>
-                            {node.status}
-                          </Badge>
-                        </div>
-                        <div className="pl-6 text-[11px] text-muted-foreground">
-                          {node.path}
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
+                <RefreshCcw className="size-4" />
               )}
-            </div>
-          </CardContent>
-        </Card>
+              Refresh
+            </Button>
+            <Button size="sm" onClick={handleCreateNode}>
+              <Plus className="size-4" />
+              New Node
+            </Button>
+          </div>
+        </div>
 
-        <div className="grid min-h-0 gap-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <CardTitle>
-                    {selectedNode ? "Edit Taxonomy Node" : "Create Taxonomy Node"}
-                  </CardTitle>
-                  <CardDescription>
-                    Define the hierarchy path, scoping, and projection state for Link.
-                  </CardDescription>
-                </div>
-                {selectedNode ? (
+        <Dialog modal={false} open={editorOpen} onOpenChange={setEditorOpen}>
+          <DialogContent
+            overlay={false}
+            draggable
+            resizable
+            initialWidth={520}
+            initialHeight={760}
+            minWidth={420}
+            maxWidth={760}
+            minHeight={520}
+            maxHeight={920}
+            onInteractOutside={(event) => event.preventDefault()}
+          >
+            <DialogHeader
+              headerRight={
+                selectedNode ? (
                   <Badge variant="outline">{selectedNode.taxonomy_node_id}</Badge>
-                ) : null}
-              </div>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="taxonomy-label">Label</Label>
-                  <Input
-                    id="taxonomy-label"
-                    value={draft.label}
-                    onChange={(event) =>
-                      setDraft((current) => ({ ...current, label: event.target.value }))
-                    }
-                    placeholder="Invoice > Utilities"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="taxonomy-parent">Parent Node</Label>
-                  <select
-                    id="taxonomy-parent"
-                    className="h-7 rounded-md border border-input bg-input/20 px-2 text-xs"
-                    value={draft.parent_node_id}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        parent_node_id: event.target.value,
-                      }))
-                    }
-                  >
-                    <option value="">No parent (root)</option>
-                    {availableParents.map((node) => (
-                      <option key={node.taxonomy_node_id} value={node.taxonomy_node_id}>
-                        {node.path}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                ) : (
+                  <Badge variant="secondary">New node</Badge>
+                )
+              }
+            >
+              <DialogTitle>
+                {selectedNode ? "Edit Taxonomy Node" : "Create Taxonomy Node"}
+              </DialogTitle>
+              <DialogDescription>
+                Define the hierarchy path, scoping, and projection state for Link.
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogBody className="space-y-5">
+              <div className="grid gap-2">
+                <Label htmlFor="taxonomy-label">Label</Label>
+                <Input
+                  id="taxonomy-label"
+                  value={draft.label}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, label: event.target.value }))
+                  }
+                  placeholder="Invoice > Utilities"
+                />
               </div>
 
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="grid gap-2">
+                <Label htmlFor="taxonomy-parent">Parent Node</Label>
+                <Select
+                  value={draft.parent_node_id || ROOT_PARENT_VALUE}
+                  onValueChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      parent_node_id: value === ROOT_PARENT_VALUE ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger id="taxonomy-parent" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ROOT_PARENT_VALUE}>No parent (root)</SelectItem>
+                    {availableParents.map((node) => (
+                      <SelectItem key={node.taxonomy_node_id} value={node.taxonomy_node_id}>
+                        {node.path}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
                 <div className="grid gap-2">
                   <Label htmlFor="taxonomy-status">Status</Label>
-                  <select
-                    id="taxonomy-status"
-                    className="h-7 rounded-md border border-input bg-input/20 px-2 text-xs"
+                  <Select
                     value={draft.status}
-                    onChange={(event) =>
-                      setDraft((current) => ({ ...current, status: event.target.value }))
+                    onValueChange={(value) =>
+                      setDraft((current) => ({ ...current, status: value }))
                     }
                   >
-                    {statusOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="taxonomy-status" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statusOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+
                 <div className="grid gap-2">
                   <Label htmlFor="taxonomy-scope">Source Scope</Label>
-                  <select
-                    id="taxonomy-scope"
-                    className="h-7 rounded-md border border-input bg-input/20 px-2 text-xs"
+                  <Select
                     value={draft.source_scope}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                       setDraft((current) => ({
                         ...current,
                         source_id:
-                          event.target.value === "link_global"
+                          value === "link_global"
                             ? ""
                             : current.source_id || sourceID,
-                        source_scope: event.target.value,
+                        source_scope: value,
                       }))
                     }
                   >
-                    {scopeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="taxonomy-scope" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {scopeOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
                 <div className="grid gap-2">
                   <Label htmlFor="taxonomy-mapping-state">Mapping State</Label>
-                  <select
-                    id="taxonomy-mapping-state"
-                    className="h-7 rounded-md border border-input bg-input/20 px-2 text-xs"
+                  <Select
                     value={draft.mapping_state}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                       setDraft((current) => ({
                         ...current,
-                        mapping_state: event.target.value,
+                        mapping_state: value,
                       }))
                     }
                   >
-                    {mappingOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="taxonomy-mapping-state" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {mappingOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+
                 <div className="grid gap-2">
                   <Label htmlFor="taxonomy-sort-order">Sort Order</Label>
                   <Input
@@ -514,36 +519,51 @@ export function TaxonomyWorkbench({ initialNodes, sourceID }: Props) {
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_18rem]">
-                <div className="grid gap-2">
+              <div className="grid gap-2">
+                <Label htmlFor="taxonomy-source-id">Source ID</Label>
+                <Input
+                  id="taxonomy-source-id"
+                  value={draft.source_scope === "link_global" ? "" : draft.source_id}
+                  disabled={draft.source_scope === "link_global"}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      source_id: event.target.value,
+                    }))
+                  }
+                  placeholder={sourceID}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between gap-2">
                   <Label htmlFor="taxonomy-description">Description</Label>
-                  <Textarea
-                    id="taxonomy-description"
-                    value={draft.description}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        description: event.target.value,
-                      }))
-                    }
-                    placeholder="Explain what this taxonomy node means and when it should be used."
-                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void handleGenerateDescription()}
+                    disabled={generatingDescription || !draft.label.trim()}
+                  >
+                    {generatingDescription ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="size-4" />
+                    )}
+                    Generate with AI
+                  </Button>
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="taxonomy-source-id">Source ID</Label>
-                  <Input
-                    id="taxonomy-source-id"
-                    value={draft.source_scope === "link_global" ? "" : draft.source_id}
-                    disabled={draft.source_scope === "link_global"}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        source_id: event.target.value,
-                      }))
-                    }
-                    placeholder={sourceID}
-                  />
-                </div>
+                <Textarea
+                  id="taxonomy-description"
+                  value={draft.description}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      description: event.target.value,
+                    }))
+                  }
+                  placeholder="Explain what this taxonomy node means and when it should be used."
+                />
               </div>
 
               <div className="rounded-md border bg-muted/30 p-3">
@@ -559,45 +579,45 @@ export function TaxonomyWorkbench({ initialNodes, sourceID }: Props) {
                     : ", global scope"}
                 </div>
               </div>
+            </DialogBody>
 
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-[11px] text-muted-foreground">
-                  Root nodes create top-level contexts. Child nodes derive their path
-                  and depth from the selected parent.
-                </div>
-                <div className="flex items-center gap-2">
-                  {selectedNode ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => void handleDelete()}
-                      disabled={saving || deleting}
-                    >
-                      {deleting ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="size-4" />
-                      )}
-                      Delete
-                    </Button>
-                  ) : null}
+            <DialogFooter className="items-center justify-between gap-3 border-t pt-4">
+              <div className="text-[11px] text-muted-foreground">
+                Root nodes create top-level contexts. Child nodes derive their path and
+                depth from the selected parent.
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedNode ? (
                   <Button
                     type="button"
-                    onClick={() => void handleSave()}
-                    disabled={saving || !draft.label.trim() || !isDirty}
+                    variant="outline"
+                    onClick={() => void handleDelete()}
+                    disabled={saving || deleting}
                   >
-                    {saving ? (
+                    {deleting ? (
                       <Loader2 className="size-4 animate-spin" />
                     ) : (
-                      <Save className="size-4" />
+                      <Trash2 className="size-4" />
                     )}
-                    Save Node
+                    Delete
                   </Button>
-                </div>
+                ) : null}
+                <Button
+                  type="button"
+                  onClick={() => void handleSave()}
+                  disabled={saving || !draft.label.trim() || !isDirty}
+                >
+                  {saving ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Save className="size-4" />
+                  )}
+                  Save Node
+                </Button>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )

@@ -17,6 +17,8 @@ export interface RoutePermissionRequirement {
 }
 
 export type RoutePermissionKey =
+  | "/ai-nlp"
+  | "/business-context"
   | "/config"
   | "/dashboard"
   | "/domain-models"
@@ -41,6 +43,12 @@ export const routePermissionRequirements: Record<
   RoutePermissionKey,
   RoutePermissionRequirement
 > = {
+  "/ai-nlp": {
+    requireAdmin: true,
+  },
+  "/business-context": {
+    requireAdmin: true,
+  },
   "/dashboard": {
     anyOf: [{ action: "view", type: "document" }],
   },

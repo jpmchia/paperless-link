@@ -623,7 +623,9 @@ export function TopBar({
         <div className="flex items-center justify-between w-full">
             <div className="flex flex-col gap-2">
                 <h1 className="text-xl font-bold tracking-tight">{title}</h1>
+                <div className="flex items-center gap-2 mb-2">
                 {children}
+                </div>
             </div>
 
             <div className="flex flex-col gap-2">

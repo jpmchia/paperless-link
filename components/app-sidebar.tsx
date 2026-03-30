@@ -42,6 +42,8 @@ import {
   GripVertical,
   HeartPulse,
   FileCode2,
+  BrainCircuit,
+  Building2,
 } from "lucide-react"
 
 import {
@@ -132,6 +134,8 @@ const navManagement: NavItem[] = [
 ]
 
 const navSystem: NavItem[] = [
+  { title: "AI & NLP", url: "/ai-nlp", icon: BrainCircuit, adminOnly: true },
+  { title: "Business Context", url: "/business-context", icon: Building2, adminOnly: true },
   { title: "Mail", url: "/mail", icon: Mail, permissionType: "mailAccount" },
   { title: "Users", url: "/users", icon: Users },
   { title: "Saved Views", url: "/savedviews", icon: LayoutList, permissionType: "savedView" },
@@ -284,6 +288,10 @@ export function AppSidebar({
   })
 
   const systemItems = navSystem.filter((item) => {
+    if (item.adminOnly) {
+      return canManageConfig(currentUserPermissions)
+    }
+
     if (item.title === "Users") {
       return (
         currentUserCan(currentUserPermissions, "view", "user") ||

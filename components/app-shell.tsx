@@ -3,6 +3,7 @@ import { GlobalSearch } from "@/components/global-search/global-search"
 import { ConfirmationDialogProvider } from "@/components/confirmation-dialog-provider"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import { NotificationPreferencesProvider } from "@/components/notifications/preferences-provider"
+import { LinkIQConnectionStatus } from "@/components/link-iq-connection-status"
 import { ShellStatus } from "@/components/shell-status"
 import { PermissionsProvider } from "@/components/permissions/provider"
 import {
@@ -116,12 +117,13 @@ export async function AppShell({
                   <div className="min-w-0 flex-1 ml-4">{topbar}</div>
                   <div className="flex items-center gap-10">
                     <GlobalSearch savedViews={savedViews} />
+                    <LinkIQConnectionStatus />
                     <ShellStatus />
                     <NotificationCenter />
                   </div>
                 </div>
               </header>
-              <main className="flex flex-1 flex-col min-h-0 overflow-hidden h-[calc(100vh-2rem)] mb-[1.25rem] rounded-xl bg-background">
+              <main className="flex flex-1 flex-col min-h-0 overflow-hidden h-[calc(100vh-2rem)] mb-[1.25rem] rounded-xl bg-background inset-shadow-xl border border-muted">
                 {children}
               </main>
             </SidebarInset>

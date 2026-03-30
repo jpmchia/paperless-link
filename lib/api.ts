@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
+const configuredToken = process.env.PAPERLESS_API_TOKEN?.trim()
 
 export interface PaginatedResults<T> {
   count?: number
@@ -15,10 +16,12 @@ export async function getPaperlessApi<T = unknown>(
   options: RequestInit = {}
 ): Promise<T> {
   const session = await getServerSession(authOptions)
-  const token = session?.accessToken
+  const token = session?.accessToken || configuredToken
 
   if (!token) {
-    throw new Error("Unauthorized: No access token available")
+    throw new Error(
+      "Unauthorized: No Paperless access token available in the session or server configuration"
+    )
   }
 
   const defaultHeaders = {

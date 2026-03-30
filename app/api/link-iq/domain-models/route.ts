@@ -3,38 +3,8 @@ import { NextResponse } from "next/server"
 import { authOptions } from "@/auth"
 import { getUiSettings } from "@/lib/api"
 import { invokeLinkIQAction, LINK_IQ_SOURCE_ID } from "@/lib/link-iq"
+import type { ContextProfile } from "@/lib/link-iq-types"
 import { canManageConfig, mapPermissionBootstrapPayload } from "@/lib/permissions"
-
-type DomainModelEntity = {
-  attributes?: Array<{
-    attribute_id?: string
-    description?: string
-    label?: string
-    name?: string
-    required?: boolean
-    value_type?: string
-  }>
-  cardinality?: string
-  description?: string
-  entity_type?: string
-  label?: string
-  required?: boolean
-}
-
-type DomainModelDefinition = {
-  created_at?: string
-  definition_id?: string
-  description?: string
-  document_type?: string
-  entities?: DomainModelEntity[]
-  label?: string
-  source_id?: string
-  source_scope?: string
-  status?: string
-  taxonomy_node_id?: string
-  updated_at?: string
-  version?: number
-}
 
 async function requireSession() {
   const session = await getServerSession(authOptions)
@@ -71,9 +41,9 @@ export async function GET(request: Request) {
 
   try {
     const result = await invokeLinkIQAction<{
-      definitions?: DomainModelDefinition[]
+      context_profiles?: ContextProfile[]
     }>({
-      capability: "domain_model.list",
+      capability: "context_profile.list",
       input: {
         document_type: url.searchParams.get("document_type") || undefined,
         source_id: url.searchParams.get("source_id") || undefined,
@@ -83,16 +53,16 @@ export async function GET(request: Request) {
       },
     })
 
-    const definitions = (result.definitions ?? []).filter((definition) => {
+    const contextProfiles = (result.context_profiles ?? []).filter((profile) => {
       if (includeAllScopes) return true
       return shouldIncludeScopedRecord(
-        definition.source_scope,
-        definition.source_id,
+        profile.source_scope,
+        profile.source_id,
         sourceID
       )
     })
 
-    return NextResponse.json({ definitions })
+    return NextResponse.json({ context_profiles: contextProfiles })
   } catch (error) {
     return NextResponse.json(
       {
@@ -112,7 +82,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = (await request.json()) as DomainModelDefinition
+    const body = (await request.json()) as ContextProfile
     const sourceScope = String(body.source_scope || "link_global").trim()
     const normalizedSourceID =
       sourceScope === "link_global"
@@ -120,9 +90,9 @@ export async function POST(request: Request) {
         : String(body.source_id || LINK_IQ_SOURCE_ID).trim()
 
     const result = await invokeLinkIQAction<{
-      definition?: DomainModelDefinition
+      context_profile?: ContextProfile
     }>({
-      capability: "domain_model.upsert_definition",
+      capability: "context_profile.upsert",
       input: {
         ...body,
         source_id: normalizedSourceID || undefined,
@@ -130,7 +100,7 @@ export async function POST(request: Request) {
       },
     })
 
-    return NextResponse.json(result.definition ?? {})
+    return NextResponse.json(result.context_profile ?? {})
   } catch (error) {
     return NextResponse.json(
       {

@@ -1,19 +1,7 @@
 "use client"
 
 import * as React from "react"
-import {
-  AlertCircle,
-  FileCode2,
-  Loader2,
-  Plus,
-  RefreshCcw,
-  Save,
-  Trash2,
-  X,
-} from "lucide-react"
 import { toast } from "sonner"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -21,74 +9,29 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { cn } from "@/lib/utils"
-import { deleteJson, getJson, postJson } from "@/lib/paperless-client"
-
-type TaxonomyNode = {
-  path: string
-  source_id?: string
-  source_scope?: string
-  taxonomy_node_id: string
-}
-
-type DocumentTypeOption = {
-  id: number
-  name: string
-}
-
-type AttributeDefinition = {
-  attribute_id: string
-  description?: string
-  label: string
-  name: string
-  required?: boolean
-  value_type: string
-}
-
-type EntityDefinition = {
-  attributes?: AttributeDefinition[]
-  cardinality: string
-  description?: string
-  entity_type: string
-  label: string
-  required?: boolean
-}
-
-type DomainModelDefinition = {
-  definition_id: string
-  description?: string
-  document_type?: string
-  entities?: EntityDefinition[]
-  label: string
-  source_id?: string
-  source_scope: string
-  status: string
-  taxonomy_node_id?: string
-  taxonomy_path?: string
-  version: number
-}
-
-type DefinitionDraft = {
-  definition_id: string
-  description: string
-  document_type: string
-  entities: EntityDefinition[]
-  label: string
-  source_id: string
-  source_scope: string
-  status: string
-  taxonomy_node_id: string
-}
-
-type Props = {
-  initialDefinitions: DomainModelDefinition[]
-  initialTaxonomyNodes: TaxonomyNode[]
-  initialDocumentTypes: DocumentTypeOption[]
-  sourceID: string
-}
+import { deleteJson, getJson, postJson, withQuery } from "@/lib/paperless-client"
+import type {
+  AttributeType,
+  AttributeUsage,
+  ContextProfile,
+  EntityType,
+  EntityUsage,
+  ExampleDocument,
+  ExampleDocumentRef,
+  Qualifier,
+  TaxonomyNode,
+} from "@/lib/link-iq-types"
+import { DomainExplorerScreen } from "./domain-explorer-screen"
+import { DomainModelsOverviewCards } from "./overview-cards"
+import { EntityLibraryScreen } from "./entity-library-screen"
+import { DomainModelsSectionSwitcher, type DomainModelsSection } from "./workspace-section-switcher"
+import type {
+  AttributeTypeDraft,
+  ComposerMode,
+  DomainModelsWorkbenchProps,
+  InspectorTarget,
+  ProfileDraft,
+} from "./types"
 
 const scopeOptions = [
   { label: "Link Global", value: "link_global" },
@@ -101,12 +44,18 @@ const statusOptions = [
   { label: "Inactive", value: "inactive" },
 ]
 
+const applicabilityOptions = [
+  { label: "Allowed", value: "allowed" },
+  { label: "Preferred", value: "preferred" },
+  { label: "Required", value: "required" },
+]
+
 const cardinalityOptions = [
   { label: "One", value: "one" },
   { label: "Many", value: "many" },
 ]
 
-const valueTypeOptions = [
+const attributeValueTypeOptions = [
   "string",
   "number",
   "date",
@@ -117,32 +66,94 @@ const valueTypeOptions = [
   "url",
 ]
 
-function sortDefinitions(definitions: DomainModelDefinition[]) {
-  return [...definitions].sort((left, right) => {
-    const leftKey = `${left.taxonomy_path || ""} ${left.document_type || ""} ${left.label}`
-    const rightKey = `${right.taxonomy_path || ""} ${right.document_type || ""} ${right.label}`
+function makeClientID(prefix: string) {
+  const random =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2)
+  return prefix + "-" + random
+}
+
+function taxonomyRootFromPath(path?: string | null) {
+  const value = String(path || "").trim()
+  if (!value) return ""
+
+  const separators = [" / ", " > ", "/", ">"]
+  for (const separator of separators) {
+    if (value.includes(separator)) {
+      return value.split(separator)[0]?.trim() || value
+    }
+  }
+
+  return value
+}
+
+function sortProfiles(profiles: ContextProfile[]) {
+  return [...profiles].sort((left, right) => {
+    const leftKey = (left.taxonomy_path || "") + " " + (left.document_type || "") + " " + left.label
+    const rightKey = (right.taxonomy_path || "") + " " + (right.document_type || "") + " " + right.label
     return leftKey.localeCompare(rightKey)
   })
 }
 
-function cloneEntities(entities: EntityDefinition[] | undefined) {
-  return (entities ?? []).map((entity) => ({
-    ...entity,
-    attributes: (entity.attributes ?? []).map((attribute) => ({ ...attribute })),
+function cloneEntityUsages(entityUsages: EntityUsage[] | undefined) {
+  return (entityUsages ?? []).map((entityUsage) => ({
+    ...entityUsage,
+    qualifier_ids: [...(entityUsage.qualifier_ids ?? [])],
+    attributes: (entityUsage.attributes ?? []).map((attribute) => ({
+      ...attribute,
+      qualifier_ids: [...(attribute.qualifier_ids ?? [])],
+    })),
   }))
 }
 
-function buildDraft(
-  definition: DomainModelDefinition | null,
-  sourceID: string
-): DefinitionDraft {
-  if (!definition) {
+function cloneAttributeTypes(attributeTypes: AttributeType[] | undefined) {
+  return (attributeTypes ?? []).map((attributeType, index) => ({
+    _client_id: attributeType.attribute_type_id
+      ? "attribute-type-" + attributeType.attribute_type_id
+      : "attribute-index-" + index,
+    allowed_qualifier_ids: [...(attributeType.allowed_qualifier_ids ?? [])],
+    attribute_type_id: attributeType.attribute_type_id,
+    cardinality: attributeType.cardinality || "one",
+    description: attributeType.description ?? "",
+    label: attributeType.label ?? "",
+    name: attributeType.name ?? "",
+    required: Boolean(attributeType.required),
+    target_entity_type_id: attributeType.target_entity_type_id ?? "",
+    value_type: attributeType.value_type || "string",
+  }))
+}
+
+function normalizeExampleDocuments(exampleDocuments: ExampleDocumentRef[] | undefined) {
+  const seen = new Set<string>()
+  const normalized: ExampleDocumentRef[] = []
+
+  for (const exampleDocument of exampleDocuments ?? []) {
+    const documentID = String(exampleDocument.document_id || "").trim()
+    if (!documentID) continue
+    const sourceID = String(exampleDocument.source_id || "").trim()
+    const dedupeKey = sourceID + ":" + documentID
+    if (seen.has(dedupeKey)) continue
+    seen.add(dedupeKey)
+    normalized.push({
+      document_id: documentID,
+      source_id: sourceID || undefined,
+      title: String(exampleDocument.title || "").trim() || undefined,
+    })
+  }
+
+  return normalized
+}
+
+function buildDraft(profile: ContextProfile | null, sourceID: string): ProfileDraft {
+  if (!profile) {
     return {
-      definition_id: "",
       description: "",
       document_type: "",
-      entities: [],
+      entity_usages: [],
+      example_documents: [],
       label: "",
+      profile_id: "",
       source_id: "",
       source_scope: "link_global",
       status: "active",
@@ -151,104 +162,269 @@ function buildDraft(
   }
 
   return {
-    definition_id: definition.definition_id,
-    description: definition.description ?? "",
-    document_type: definition.document_type ?? "",
-    entities: cloneEntities(definition.entities),
-    label: definition.label,
-    source_id:
-      definition.source_scope === "link_global"
-        ? ""
-        : definition.source_id || sourceID,
-    source_scope: definition.source_scope || "link_global",
-    status: definition.status || "active",
-    taxonomy_node_id: definition.taxonomy_node_id ?? "",
+    description: profile.description ?? "",
+    document_type: profile.document_type ?? "",
+    entity_usages: cloneEntityUsages(profile.entity_usages),
+    example_documents: normalizeExampleDocuments(profile.example_documents),
+    label: profile.label ?? "",
+    profile_id: profile.profile_id,
+    source_id: profile.source_scope === "link_global" ? "" : profile.source_id || sourceID,
+    source_scope: profile.source_scope || "link_global",
+    status: profile.status || "active",
+    taxonomy_node_id: profile.taxonomy_node_id ?? "",
   }
 }
 
-function serializeDefinitionDraft(draft: DefinitionDraft) {
+function serializeDraft(draft: ProfileDraft) {
   return JSON.stringify({
     ...draft,
     description: draft.description.trim(),
     document_type: draft.document_type.trim(),
-    entities: cloneEntities(draft.entities),
+    entity_usages: cloneEntityUsages(draft.entity_usages),
+    example_documents: normalizeExampleDocuments(draft.example_documents),
     label: draft.label.trim(),
     source_id: draft.source_scope === "link_global" ? "" : draft.source_id.trim(),
     taxonomy_node_id: draft.taxonomy_node_id.trim(),
   })
 }
 
-function emptyEntity(): EntityDefinition {
+function buildEntityTypeDraft(entityType: EntityType | null, sourceID: string) {
+  if (!entityType) {
+    return {
+      attributes: [],
+      description: "",
+      entity_type_id: "",
+      label: "",
+      source_id: "",
+      source_scope: "link_global",
+      status: "active",
+    }
+  }
+
   return {
-    attributes: [],
-    cardinality: "one",
-    description: "",
-    entity_type: "",
-    label: "",
-    required: false,
+    attributes: cloneAttributeTypes(entityType.attributes),
+    description: entityType.description ?? "",
+    entity_type_id: entityType.entity_type_id,
+    label: entityType.label ?? "",
+    source_id: entityType.source_scope === "link_global" ? "" : entityType.source_id || sourceID,
+    source_scope: entityType.source_scope || "link_global",
+    status: entityType.status || "active",
   }
 }
 
-function emptyAttribute(): AttributeDefinition {
+function serializeEntityTypeDraft(draft: ReturnType<typeof buildEntityTypeDraft>) {
+  return JSON.stringify({
+    ...draft,
+    attributes: draft.attributes.map((attribute) => ({
+      allowed_qualifier_ids: [...attribute.allowed_qualifier_ids].sort(),
+      attribute_type_id: attribute.attribute_type_id,
+      cardinality: attribute.cardinality,
+      description: attribute.description.trim(),
+      label: attribute.label.trim(),
+      name: attribute.name.trim(),
+      required: attribute.required,
+      target_entity_type_id: attribute.target_entity_type_id.trim(),
+      value_type: attribute.value_type,
+    })),
+    description: draft.description.trim(),
+    label: draft.label.trim(),
+    source_id: draft.source_scope === "link_global" ? "" : draft.source_id.trim(),
+  })
+}
+
+function emptyAttributeTypeDraft() {
   return {
-    attribute_id: "",
+    _client_id: makeClientID("attribute"),
+    allowed_qualifier_ids: [],
+    attribute_type_id: "",
+    cardinality: "one",
     description: "",
     label: "",
     name: "",
     required: false,
+    target_entity_type_id: "",
     value_type: "string",
   }
 }
 
+function attributeUsageFromType(attributeType: AttributeType): AttributeUsage {
+  return {
+    applicability: attributeType.required ? "required" : "allowed",
+    attribute_type_id: attributeType.attribute_type_id,
+    description: attributeType.description ?? "",
+    label: attributeType.label,
+    qualifier_ids: [],
+    required: Boolean(attributeType.required),
+    usage_id: makeClientID(attributeType.attribute_type_id || "attribute"),
+  }
+}
+
+function entityUsageFromType(entityType: EntityType): EntityUsage {
+  return {
+    applicability: "allowed",
+    attributes: (entityType.attributes ?? []).map(attributeUsageFromType),
+    cardinality: "one",
+    description: entityType.description ?? "",
+    entity_type_id: entityType.entity_type_id,
+    label: entityType.label,
+    qualifier_ids: [],
+    required: false,
+    usage_id: makeClientID(entityType.entity_type_id || "entity"),
+  }
+}
+
+function valueToDisplay(value: unknown): string {
+  if (value == null) return ""
+  if (typeof value === "string") return value
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint"
+  ) {
+    return String(value)
+  }
+  if (Array.isArray(value)) {
+    const parts = value.map((item) => valueToDisplay(item)).filter(Boolean).slice(0, 6)
+    return parts.join(", ")
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value)
+  }
+  return ""
+}
+
+function extractDocumentContent(document: ExampleDocument | null) {
+  const result = document?.result
+  if (!result) return ""
+  const directContent = valueToDisplay(result.content)
+  if (directContent) return directContent
+  return valueToDisplay(result.notes) || valueToDisplay(result.original_text)
+}
+
+function buildDocumentSummary(document: ExampleDocument | null) {
+  const result = document?.result
+  if (!result) return []
+
+  const preferredKeys = [
+    "title",
+    "document_type",
+    "correspondent",
+    "created",
+    "added",
+    "modified",
+    "archive_serial_number",
+    "original_filename",
+    "storage_path",
+    "owner",
+  ]
+
+  return preferredKeys
+    .map((key) => ({
+      key,
+      label: key.replaceAll("_", " "),
+      value: valueToDisplay(result[key]),
+    }))
+    .filter((row) => row.value)
+}
+
 export function DomainModelsWorkbench({
-  initialDefinitions,
+  initialContextProfiles,
   initialTaxonomyNodes,
   initialDocumentTypes,
+  initialEntityTypes,
+  initialQualifiers,
   sourceID,
-}: Props) {
-  const [definitions, setDefinitions] = React.useState(() =>
-    sortDefinitions(initialDefinitions)
-  )
-  const [selectedDefinitionID, setSelectedDefinitionID] = React.useState(
-    initialDefinitions[0]?.definition_id ?? "__new__"
-  )
-  const [draft, setDraft] = React.useState<DefinitionDraft>(() =>
-    buildDraft(initialDefinitions[0] ?? null, sourceID)
-  )
+}: DomainModelsWorkbenchProps) {
+  const [contextProfiles, setContextProfiles] = React.useState(() => sortProfiles(initialContextProfiles))
+  const [entityTypes, setEntityTypes] = React.useState(() => initialEntityTypes)
+  const [selectedProfileID, setSelectedProfileID] = React.useState(initialContextProfiles[0]?.profile_id ?? "__new__")
+  const [selectedEntityTypeID, setSelectedEntityTypeID] = React.useState(initialEntityTypes[0]?.entity_type_id ?? "__new__")
+  const [draft, setDraft] = React.useState(() => buildDraft(initialContextProfiles[0] ?? null, sourceID))
+  const [entityTypeDraft, setEntityTypeDraft] = React.useState(() => buildEntityTypeDraft(initialEntityTypes[0] ?? null, sourceID))
   const [search, setSearch] = React.useState("")
+  const [entityTypeSearch, setEntityTypeSearch] = React.useState("")
   const [saving, setSaving] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
   const [refreshing, setRefreshing] = React.useState(false)
+  const [savingEntityType, setSavingEntityType] = React.useState(false)
+  const [deletingEntityType, setDeletingEntityType] = React.useState(false)
+  const [refreshingEntityTypes, setRefreshingEntityTypes] = React.useState(false)
+  const [pendingEntityTypeID, setPendingEntityTypeID] = React.useState(initialEntityTypes[0]?.entity_type_id ?? "")
+  const [selectedTaxonomyRoot, setSelectedTaxonomyRoot] = React.useState("__all__")
+  const [composerMode, setComposerMode] = React.useState<ComposerMode>("contextual")
+  const [activeSection, setActiveSection] = React.useState<DomainModelsSection>("explorer")
+  const [selectedEntityUsageID, setSelectedEntityUsageID] = React.useState("")
+  const [selectedAttributeUsageID, setSelectedAttributeUsageID] = React.useState("")
+  const [selectedAttributeTypeID, setSelectedAttributeTypeID] = React.useState("")
+  const [exampleDocuments, setExampleDocuments] = React.useState<ExampleDocument[]>([])
+  const [selectedExampleDocumentID, setSelectedExampleDocumentID] = React.useState("")
+  const [exampleDocumentSearch, setExampleDocumentSearch] = React.useState("")
+  const [loadingExampleDocuments, setLoadingExampleDocuments] = React.useState(false)
+  const [selectedExampleDocument, setSelectedExampleDocument] = React.useState<ExampleDocument | null>(null)
 
-  const selectedDefinition = React.useMemo(
-    () =>
-      definitions.find((definition) => definition.definition_id === selectedDefinitionID) ??
-      null,
-    [definitions, selectedDefinitionID]
+  const taxonomyNodesByID = React.useMemo(
+    () => Object.fromEntries(initialTaxonomyNodes.map((node) => [node.taxonomy_node_id, node])),
+    [initialTaxonomyNodes]
+  )
+
+  const selectedProfile = React.useMemo(
+    () => contextProfiles.find((profile) => profile.profile_id === selectedProfileID) ?? null,
+    [contextProfiles, selectedProfileID]
+  )
+
+  const selectedEntityType = React.useMemo(
+    () => entityTypes.find((entityType) => entityType.entity_type_id === selectedEntityTypeID) ?? null,
+    [entityTypes, selectedEntityTypeID]
+  )
+
+  const entityTypesByID = React.useMemo(
+    () => Object.fromEntries(entityTypes.map((entityType) => [entityType.entity_type_id, entityType])),
+    [entityTypes]
+  )
+
+  const qualifiersByID = React.useMemo(
+    () => Object.fromEntries(initialQualifiers.map((qualifier) => [qualifier.qualifier_id, qualifier])),
+    [initialQualifiers]
   )
 
   React.useEffect(() => {
-    setDraft(buildDraft(selectedDefinition, sourceID))
-  }, [selectedDefinition, sourceID])
+    setDraft(buildDraft(selectedProfile, sourceID))
+  }, [selectedProfile, sourceID])
 
-  const taxonomyPath = React.useMemo(() => {
-    return (
-      initialTaxonomyNodes.find(
-        (node) => node.taxonomy_node_id === draft.taxonomy_node_id
-      )?.path ?? ""
+  React.useEffect(() => {
+    setEntityTypeDraft(buildEntityTypeDraft(selectedEntityType, sourceID))
+  }, [selectedEntityType, sourceID])
+
+  const taxonomyRootOptions = React.useMemo(() => {
+    return [...new Set(initialTaxonomyNodes.map((node) => taxonomyRootFromPath(node.path)).filter(Boolean))].sort(
+      (left, right) => left.localeCompare(right)
     )
-  }, [draft.taxonomy_node_id, initialTaxonomyNodes])
+  }, [initialTaxonomyNodes])
 
-  const filteredDefinitions = React.useMemo(() => {
+  const filteredTaxonomyNodes = React.useMemo(() => {
+    if (selectedTaxonomyRoot === "__all__") return initialTaxonomyNodes
+    return initialTaxonomyNodes.filter(
+      (node) => taxonomyRootFromPath(node.path) === selectedTaxonomyRoot
+    )
+  }, [initialTaxonomyNodes, selectedTaxonomyRoot])
+
+  const filteredProfiles = React.useMemo(() => {
     const query = search.trim().toLowerCase()
-    if (!query) return definitions
 
-    return definitions.filter((definition) => {
+    return contextProfiles.filter((profile) => {
+      const profilePath =
+        profile.taxonomy_path || taxonomyNodesByID[profile.taxonomy_node_id || ""]?.path || ""
+      const rootMatches =
+        selectedTaxonomyRoot === "__all__" || taxonomyRootFromPath(profilePath) === selectedTaxonomyRoot
+
+      if (!rootMatches) return false
+      if (!query) return true
+
       const searchable = [
-        definition.label,
-        definition.taxonomy_path,
-        definition.document_type,
-        ...(definition.entities ?? []).map((entity) => entity.entity_type),
+        profile.label,
+        profilePath,
+        profile.document_type,
+        ...(profile.entity_usages ?? []).map((entityUsage) => entityUsage.label),
       ]
         .filter(Boolean)
         .join(" ")
@@ -256,58 +432,183 @@ export function DomainModelsWorkbench({
 
       return searchable.includes(query)
     })
-  }, [definitions, search])
+  }, [contextProfiles, search, selectedTaxonomyRoot, taxonomyNodesByID])
 
-  const totalEntityCount = React.useMemo(
-    () => definitions.reduce((count, definition) => count + (definition.entities?.length ?? 0), 0),
-    [definitions]
+  React.useEffect(() => {
+    if (selectedProfileID === "__new__") return
+    if (filteredProfiles.some((profile) => profile.profile_id === selectedProfileID)) return
+    setSelectedProfileID(filteredProfiles[0]?.profile_id ?? "__new__")
+  }, [filteredProfiles, selectedProfileID])
+
+  const filteredEntityTypes = React.useMemo(() => {
+    const query = entityTypeSearch.trim().toLowerCase()
+    if (!query) return entityTypes
+
+    return entityTypes.filter((entityType) => {
+      const searchable = [
+        entityType.label,
+        entityType.description,
+        ...(entityType.attributes ?? []).map((attribute) => attribute.label),
+        ...(entityType.attributes ?? []).map((attribute) => attribute.name),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+
+      return searchable.includes(query)
+    })
+  }, [entityTypes, entityTypeSearch])
+
+  const taxonomyPath = React.useMemo(
+    () => taxonomyNodesByID[draft.taxonomy_node_id]?.path ?? "",
+    [draft.taxonomy_node_id, taxonomyNodesByID]
   )
-  const totalAttributeCount = React.useMemo(
+
+  const totalEntityUsageCount = React.useMemo(
+    () => contextProfiles.reduce((count, profile) => count + (profile.entity_usages?.length ?? 0), 0),
+    [contextProfiles]
+  )
+
+  const totalAttributeUsageCount = React.useMemo(
     () =>
-      definitions.reduce((count, definition) => {
+      contextProfiles.reduce((count, profile) => {
         return (
           count +
-          (definition.entities ?? []).reduce((entityCount, entity) => {
-            return entityCount + (entity.attributes?.length ?? 0)
+          (profile.entity_usages ?? []).reduce((entityCount, entityUsage) => {
+            return entityCount + (entityUsage.attributes?.length ?? 0)
           }, 0)
         )
       }, 0),
-    [definitions]
+    [contextProfiles]
   )
 
   const isDirty = React.useMemo(() => {
-    return (
-      serializeDefinitionDraft(draft) !==
-      serializeDefinitionDraft(buildDraft(selectedDefinition, sourceID))
-    )
-  }, [draft, selectedDefinition, sourceID])
+    return serializeDraft(draft) !== serializeDraft(buildDraft(selectedProfile, sourceID))
+  }, [draft, selectedProfile, sourceID])
 
-  async function reloadDefinitions(nextDefinitionID?: string) {
+  const isEntityTypeDirty = React.useMemo(() => {
+    return (
+      serializeEntityTypeDraft(entityTypeDraft) !==
+      serializeEntityTypeDraft(buildEntityTypeDraft(selectedEntityType, sourceID))
+    )
+  }, [entityTypeDraft, selectedEntityType, sourceID])
+
+  const draftContextQuery = React.useMemo(
+    () =>
+      withQuery("/api/link-iq/example-documents", {
+        document_type: draft.document_type || null,
+        limit: 8,
+        query: exampleDocumentSearch || null,
+        source_id: sourceID,
+        taxonomy_node_id: draft.taxonomy_node_id || null,
+      }),
+    [draft.document_type, draft.taxonomy_node_id, exampleDocumentSearch, sourceID]
+  )
+
+  const boundExampleDocumentIDs = React.useMemo(
+    () => new Set(draft.example_documents.map((document) => document.document_id)),
+    [draft.example_documents]
+  )
+
+  const selectedEntityUsage = React.useMemo(
+    () => draft.entity_usages.find((entityUsage) => entityUsage.usage_id === selectedEntityUsageID) ?? null,
+    [draft.entity_usages, selectedEntityUsageID]
+  )
+
+  const selectedAttributeUsage = React.useMemo(() => {
+    if (!selectedEntityUsage) {
+      return { attributeUsage: null, entityUsage: null }
+    }
+
+    return {
+      attributeUsage:
+        selectedEntityUsage.attributes?.find((attributeUsage) => attributeUsage.usage_id === selectedAttributeUsageID) ??
+        null,
+      entityUsage: selectedEntityUsage,
+    }
+  }, [selectedAttributeUsageID, selectedEntityUsage])
+
+  const selectedAttributeType = React.useMemo(
+    () => entityTypeDraft.attributes.find((attribute) => attribute._client_id === selectedAttributeTypeID) ?? null,
+    [entityTypeDraft.attributes, selectedAttributeTypeID]
+  )
+
+  React.useEffect(() => {
+    if (draft.entity_usages.length === 0) {
+      setSelectedEntityUsageID("")
+      setSelectedAttributeUsageID("")
+      return
+    }
+
+    if (!draft.entity_usages.some((entityUsage) => entityUsage.usage_id === selectedEntityUsageID)) {
+      setSelectedEntityUsageID(draft.entity_usages[0]?.usage_id ?? "")
+    }
+  }, [draft.entity_usages, selectedEntityUsageID])
+
+  React.useEffect(() => {
+    if (!selectedEntityUsage) {
+      setSelectedAttributeUsageID("")
+      return
+    }
+
+    if (
+      selectedAttributeUsageID &&
+      selectedEntityUsage.attributes?.some((attributeUsage) => attributeUsage.usage_id === selectedAttributeUsageID)
+    ) {
+      return
+    }
+
+    setSelectedAttributeUsageID(selectedEntityUsage.attributes?.[0]?.usage_id ?? "")
+  }, [selectedAttributeUsageID, selectedEntityUsage])
+
+  React.useEffect(() => {
+    if (entityTypeDraft.attributes.length === 0) {
+      setSelectedAttributeTypeID("")
+      return
+    }
+
+    if (entityTypeDraft.attributes.some((attribute) => attribute._client_id === selectedAttributeTypeID)) {
+      return
+    }
+
+    setSelectedAttributeTypeID(entityTypeDraft.attributes[0]?._client_id ?? "")
+  }, [entityTypeDraft.attributes, selectedAttributeTypeID])
+
+  const inspectorTarget = React.useMemo<InspectorTarget>(() => {
+    if (composerMode === "canonical") {
+      if (selectedAttributeType) return { kind: "attribute_type" }
+      return { kind: "entity_type" }
+    }
+
+    if (selectedAttributeUsage.attributeUsage) return { kind: "attribute_usage" }
+    if (selectedEntityUsage) return { kind: "entity_usage" }
+    return { kind: "profile" }
+  }, [composerMode, selectedAttributeType, selectedAttributeUsage.attributeUsage, selectedEntityUsage])
+
+  async function reloadProfiles(nextProfileID?: string) {
     setRefreshing(true)
     try {
-      const response = await getJson<{ definitions?: DomainModelDefinition[] }>(
-        "/api/link-iq/domain-models"
-      )
-      const nextDefinitions = sortDefinitions(response.definitions ?? [])
-      setDefinitions(nextDefinitions)
+      const response = await getJson<{ context_profiles?: ContextProfile[] }>("/api/link-iq/domain-models")
+      const nextProfiles = sortProfiles(response.context_profiles ?? [])
+      setContextProfiles(nextProfiles)
 
-      const fallbackDefinitionID = nextDefinitions[0]?.definition_id ?? "__new__"
-      const resolvedDefinitionID =
-        nextDefinitionID &&
-        nextDefinitions.some(
-          (definition) => definition.definition_id === nextDefinitionID
-        )
-          ? nextDefinitionID
-          : selectedDefinitionID !== "__new__" &&
-              nextDefinitions.some(
-                (definition) => definition.definition_id === selectedDefinitionID
-              )
-            ? selectedDefinitionID
-            : fallbackDefinitionID
+      if (nextProfileID === "__new__") {
+        setSelectedProfileID("__new__")
+        return
+      }
 
-      setSelectedDefinitionID(resolvedDefinitionID)
+      const fallbackProfileID = nextProfiles[0]?.profile_id ?? "__new__"
+      const resolvedProfileID =
+        nextProfileID && nextProfiles.some((profile) => profile.profile_id === nextProfileID)
+          ? nextProfileID
+          : selectedProfileID !== "__new__" &&
+              nextProfiles.some((profile) => profile.profile_id === selectedProfileID)
+            ? selectedProfileID
+            : fallbackProfileID
+
+      setSelectedProfileID(resolvedProfileID)
     } catch (error) {
-      toast.error("Failed to reload domain models", {
+      toast.error("Failed to reload context profiles", {
         description: error instanceof Error ? error.message : "Unknown error",
       })
     } finally {
@@ -315,70 +616,352 @@ export function DomainModelsWorkbench({
     }
   }
 
-  function updateEntity(
-    entityIndex: number,
-    updater: (entity: EntityDefinition) => EntityDefinition
+  async function reloadEntityTypes(nextEntityTypeID?: string) {
+    setRefreshingEntityTypes(true)
+    try {
+      const response = await getJson<{ entity_types?: EntityType[] }>("/api/link-iq/entity-types")
+      const nextEntityTypes = response.entity_types ?? []
+      setEntityTypes(nextEntityTypes)
+
+      if (nextEntityTypeID === "__new__") {
+        setSelectedEntityTypeID("__new__")
+        return
+      }
+
+      const fallbackEntityTypeID = nextEntityTypes[0]?.entity_type_id ?? "__new__"
+      const resolvedEntityTypeID =
+        nextEntityTypeID && nextEntityTypes.some((entityType) => entityType.entity_type_id === nextEntityTypeID)
+          ? nextEntityTypeID
+          : selectedEntityTypeID !== "__new__" &&
+              nextEntityTypes.some((entityType) => entityType.entity_type_id === selectedEntityTypeID)
+            ? selectedEntityTypeID
+            : fallbackEntityTypeID
+
+      setSelectedEntityTypeID(resolvedEntityTypeID)
+      if (!pendingEntityTypeID && resolvedEntityTypeID !== "__new__") {
+        setPendingEntityTypeID(resolvedEntityTypeID)
+      }
+    } catch (error) {
+      toast.error("Failed to reload entity types", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+    } finally {
+      setRefreshingEntityTypes(false)
+    }
+  }
+
+  async function loadExampleDocuments() {
+    if (!draft.taxonomy_node_id && !draft.document_type) {
+      setExampleDocuments([])
+      setSelectedExampleDocument(null)
+      setSelectedExampleDocumentID("")
+      return
+    }
+
+    setLoadingExampleDocuments(true)
+    try {
+      const response = await getJson<{ documents?: ExampleDocument[] }>(draftContextQuery)
+      const documents = response.documents ?? []
+      setExampleDocuments(documents)
+
+      const preferredDocumentID = draft.example_documents[0]?.document_id || documents[0]?.document_id || ""
+      setSelectedExampleDocumentID((current) => current || preferredDocumentID)
+    } catch (error) {
+      toast.error("Failed to load example documents", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+      setExampleDocuments([])
+    } finally {
+      setLoadingExampleDocuments(false)
+    }
+  }
+
+  React.useEffect(() => {
+    void loadExampleDocuments()
+  }, [draftContextQuery])
+
+  React.useEffect(() => {
+    const inlineDocument = exampleDocuments.find((document) => document.document_id === selectedExampleDocumentID) ?? null
+
+    if (inlineDocument?.result) {
+      setSelectedExampleDocument(inlineDocument)
+      return
+    }
+
+    if (!selectedExampleDocumentID) {
+      setSelectedExampleDocument(null)
+      return
+    }
+
+    let cancelled = false
+    void getJson<{ document?: ExampleDocument }>(
+      withQuery("/api/link-iq/example-documents", {
+        document_id: selectedExampleDocumentID,
+        source_id: sourceID,
+      })
+    )
+      .then((response) => {
+        if (cancelled) return
+        setSelectedExampleDocument(response.document ?? null)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setSelectedExampleDocument(null)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [exampleDocuments, selectedExampleDocumentID, sourceID])
+
+  function applyStoredProfile(profile: ContextProfile) {
+    setContextProfiles((current) =>
+      sortProfiles([...current.filter((candidate) => candidate.profile_id != profile.profile_id), profile])
+    )
+
+    if (selectedProfileID == profile.profile_id) {
+      setDraft(buildDraft(profile, sourceID))
+    }
+  }
+
+  async function mutateStoredProfile(
+    payload: Record<string, unknown>,
+    failureTitle: string
   ) {
+    if (!selectedProfile?.profile_id) return null
+
+    try {
+      const profile = await postJson<ContextProfile>(
+        "/api/link-iq/domain-models/" + selectedProfile.profile_id + "/mutate",
+        payload
+      )
+      applyStoredProfile(profile)
+      return profile
+    } catch (error) {
+      toast.error(failureTitle, {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+      return null
+    }
+  }
+
+  function updateEntityUsage(usageID: string, updater: (entityUsage: EntityUsage) => EntityUsage) {
     setDraft((current) => ({
       ...current,
-      entities: current.entities.map((entity, index) =>
-        index === entityIndex ? updater(entity) : entity
+      entity_usages: current.entity_usages.map((entityUsage) =>
+        entityUsage.usage_id === usageID ? updater(entityUsage) : entityUsage
       ),
     }))
   }
 
-  function updateAttribute(
-    entityIndex: number,
-    attributeIndex: number,
-    updater: (attribute: AttributeDefinition) => AttributeDefinition
+  function updateAttributeUsage(
+    entityUsageID: string,
+    attributeUsageID: string,
+    updater: (attributeUsage: AttributeUsage) => AttributeUsage
   ) {
-    updateEntity(entityIndex, (entity) => ({
-      ...entity,
-      attributes: (entity.attributes ?? []).map((attribute, index) =>
-        index === attributeIndex ? updater(attribute) : attribute
+    updateEntityUsage(entityUsageID, (entityUsage) => ({
+      ...entityUsage,
+      attributes: (entityUsage.attributes ?? []).map((attributeUsage) =>
+        attributeUsage.usage_id === attributeUsageID ? updater(attributeUsage) : attributeUsage
       ),
     }))
+  }
+
+  function moveEntityUsage(usageID: string, direction: -1 | 1) {
+    const index = draft.entity_usages.findIndex((entityUsage) => entityUsage.usage_id === usageID)
+    const nextIndex = index + direction
+    if (index < 0 || nextIndex < 0 || nextIndex >= draft.entity_usages.length) {
+      return
+    }
+
+    if (!selectedProfile?.profile_id) {
+      setDraft((current) => {
+        const nextEntityUsages = [...current.entity_usages]
+        const [entityUsage] = nextEntityUsages.splice(index, 1)
+        nextEntityUsages.splice(nextIndex, 0, entityUsage)
+
+        return {
+          ...current,
+          entity_usages: nextEntityUsages,
+        }
+      })
+      return
+    }
+
+    void mutateStoredProfile(
+      {
+        action: "entity_reorder",
+        target_index: nextIndex,
+        usage_id: usageID,
+      },
+      "Failed to reorder entity usage"
+    )
+  }
+
+  function moveAttributeUsage(entityUsageID: string, attributeUsageID: string, direction: -1 | 1) {
+    const entityUsage = draft.entity_usages.find((usage) => usage.usage_id === entityUsageID)
+    const attributes = [...(entityUsage?.attributes ?? [])]
+    const index = attributes.findIndex((attributeUsage) => attributeUsage.usage_id === attributeUsageID)
+    const nextIndex = index + direction
+    if (index < 0 || nextIndex < 0 || nextIndex >= attributes.length) {
+      return
+    }
+
+    if (!selectedProfile?.profile_id) {
+      updateEntityUsage(entityUsageID, (current) => {
+        const nextAttributes = [...(current.attributes ?? [])]
+        const [attributeUsage] = nextAttributes.splice(index, 1)
+        nextAttributes.splice(nextIndex, 0, attributeUsage)
+
+        return {
+          ...current,
+          attributes: nextAttributes,
+        }
+      })
+      return
+    }
+
+    void mutateStoredProfile(
+      {
+        action: "attribute_reorder",
+        attribute_usage_id: attributeUsageID,
+        entity_usage_id: entityUsageID,
+        target_index: nextIndex,
+      },
+      "Failed to reorder attribute usage"
+    )
+  }
+
+  function addEntityUsage(entityTypeID: string) {
+    const entityType = entityTypesByID[entityTypeID]
+    if (!entityType) return
+
+    const nextUsage = entityUsageFromType(entityType)
+
+    if (!selectedProfile?.profile_id) {
+      setDraft((current) => ({
+        ...current,
+        entity_usages: [...current.entity_usages, nextUsage],
+      }))
+    } else {
+      void mutateStoredProfile(
+        {
+          action: "entity_upsert",
+          index: draft.entity_usages.length,
+          usage: nextUsage,
+        },
+        "Failed to add entity usage"
+      )
+    }
+
+    setSelectedEntityUsageID(nextUsage.usage_id)
+    setSelectedAttributeUsageID(nextUsage.attributes?.[0]?.usage_id ?? "")
+    setComposerMode("contextual")
+  }
+
+  function deleteEntityUsage(usageID: string) {
+    if (!selectedProfile?.profile_id) {
+      setDraft((current) => ({
+        ...current,
+        entity_usages: current.entity_usages.filter((usage) => usage.usage_id !== usageID),
+      }))
+      return
+    }
+
+    void mutateStoredProfile(
+      {
+        action: "entity_delete",
+        usage_id: usageID,
+      },
+      "Failed to delete entity usage"
+    )
+  }
+
+  function deleteAttributeUsage(entityUsageID: string, attributeUsageID: string) {
+    if (!selectedProfile?.profile_id) {
+      updateEntityUsage(entityUsageID, (current) => ({
+        ...current,
+        attributes: (current.attributes ?? []).filter((usage) => usage.usage_id !== attributeUsageID),
+      }))
+      return
+    }
+
+    void mutateStoredProfile(
+      {
+        action: "attribute_delete",
+        attribute_usage_id: attributeUsageID,
+        entity_usage_id: entityUsageID,
+      },
+      "Failed to delete attribute usage"
+    )
+  }
+
+  function updateAttributeTypeDraft(
+    attributeClientID: string,
+    updater: (attribute: AttributeTypeDraft) => AttributeTypeDraft
+  ) {
+    setEntityTypeDraft((current) => ({
+      ...current,
+      attributes: current.attributes.map((attribute) =>
+        attribute._client_id === attributeClientID ? updater(attribute) : attribute
+      ),
+    }))
+  }
+
+  function toggleBoundExampleDocument(document: ExampleDocument, checked: boolean) {
+    setDraft((current) => {
+      const nextExampleDocuments = checked
+        ? normalizeExampleDocuments([
+            ...current.example_documents,
+            {
+              document_id: document.document_id,
+              source_id: document.source_id,
+              title: document.title,
+            },
+          ])
+        : current.example_documents.filter(
+            (exampleDocument) => exampleDocument.document_id !== document.document_id
+          )
+
+      return {
+        ...current,
+        example_documents: nextExampleDocuments,
+      }
+    })
   }
 
   async function handleSave() {
     setSaving(true)
     try {
-      const definition = await postJson<DomainModelDefinition>(
-        "/api/link-iq/domain-models",
-        {
-          definition_id: draft.definition_id || undefined,
-          description: draft.description.trim() || undefined,
-          document_type: draft.document_type.trim() || undefined,
-          entities: draft.entities.map((entity) => ({
-            ...entity,
-            attributes: (entity.attributes ?? []).map((attribute) => ({
-              ...attribute,
-              attribute_id: attribute.attribute_id.trim() || undefined,
-              description: attribute.description?.trim() || undefined,
-              label: attribute.label.trim(),
-              name: attribute.name.trim(),
-            })),
-            description: entity.description?.trim() || undefined,
-            entity_type: entity.entity_type.trim(),
-            label: entity.label.trim(),
+      const profile = await postJson<ContextProfile>("/api/link-iq/domain-models", {
+        description: draft.description.trim() || undefined,
+        document_type: draft.document_type.trim() || undefined,
+        entity_usages: draft.entity_usages.map((entityUsage) => ({
+          ...entityUsage,
+          description: entityUsage.description?.trim() || undefined,
+          label: entityUsage.label?.trim() || undefined,
+          qualifier_ids: entityUsage.qualifier_ids?.length ? entityUsage.qualifier_ids : undefined,
+          attributes: (entityUsage.attributes ?? []).map((attributeUsage) => ({
+            ...attributeUsage,
+            description: attributeUsage.description?.trim() || undefined,
+            label: attributeUsage.label?.trim() || undefined,
+            qualifier_ids: attributeUsage.qualifier_ids?.length ? attributeUsage.qualifier_ids : undefined,
           })),
-          label: draft.label.trim(),
-          source_id:
-            draft.source_scope === "link_global"
-              ? undefined
-              : draft.source_id.trim() || sourceID,
-          source_scope: draft.source_scope,
-          status: draft.status,
-          taxonomy_node_id: draft.taxonomy_node_id.trim() || undefined,
-        }
-      )
+        })),
+        example_documents: normalizeExampleDocuments(draft.example_documents),
+        label: draft.label.trim(),
+        profile_id: draft.profile_id || undefined,
+        source_id:
+          draft.source_scope === "link_global" ? undefined : draft.source_id.trim() || sourceID,
+        source_scope: draft.source_scope,
+        status: draft.status,
+        taxonomy_node_id: draft.taxonomy_node_id.trim() || undefined,
+      })
 
-      toast.success(
-        draft.definition_id ? "Domain model updated" : "Domain model created"
-      )
-      await reloadDefinitions(definition.definition_id)
+      toast.success(draft.profile_id ? "Context profile updated" : "Context profile created")
+      await reloadProfiles(profile.profile_id)
     } catch (error) {
-      toast.error("Failed to save domain model", {
+      toast.error("Failed to save context profile", {
         description: error instanceof Error ? error.message : "Unknown error",
       })
     } finally {
@@ -386,15 +969,53 @@ export function DomainModelsWorkbench({
     }
   }
 
+  async function handleSaveEntityType() {
+    setSavingEntityType(true)
+    try {
+      const entityType = await postJson<EntityType>("/api/link-iq/entity-types", {
+        attributes: entityTypeDraft.attributes.map((attribute) => ({
+          allowed_qualifier_ids: attribute.allowed_qualifier_ids.length ? attribute.allowed_qualifier_ids : undefined,
+          attribute_type_id: attribute.attribute_type_id.trim() || undefined,
+          cardinality: attribute.cardinality,
+          description: attribute.description.trim() || undefined,
+          label: attribute.label.trim() || undefined,
+          name: attribute.name.trim() || undefined,
+          required: attribute.required || undefined,
+          target_entity_type_id: attribute.target_entity_type_id.trim() || undefined,
+          value_type: attribute.value_type,
+        })),
+        description: entityTypeDraft.description.trim() || undefined,
+        entity_type_id: entityTypeDraft.entity_type_id || undefined,
+        label: entityTypeDraft.label.trim(),
+        source_id:
+          entityTypeDraft.source_scope === "link_global"
+            ? undefined
+            : entityTypeDraft.source_id.trim() || sourceID,
+        source_scope: entityTypeDraft.source_scope,
+        status: entityTypeDraft.status,
+      })
+
+      toast.success(entityTypeDraft.entity_type_id ? "Entity type updated" : "Entity type created")
+      setPendingEntityTypeID(entityType.entity_type_id)
+      await reloadEntityTypes(entityType.entity_type_id)
+    } catch (error) {
+      toast.error("Failed to save entity type", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+    } finally {
+      setSavingEntityType(false)
+    }
+  }
+
   async function handleDelete() {
-    if (!selectedDefinition) return
+    if (!selectedProfile) return
     setDeleting(true)
     try {
-      await deleteJson(`/api/link-iq/domain-models/${selectedDefinition.definition_id}`)
-      toast.success("Domain model deleted")
-      await reloadDefinitions("__new__")
+      await deleteJson("/api/link-iq/domain-models/" + selectedProfile.profile_id)
+      toast.success("Context profile deleted")
+      await reloadProfiles("__new__")
     } catch (error) {
-      toast.error("Failed to delete domain model", {
+      toast.error("Failed to delete context profile", {
         description: error instanceof Error ? error.message : "Unknown error",
       })
     } finally {
@@ -402,640 +1023,193 @@ export function DomainModelsWorkbench({
     }
   }
 
+  async function handleDeleteEntityType() {
+    if (!selectedEntityType) return
+    setDeletingEntityType(true)
+    try {
+      await deleteJson("/api/link-iq/entity-types/" + selectedEntityType.entity_type_id)
+      toast.success("Entity type deleted")
+      await reloadEntityTypes("__new__")
+      setPendingEntityTypeID("")
+    } catch (error) {
+      toast.error("Failed to delete entity type", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+    } finally {
+      setDeletingEntityType(false)
+    }
+  }
+
+  function handleSectionChange(section: DomainModelsSection) {
+    setActiveSection(section)
+    setComposerMode(section === "library" ? "canonical" : "contextual")
+  }
+
+  const contextPaneProps = {
+    filteredProfiles,
+    refreshing,
+    search,
+    selectedProfileID,
+    selectedTaxonomyRoot,
+    taxonomyRootOptions,
+    onNew: () => setSelectedProfileID("__new__"),
+    onRefresh: () => void reloadProfiles(),
+    onSearchChange: setSearch,
+    onSelectProfile: setSelectedProfileID,
+    onTaxonomyRootChange: setSelectedTaxonomyRoot,
+  }
+
+  const inspectorPaneProps = {
+    boundExampleDocumentIDs,
+    deleting,
+    draft,
+    entityTypeDraft,
+    filteredTaxonomyNodes,
+    initialDocumentTypes,
+    inspectorTarget,
+    isDirty,
+    qualifiersByID,
+    saving,
+    scopeOptions,
+    selectedAttributeType,
+    selectedAttributeUsage,
+    selectedEntityType,
+    selectedEntityUsage,
+    selectedProfile,
+    sourceID,
+    statusOptions,
+    taxonomyPath,
+    onDelete: () => void handleDelete(),
+    onSave: () => void handleSave(),
+    onSetDraft: setDraft,
+  }
+
+  const evidencePaneProps = {
+    boundExampleDocumentIDs,
+    buildDocumentSummary,
+    exampleDocumentSearch,
+    exampleDocuments,
+    extractDocumentContent,
+    loadingExampleDocuments,
+    onExampleDocumentSearchChange: setExampleDocumentSearch,
+    onLoadExampleDocuments: () => void loadExampleDocuments(),
+    onSelectedExampleDocumentIDChange: setSelectedExampleDocumentID,
+    onToggleBoundExampleDocument: toggleBoundExampleDocument,
+    selectedExampleDocument,
+    selectedExampleDocumentID,
+    sourceID,
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Definitions</CardTitle>
-            <CardDescription>Saved model contexts for Link extraction.</CardDescription>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {definitions.length}
-          </CardContent>
-        </Card>
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Entities</CardTitle>
-            <CardDescription>Total entity definitions across all models.</CardDescription>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {totalEntityCount}
-          </CardContent>
-        </Card>
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Attributes</CardTitle>
-            <CardDescription>Structured fields available for review and approval.</CardDescription>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {totalAttributeCount}
-          </CardContent>
-        </Card>
-      </div>
+      <DomainModelsOverviewCards
+        attributeUsageCount={totalAttributeUsageCount}
+        entityTypeCount={entityTypes.length}
+        entityUsageCount={totalEntityUsageCount}
+        profileCount={contextProfiles.length}
+        qualifierCount={initialQualifiers.length}
+      />
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(22rem,28rem)_minmax(0,1fr)]">
-        <Card className="min-h-0">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <CardTitle>Domain Models</CardTitle>
-                <CardDescription>
-                  Choose a taxonomy and document-type context, then define entities and
-                  attributes.
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void reloadDefinitions()}
-                  disabled={refreshing}
-                >
-                  {refreshing ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <RefreshCcw className="size-4" />
-                  )}
-                  Refresh
-                </Button>
-                <Button size="sm" onClick={() => setSelectedDefinitionID("__new__")}>
-                  <Plus className="size-4" />
-                  New Model
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
-            <Input
-              placeholder="Search label, taxonomy path, document type, entity"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <div className="min-h-0 flex-1 overflow-y-auto rounded-md border">
-              {filteredDefinitions.length === 0 ? (
-                <div className="flex h-full min-h-48 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
-                  <AlertCircle className="size-4" />
-                  <p>No domain model definitions match the current search.</p>
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {filteredDefinitions.map((definition) => {
-                    const isActive = definition.definition_id === selectedDefinitionID
-                    return (
-                      <button
-                        key={definition.definition_id}
-                        type="button"
-                        className={cn(
-                          "flex w-full flex-col gap-2 px-3 py-3 text-left transition-colors hover:bg-muted/50",
-                          isActive && "bg-muted"
-                        )}
-                        onClick={() => setSelectedDefinitionID(definition.definition_id)}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="truncate font-medium">{definition.label}</div>
-                            <div className="truncate text-[11px] text-muted-foreground">
-                              {definition.taxonomy_path || "No taxonomy constraint"}
-                            </div>
-                          </div>
-                          <Badge variant="outline">v{definition.version}</Badge>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                          <span>{definition.document_type || "Any document type"}</span>
-                          <span>•</span>
-                          <span>{definition.entities?.length ?? 0} entities</span>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      <DomainModelsSectionSwitcher
+        activeSection={activeSection}
+        onSectionChange={handleSectionChange}
+      />
 
-        <Card className="min-h-0">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <CardTitle>
-                  {selectedDefinition ? "Edit Domain Model" : "Compose Domain Model"}
-                </CardTitle>
-                <CardDescription>
-                  Capture the extraction shape for a taxonomy branch and optional
-                  Paperless document type.
-                </CardDescription>
-              </div>
-              {selectedDefinition ? (
-                <Badge variant="outline">{selectedDefinition.definition_id}</Badge>
-              ) : null}
-            </div>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="domain-model-label">Label</Label>
-                <Input
-                  id="domain-model-label"
-                  value={draft.label}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, label: event.target.value }))
-                  }
-                  placeholder="Invoice / Utilities"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="domain-model-document-type">Document Type</Label>
-                <select
-                  id="domain-model-document-type"
-                  className="h-7 rounded-md border border-input bg-input/20 px-2 text-xs"
-                  value={draft.document_type}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      document_type: event.target.value,
-                    }))
-                  }
-                >
-                  <option value="">Any document type</option>
-                  {initialDocumentTypes.map((documentType) => (
-                    <option key={documentType.id} value={documentType.name}>
-                      {documentType.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_14rem_14rem]">
-              <div className="grid gap-2">
-                <Label htmlFor="domain-model-taxonomy">Taxonomy Node</Label>
-                <select
-                  id="domain-model-taxonomy"
-                  className="h-7 rounded-md border border-input bg-input/20 px-2 text-xs"
-                  value={draft.taxonomy_node_id}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      taxonomy_node_id: event.target.value,
-                    }))
-                  }
-                >
-                  <option value="">No taxonomy constraint</option>
-                  {initialTaxonomyNodes.map((node) => (
-                    <option key={node.taxonomy_node_id} value={node.taxonomy_node_id}>
-                      {node.path}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="domain-model-status">Status</Label>
-                <select
-                  id="domain-model-status"
-                  className="h-7 rounded-md border border-input bg-input/20 px-2 text-xs"
-                  value={draft.status}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, status: event.target.value }))
-                  }
-                >
-                  {statusOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="domain-model-scope">Source Scope</Label>
-                <select
-                  id="domain-model-scope"
-                  className="h-7 rounded-md border border-input bg-input/20 px-2 text-xs"
-                  value={draft.source_scope}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      source_id:
-                        event.target.value === "link_global"
-                          ? ""
-                          : current.source_id || sourceID,
-                      source_scope: event.target.value,
-                    }))
-                  }
-                >
-                  {scopeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_14rem]">
-              <div className="grid gap-2">
-                <Label htmlFor="domain-model-description">Description</Label>
-                <Textarea
-                  id="domain-model-description"
-                  value={draft.description}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      description: event.target.value,
-                    }))
-                  }
-                  placeholder="What does this model capture, and how should reviewers interpret it?"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="domain-model-source-id">Source ID</Label>
-                <Input
-                  id="domain-model-source-id"
-                  value={draft.source_scope === "link_global" ? "" : draft.source_id}
-                  disabled={draft.source_scope === "link_global"}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      source_id: event.target.value,
-                    }))
-                  }
-                  placeholder={sourceID}
-                />
-              </div>
-            </div>
-
-            <div className="rounded-md border bg-muted/30 p-3">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <FileCode2 className="size-4" />
-                Context Preview
-              </div>
-              <div className="mt-2 text-sm">
-                {taxonomyPath || "Any taxonomy branch"}
-                {" • "}
-                {draft.document_type || "Any Paperless document type"}
-              </div>
-              <div className="mt-1 text-[11px] text-muted-foreground">
-                The selected context governs which extraction definitions will match a
-                document.
-              </div>
-            </div>
-
-            <div className="grid gap-3">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <div className="text-sm font-medium">Entities</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Add one or more semantic entities and the attributes reviewers will
-                    approve.
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      entities: [...current.entities, emptyEntity()],
-                    }))
-                  }
-                >
-                  <Plus className="size-4" />
-                  Add Entity
-                </Button>
-              </div>
-
-              {draft.entities.length === 0 ? (
-                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                  No entities yet. Start with the primary business object you want Link
-                  to extract.
-                </div>
-              ) : (
-                <div className="grid gap-3">
-                  {draft.entities.map((entity, entityIndex) => (
-                    <Card key={`${entity.entity_type}-${entityIndex}`} size="sm">
-                      <CardHeader>
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <CardTitle>
-                              {entity.label.trim() || entity.entity_type.trim() || "New Entity"}
-                            </CardTitle>
-                            <CardDescription>
-                              Entity {entityIndex + 1} in this domain model definition.
-                            </CardDescription>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() =>
-                              setDraft((current) => ({
-                                ...current,
-                                entities: current.entities.filter(
-                                  (_currentEntity, index) => index !== entityIndex
-                                ),
-                              }))
-                            }
-                          >
-                            <X className="size-4" />
-                            <span className="sr-only">Remove entity</span>
-                          </Button>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="grid gap-3">
-                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                          <div className="grid gap-2">
-                            <Label>Entity Type</Label>
-                            <Input
-                              value={entity.entity_type}
-                              onChange={(event) =>
-                                updateEntity(entityIndex, (current) => ({
-                                  ...current,
-                                  entity_type: event.target.value,
-                                }))
-                              }
-                              placeholder="invoice"
-                            />
-                          </div>
-                          <div className="grid gap-2">
-                            <Label>Label</Label>
-                            <Input
-                              value={entity.label}
-                              onChange={(event) =>
-                                updateEntity(entityIndex, (current) => ({
-                                  ...current,
-                                  label: event.target.value,
-                                }))
-                              }
-                              placeholder="Invoice"
-                            />
-                          </div>
-                          <div className="grid gap-2">
-                            <Label>Cardinality</Label>
-                            <select
-                              className="h-7 rounded-md border border-input bg-input/20 px-2 text-xs"
-                              value={entity.cardinality}
-                              onChange={(event) =>
-                                updateEntity(entityIndex, (current) => ({
-                                  ...current,
-                                  cardinality: event.target.value,
-                                }))
-                              }
-                            >
-                              {cardinalityOptions.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(entity.required)}
-                              onChange={(event) =>
-                                updateEntity(entityIndex, (current) => ({
-                                  ...current,
-                                  required: event.target.checked,
-                                }))
-                              }
-                            />
-                            Required entity
-                          </label>
-                        </div>
-
-                        <div className="grid gap-2">
-                          <Label>Description</Label>
-                          <Textarea
-                            value={entity.description ?? ""}
-                            onChange={(event) =>
-                              updateEntity(entityIndex, (current) => ({
-                                ...current,
-                                description: event.target.value,
-                              }))
-                            }
-                            placeholder="Describe what this entity represents in the source document."
-                          />
-                        </div>
-
-                        <div className="grid gap-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="text-sm font-medium">Attributes</div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                updateEntity(entityIndex, (current) => ({
-                                  ...current,
-                                  attributes: [
-                                    ...(current.attributes ?? []),
-                                    emptyAttribute(),
-                                  ],
-                                }))
-                              }
-                            >
-                              <Plus className="size-4" />
-                              Add Attribute
-                            </Button>
-                          </div>
-
-                          {(entity.attributes ?? []).length === 0 ? (
-                            <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-                              No attributes for this entity yet.
-                            </div>
-                          ) : (
-                            <div className="grid gap-3">
-                              {(entity.attributes ?? []).map((attribute, attributeIndex) => (
-                                <div
-                                  key={`${attribute.name}-${attributeIndex}`}
-                                  className="rounded-md border bg-background p-3"
-                                >
-                                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                                    <div className="grid gap-2">
-                                      <Label>Name</Label>
-                                      <Input
-                                        value={attribute.name}
-                                        onChange={(event) =>
-                                          updateAttribute(
-                                            entityIndex,
-                                            attributeIndex,
-                                            (current) => ({
-                                              ...current,
-                                              name: event.target.value,
-                                            })
-                                          )
-                                        }
-                                        placeholder="invoice_number"
-                                      />
-                                    </div>
-                                    <div className="grid gap-2">
-                                      <Label>Label</Label>
-                                      <Input
-                                        value={attribute.label}
-                                        onChange={(event) =>
-                                          updateAttribute(
-                                            entityIndex,
-                                            attributeIndex,
-                                            (current) => ({
-                                              ...current,
-                                              label: event.target.value,
-                                            })
-                                          )
-                                        }
-                                        placeholder="Invoice Number"
-                                      />
-                                    </div>
-                                    <div className="grid gap-2">
-                                      <Label>Value Type</Label>
-                                      <select
-                                        className="h-7 rounded-md border border-input bg-input/20 px-2 text-xs"
-                                        value={attribute.value_type}
-                                        onChange={(event) =>
-                                          updateAttribute(
-                                            entityIndex,
-                                            attributeIndex,
-                                            (current) => ({
-                                              ...current,
-                                              value_type: event.target.value,
-                                            })
-                                          )
-                                        }
-                                      >
-                                        {valueTypeOptions.map((valueType) => (
-                                          <option key={valueType} value={valueType}>
-                                            {valueType}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </div>
-                                    <div className="grid gap-2">
-                                      <Label>Attribute ID</Label>
-                                      <Input
-                                        value={attribute.attribute_id}
-                                        onChange={(event) =>
-                                          updateAttribute(
-                                            entityIndex,
-                                            attributeIndex,
-                                            (current) => ({
-                                              ...current,
-                                              attribute_id: event.target.value,
-                                            })
-                                          )
-                                        }
-                                        placeholder="Optional"
-                                      />
-                                    </div>
-                                    <div className="flex items-end justify-between gap-2">
-                                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                                        <input
-                                          type="checkbox"
-                                          checked={Boolean(attribute.required)}
-                                          onChange={(event) =>
-                                            updateAttribute(
-                                              entityIndex,
-                                              attributeIndex,
-                                              (current) => ({
-                                                ...current,
-                                                required: event.target.checked,
-                                              })
-                                            )
-                                          }
-                                        />
-                                        Required
-                                      </label>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        onClick={() =>
-                                          updateEntity(entityIndex, (current) => ({
-                                            ...current,
-                                            attributes: (current.attributes ?? []).filter(
-                                              (_currentAttribute, index) =>
-                                                index !== attributeIndex
-                                            ),
-                                          }))
-                                        }
-                                      >
-                                        <Trash2 className="size-4" />
-                                        <span className="sr-only">Remove attribute</span>
-                                      </Button>
-                                    </div>
-                                  </div>
-                                  <div className="mt-3 grid gap-2">
-                                    <Label>Description</Label>
-                                    <Textarea
-                                      value={attribute.description ?? ""}
-                                      onChange={(event) =>
-                                        updateAttribute(
-                                          entityIndex,
-                                          attributeIndex,
-                                          (current) => ({
-                                            ...current,
-                                            description: event.target.value,
-                                          })
-                                        )
-                                      }
-                                      placeholder="Explain how reviewers should interpret this value."
-                                    />
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-[11px] text-muted-foreground">
-                A domain model must be constrained by at least one taxonomy node or one
-                Paperless document type.
-              </div>
-              <div className="flex items-center gap-2">
-                {selectedDefinition ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => void handleDelete()}
-                    disabled={saving || deleting}
-                  >
-                    {deleting ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="size-4" />
-                    )}
-                    Delete
-                  </Button>
-                ) : null}
-                <Button
-                  type="button"
-                  onClick={() => void handleSave()}
-                  disabled={
-                    saving ||
-                    !draft.label.trim() ||
-                    (!draft.document_type.trim() && !draft.taxonomy_node_id.trim()) ||
-                    !isDirty
-                  }
-                >
-                  {saving ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Save className="size-4" />
-                  )}
-                  Save Model
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {activeSection === "explorer" ? (
+        <DomainExplorerScreen
+          contextPane={contextPaneProps}
+          canvas={{
+            documentType: draft.document_type,
+            entityTypesByID,
+            entityUsages: draft.entity_usages,
+            exampleDocumentCount: boundExampleDocumentIDs.size,
+            profileLabel: draft.label,
+            selectedAttributeUsageID,
+            selectedEntityUsageID,
+            taxonomyPath,
+            onSelectAttributeUsage: (entityUsageID, attributeUsageID) => {
+              setSelectedEntityUsageID(entityUsageID)
+              setSelectedAttributeUsageID(attributeUsageID)
+              setComposerMode("contextual")
+            },
+            onSelectEntityUsage: (usageID) => {
+              setSelectedEntityUsageID(usageID)
+              setComposerMode("contextual")
+            },
+          }}
+          inspectorPane={inspectorPaneProps}
+          evidencePane={evidencePaneProps}
+        />
+      ) : (
+        <EntityLibraryScreen
+          composerPane={{
+            applicabilityOptions,
+            attributeValueTypeOptions,
+            cardinalityOptions,
+            composerMode,
+            deletingEntityType,
+            draftEntityUsageCount: draft.entity_usages.length,
+            entityTypeDraft,
+            entityTypeSearch,
+            entityTypes,
+            entityTypesByID,
+            entityUsages: draft.entity_usages,
+            filteredEntityTypes,
+            initialQualifiers,
+            isEntityTypeDirty,
+            lockedMode: "canonical",
+            pendingEntityTypeID,
+            refreshingEntityTypes,
+            savingEntityType,
+            scopeOptions,
+            selectedAttributeTypeID,
+            selectedAttributeUsageID,
+            selectedEntityType,
+            selectedEntityTypeID,
+            selectedEntityUsageID,
+            sourceID,
+            statusOptions,
+            onAddEntityUsage: addEntityUsage,
+            onComposerModeChange: setComposerMode,
+            onCreateEmptyAttributeType: emptyAttributeTypeDraft,
+            onCreateNewEntityType: () => {
+              setSelectedEntityTypeID("__new__")
+              setComposerMode("canonical")
+            },
+            onDeleteAttributeUsage: deleteAttributeUsage,
+            onDeleteEntityType: () => void handleDeleteEntityType(),
+            onDeleteEntityUsage: deleteEntityUsage,
+            onEntityTypeSearchChange: setEntityTypeSearch,
+            onMoveAttributeUsage: moveAttributeUsage,
+            onMoveEntityUsage: moveEntityUsage,
+            onPendingEntityTypeIDChange: setPendingEntityTypeID,
+            onRefreshEntityTypes: () => void reloadEntityTypes(),
+            onSaveEntityType: () => void handleSaveEntityType(),
+            onSelectAttributeType: (attributeClientID) => {
+              setSelectedAttributeTypeID(attributeClientID)
+              setComposerMode("canonical")
+            },
+            onSelectAttributeUsage: (entityUsageID, attributeUsageID) => {
+              setSelectedEntityUsageID(entityUsageID)
+              setSelectedAttributeUsageID(attributeUsageID)
+              setComposerMode("contextual")
+            },
+            onSelectEntityType: (entityTypeID) => {
+              setSelectedEntityTypeID(entityTypeID)
+              setComposerMode("canonical")
+            },
+            onSelectEntityUsage: (usageID) => {
+              setSelectedEntityUsageID(usageID)
+              setComposerMode("contextual")
+            },
+            onSetEntityTypeDraft: setEntityTypeDraft,
+            onUpdateAttributeTypeDraft: updateAttributeTypeDraft,
+            onUpdateAttributeUsage: updateAttributeUsage,
+            onUpdateEntityUsage: updateEntityUsage,
+          }}
+          inspectorPane={inspectorPaneProps}
+        />
+      )}
     </div>
   )
 }

@@ -159,8 +159,8 @@ export async function DocumentDetailsPageContent({
           tags={tagsList}
           customFields={customFieldsList}
         >
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">ASN: {document.archive_serial_number || "None"}</Badge>
+          <div className="flex items-center gap-6 text-sm m-0 p-0">
+            <Badge>ASN: {document.archive_serial_number || "None"}</Badge>
             <span className="text-xs text-muted-foreground">
               Added: {document.added ? document.added.split("T")[0] : "Unknown"}
             </span>
@@ -179,11 +179,11 @@ export async function DocumentDetailsPageContent({
           // @ts-expect-error ResizablePrimitive type conflict in react-resizable-panels v4
           direction="horizontal"
           id={`document-${document.id}-panel-group`}
-          className="h-full w-full rounded-lg border bg-background"
+          className="h-full w-full rounded-xlg border bg-background"
         >
           <ResizablePanel
             id={`document-${document.id}-details-panel`}
-            defaultSize={40}
+            defaultSize={30}
             minSize={30}
           >
             <DocumentTabs

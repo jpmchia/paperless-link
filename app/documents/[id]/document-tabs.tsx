@@ -120,7 +120,7 @@ export function DocumentTabs({
       className="flex h-full w-full flex-col overflow-y-hidden border-none bg-background"
     >
       <ScrollArea className="w-full rounded-md border-none pb-2 whitespace-nowrap">
-        <TabsList className="scrollbar-thin scrollbar-track-transparent scrollbar-thumb-transparent h-auto w-max min-w-full flex-nowrap justify-start overflow-x-auto border-b bg-transparent p-0 data-[state=active]:border-b-accent">
+        <TabsList className="scrollbar-thin scrollbar-track-transparent scrollbar-thumb-transparent h-auto w-max min-w-full min-h-[32px] flex-nowrap justify-start overflow-x-auto border-b bg-transparent p-0 data-[state=active]:border-b-accent data-[state=active]:text-brand-foreground">
           <TabsTrigger value="details" className={TAB_TRIGGER}>
             Details
           </TabsTrigger>
