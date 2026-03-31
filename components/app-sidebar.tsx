@@ -136,6 +136,7 @@ const navManagement: NavItem[] = [
 
 const navSystem: NavItem[] = [
   { title: "AI & NLP", url: "/ai-nlp", icon: BrainCircuit, adminOnly: true },
+  { title: "Processes & Prompts", url: "/ai-nlp/processes", icon: BrainCircuit, adminOnly: true },
   { title: "Mail", url: "/mail", icon: Mail, permissionType: "mailAccount" },
   { title: "Users", url: "/users", icon: Users },
   { title: "Saved Views", url: "/savedviews", icon: LayoutList, permissionType: "savedView" },

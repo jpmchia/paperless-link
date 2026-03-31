@@ -6,17 +6,27 @@ import { invokeLinkIQAction } from "@/lib/link-iq"
 import type { AIModel } from "@/lib/link-iq-types"
 import { canManageConfig, mapPermissionBootstrapPayload } from "@/lib/permissions"
 
+type AdminSession = {
+  user?: {
+    name?: string | null
+  } | null
+}
+
 async function requireAdmin() {
-  const session = await getServerSession(authOptions)
-  if (!session) return false
+  const session = (await getServerSession(authOptions)) as AdminSession | null
+  if (!session) return { allowed: false as const, session: null }
 
   const uiSettings = await getUiSettings().catch(() => null)
   const permissions = mapPermissionBootstrapPayload(uiSettings)
-  return canManageConfig(permissions)
+  return {
+    allowed: canManageConfig(permissions),
+    session,
+  }
 }
 
 export async function GET(request: Request) {
-  if (!(await requireAdmin())) {
+  const auth = await requireAdmin()
+  if (!auth.allowed) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -39,15 +49,21 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!(await requireAdmin())) {
+  const auth = await requireAdmin()
+  if (!auth.allowed) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   try {
     const body = (await request.json()) as AIModel
+    const actor = auth.session?.user?.name?.trim() || "unknown"
     const result = await invokeLinkIQAction<{ model?: AIModel }>({
       capability: "ai.model.upsert",
-      input: body as unknown as Record<string, unknown>,
+      input: {
+        ...(body as unknown as Record<string, unknown>),
+        changed_by_user_id: actor,
+        changed_by_username: actor,
+      },
     })
 
     return NextResponse.json(result.model ?? {})

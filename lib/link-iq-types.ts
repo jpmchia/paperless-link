@@ -99,6 +99,12 @@ export type AIProvider = {
   label: string
   provider_type: string
   compatibility_mode: string
+  pricing_source_type?: string
+  pricing_source_url?: string
+  pricing_refresh_hours?: number
+  pricing_last_status?: string
+  pricing_last_error?: string
+  pricing_last_refreshed_at?: string
   description?: string
   base_url: string
   api_key?: string
@@ -114,17 +120,77 @@ export type AIProvider = {
 export type AIModel = {
   model_id: string
   provider_id: string
+  catalog_id?: string
   label: string
   model_name: string
   model_type: string
   description?: string
   max_context_tokens?: number
   max_output_tokens?: number
+  pricing_source_type?: string
+  pricing_source_url?: string
+  pricing_refreshed_at?: string
+  input_cost_per_million?: number
+  output_cost_per_million?: number
+  cache_read_cost_per_million?: number
+  cache_write_cost_per_million?: number
   temperature?: number
   top_p?: number
   status: string
   created_at?: string
   updated_at?: string
+}
+
+export type AIProviderModelCatalogEntry = {
+  catalog_id: string
+  provider_id: string
+  model_name: string
+  display_name?: string
+  owned_by?: string
+  provider_object?: string
+  provider_payload?: Record<string, unknown>
+  availability_status: string
+  pricing_match_status?: string
+  pricing_source_type?: string
+  pricing_source_url?: string
+  pricing_refreshed_at?: string
+  input_cost_per_million?: number
+  output_cost_per_million?: number
+  cache_read_cost_per_million?: number
+  cache_write_cost_per_million?: number
+  max_context_tokens?: number
+  max_output_tokens?: number
+  raw_pricing_payload?: Record<string, unknown>
+  enabled_model_id?: string
+  discovered_at?: string
+  updated_at?: string
+}
+
+export type AIModelHistoryEntry = {
+  revision_id: string
+  model_id: string
+  provider_id: string
+  catalog_id?: string
+  label: string
+  model_name: string
+  model_type: string
+  description?: string
+  max_context_tokens?: number
+  max_output_tokens?: number
+  pricing_source_type?: string
+  pricing_source_url?: string
+  pricing_refreshed_at?: string
+  input_cost_per_million?: number
+  output_cost_per_million?: number
+  cache_read_cost_per_million?: number
+  cache_write_cost_per_million?: number
+  temperature?: number
+  top_p?: number
+  status: string
+  changed_at?: string
+  changed_by_user_id?: string
+  changed_by_username?: string
+  change_reason: string
 }
 
 export type AIProcessConfig = {
@@ -143,6 +209,15 @@ export type AIProcessConfig = {
 
 export type AIGeneratedTextResult = {
   process_key: string
+  provider_id: string
+  model_id: string
+  prompt: string
+  output_text: string
+  raw_response?: Record<string, unknown>
+  generated_at?: string
+}
+
+export type AIModelRunResult = {
   provider_id: string
   model_id: string
   prompt: string

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { authOptions } from "@/auth"
 import { getUiSettings } from "@/lib/api"
 import { invokeLinkIQAction } from "@/lib/link-iq"
+import type { AIModelHistoryEntry } from "@/lib/link-iq-types"
 import { canManageConfig, mapPermissionBootstrapPayload } from "@/lib/permissions"
 
 type AdminSession = {
@@ -13,42 +14,37 @@ type AdminSession = {
 
 async function requireAdmin() {
   const session = (await getServerSession(authOptions)) as AdminSession | null
-  if (!session) return { allowed: false as const, session: null }
+  if (!session) return false
 
   const uiSettings = await getUiSettings().catch(() => null)
   const permissions = mapPermissionBootstrapPayload(uiSettings)
-  return {
-    allowed: canManageConfig(permissions),
-    session,
-  }
+  return canManageConfig(permissions)
 }
 
-export async function DELETE(
-  _request: Request,
+export async function GET(
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdmin()
-  if (!auth.allowed) {
+  if (!(await requireAdmin())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   try {
     const { id } = await params
-    const actor = auth.session?.user?.name?.trim() || "unknown"
-    await invokeLinkIQAction<{ deleted?: boolean }>({
-      capability: "ai.model.delete",
+    const url = new URL(request.url)
+    const result = await invokeLinkIQAction<{ history?: AIModelHistoryEntry[] }>({
+      capability: "ai.model.history",
+      resource_id: id,
       input: {
         model_id: id,
-        changed_by_user_id: actor,
-        changed_by_username: actor,
+        limit: Number(url.searchParams.get("limit") || "100"),
       },
-      resource_id: id,
     })
 
-    return NextResponse.json({ deleted: true })
+    return NextResponse.json({ history: result.history ?? [] })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to delete AI model" },
+      { error: error instanceof Error ? error.message : "Failed to load AI model history" },
       { status: 500 }
     )
   }

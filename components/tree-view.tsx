@@ -73,6 +73,10 @@ const TreeView = React.forwardRef<HTMLDivElement, TreeProps>(
             string | undefined
         >(initialSelectedItemId)
 
+        React.useEffect(() => {
+            setSelectedItemId(initialSelectedItemId)
+        }, [initialSelectedItemId])
+
         const [draggedItem, setDraggedItem] = React.useState<TreeDataItem | null>(null)
 
         const handleSelectChange = React.useCallback(
@@ -264,6 +268,12 @@ const TreeNode = ({
     const hasChildren = !!item.children?.length
     const isSelected = selectedItemId === item.id
     const isOpen = value.includes(item.id)
+
+    React.useEffect(() => {
+        if (expandedItemIds.includes(item.id)) {
+            setValue((current) => (current.includes(item.id) ? current : [...current, item.id]))
+        }
+    }, [expandedItemIds, item.id])
 
     const onDragStart = (e: React.DragEvent) => {
         if (!item.draggable) {

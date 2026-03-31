@@ -23,8 +23,8 @@ async function requireAdmin() {
   }
 }
 
-export async function DELETE(
-  _request: Request,
+export async function POST(
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireAdmin()
@@ -34,21 +34,28 @@ export async function DELETE(
 
   try {
     const { id } = await params
+    const body = (await request.json().catch(() => ({}))) as { force?: boolean }
     const actor = auth.session?.user?.name?.trim() || "unknown"
-    await invokeLinkIQAction<{ deleted?: boolean }>({
-      capability: "ai.model.delete",
+    const result = await invokeLinkIQAction<{ updated_count?: number }>({
+      capability: "ai.provider.refresh_model_pricing",
       input: {
-        model_id: id,
+        provider_id: id,
+        force: body.force ?? true,
         changed_by_user_id: actor,
         changed_by_username: actor,
       },
       resource_id: id,
     })
 
-    return NextResponse.json({ deleted: true })
+    return NextResponse.json({ updated_count: result.updated_count ?? 0 })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to delete AI model" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to refresh model pricing",
+      },
       { status: 500 }
     )
   }

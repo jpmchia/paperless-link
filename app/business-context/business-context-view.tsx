@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Building2, Database, Divide, Plus, RefreshCw, Save, Trash2 } from "lucide-react"
+import { Database, Plus, RefreshCw, Save, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -370,11 +370,11 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 gap-0 overflow-hidden px-4">
+    <div className="flex h-full min-h-0 flex-1 gap-0 overflow-hidden px-4 py-4">
       <div className="grid min-h-0 flex-1 grid-cols-[320px_minmax(0,1fr)] gap-6 overflow-hidden">
-        <Card className="min-h-0 overflow-hidden bg-transparent shadow-none mt-0">
+        <Card className="min-h-0 overflow-hidden bg-transparent shadow-none mt-0 pt-0">
           <CardHeader className="px-0 pb-0 pt-0">
-            <CardDescription>
+            <CardDescription className="text-sm text-muted-foreground mt-0 pt-0">
               Shared system and instance fields used to enrich AI prompts and background context.
             </CardDescription>
           </CardHeader>
@@ -455,308 +455,309 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
               )
             })}
           </CardContent>
-        </Card>       
+        </Card>
 
-        <Card className="min-h-0 overflow-hidden">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <Database className="size-4 mr-2" />
-                  {draft.field_id ? (
-                    <>
-                      <span>Editing</span>
-                      <span className="rounded bg-primary/10 px-2 py-0.5 text-primary">
-                        {draft.label.trim() || "Business Context"}
-                      </span>
-                      <span>business context</span>
-                    </>
-                  ) : (
-                    editorTitle
-                  )}
-                </CardTitle>
-                <CardDescription>
-                  {editorDescription}
-                  <div className="text-xs text-muted-foreground">
-                    {loading
-                      ? "Reloading fields..."
-                      : "These values are injected into AI prompt execution as shared context."}
-                  </div>
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">{scope}</Badge>
-                {isDynamicField ? <Badge variant="secondary">generated</Badge> : null}
-                <Badge variant="outline">{draft.field_mode || "input"}</Badge>
-                <Badge variant="outline">{BUSINESS_SECTION}</Badge>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="grid min-h-0 gap-4 overflow-y-auto lg:grid-cols-2">
-            {schemaLocked ? (
-              <div className="text-xs text-destructive lg:col-span-2">
-                This is a system defined field. Its label, key, mode, and data type are predefined but its descriptions and values should be tailoured for your business.
-              </div>
-            ) : null}
-
-            <div className="grid gap-2 mt-2">
-              <Label className="text-sm" htmlFor="context-field-label">Label</Label>
-              <p className="text-xs text-muted-foreground">
-                Human-readable display name for this field. Keep it clear enough that reviewers and prompt authors immediately understand what the value represents.
-              </p>
-              <Input
-                id="context-field-label"
-                value={draft.label}
-                disabled={schemaLocked}
-                onChange={(event) =>
-                  setDraft((current) => {
-                    const nextLabel = event.target.value
-                    const nextDraft = { ...current, label: nextLabel }
-
-                    if (creatingNew && !keyManuallyEdited) {
-                      nextDraft.key = slugifyKey(nextLabel)
-                    }
-
-                    return nextDraft
-                  })
-                }
-              />
-            </div>
-            <div className="grid gap-2 mt-2">
-              <Label className="text-sm" htmlFor="context-field-key">Key</Label>
-              <p className="text-xs text-muted-foreground">
-                Stable machine key used in prompts and process templates. Prefer lowercase snake_case because prompts will reference it directly.
-              </p>
-              <Input
-                id="context-field-key"
-                value={draft.key}
-                disabled={schemaLocked}
-                onChange={(event) => {
-                  setKeyManuallyEdited(true)
-                  setDraft((current) => ({ ...current, key: event.target.value }))
-                }}
-              />
-            </div>
-            <div className="grid gap-2 mt-2">
-              <Label className="text-sm" htmlFor="context-field-mode">Field Mode</Label>
-              <p className="text-xs text-muted-foreground">
-                Input fields provide static deployment context to the model. Output fields define target structures, expected ranges, or controlled values for generated results.
-              </p>
-              <Select
-                value={draft.field_mode || "input"}
-                disabled={schemaLocked}
-                onValueChange={(value) =>
-                  setDraft((current) => ({
-                    ...current,
-                    acceptable_values:
-                      value === "input" ? [] : current.acceptable_values,
-                    sample_values:
-                      value === "input" ? [] : current.sample_values,
-                    field_mode: value,
-                  }))
-                }
-              >
-                <SelectTrigger id="context-field-mode" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="input">Input</SelectItem>
-                  <SelectItem value="output">Output</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2 mt-2">
-              <Label className="text-sm" htmlFor="context-field-type">Data Type</Label>
-              <p className="text-xs text-muted-foreground">
-                Declares the expected value shape. Use <code>List</code> when the runtime value should be treated as multiple items rather than a single string.
-              </p>
-              <Select
-                value={draft.data_type}
-                disabled={schemaLocked}
-                onValueChange={(value) =>
-                  setDraft((current) => ({ ...current, data_type: value }))
-                }
-              >
-                <SelectTrigger id="context-field-type" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="string">String</SelectItem>
-                  <SelectItem value="text">Text</SelectItem>
-                  <SelectItem value="number">Number</SelectItem>
-                  <SelectItem value="boolean">Boolean</SelectItem>
-                  <SelectItem value="enum">Enum</SelectItem>
-                  <SelectItem value="date">Date</SelectItem>
-                  <SelectItem value="url">URL</SelectItem>
-                  <SelectItem value="json">JSON</SelectItem>
-                  <SelectItem value="list">List</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2 lg:col-span-2 mt-2">
-              <Label className="text-sm" htmlFor="context-field-description">Description</Label>
-              <p className="text-xs text-muted-foreground">
-                Describe what this field means, how it should be maintained, and how prompts or workflows should interpret it. This is the single shared definition used for both people and AI.
-              </p>
-              <Textarea
-                id="context-field-description"
-                value={draft.description ?? ""}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, description: event.target.value }))
-                }
-                rows={1}
-              />
-            </div>
-            <div className="grid gap-2 lg:col-span-2">
-              <Label className="text-sm" htmlFor="context-field-value">Current Value</Label>
-              <p className="text-xs text-muted-foreground">
-                {isDynamicField
-                  ? `${describeDynamicSource(draft)}. This value is maintained automatically and included in prompt context as a generated snapshot.`
-                  : (
-                    <>
-                      The actual business or instance value to inject into prompts. For{" "}
-                      <code>List</code> values, enter one item per line or separate them
-                      with commas.
-                    </>
-                  )}
-              </p>
-              <Textarea
-                id="context-field-value"
-                value={draft.value ?? ""}
-                disabled={isDynamicField}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, value: event.target.value }))
-                }
-                rows={draft.data_type === "list" ? 5 : 3}
-                placeholder={
-                  draft.data_type === "list"
-                    ? "One value per line or comma-separated"
-                    : undefined
-                }
-              />
-            </div>
-            {!isInputField ? (
-              <>
-                <div className="grid gap-2 mt-2">
-                  <Label className="text-sm" htmlFor="context-field-acceptable-values">Acceptable Values</Label>
-                  <Textarea
-                    id="context-field-acceptable-values"
-                    value={toLines(draft.acceptable_values)}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        acceptable_values: fromLines(event.target.value),
-                      }))
-                    }
-                    rows={6}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    One value per line. Use this for controlled vocabularies or constrained outputs the model should stay within.
-                  </p>
-                </div>
-                <div className="grid gap-2 mt-2">
-                  <Label className="text-sm" htmlFor="context-field-sample-values">Sample Values</Label>
-                  <Textarea
-                    id="context-field-sample-values"
-                    value={toLines(draft.sample_values)}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        sample_values: fromLines(event.target.value),
-                      }))
-                    }
-                    rows={6}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    One example per line. Include realistic mock or representative values so prompts have concrete examples for expected output.
-                  </p>
-                </div>
-              </>
-            ) : null}
-
-            <div className="flex items-center justify-between gap-3 lg:col-span-2">
-            <div className="grid gap-2 mt-2">
-              <Label className="text-sm" htmlFor="context-field-status">Status</Label>
-              <p className="text-xs text-muted-foreground">
-                Active fields are included in prompt context. Inactive fields will not be provided to the model or influence AI generation.
-              </p>
-              <Select
-                value={draft.status}
-                onValueChange={(value) =>
-                  setDraft((current) => ({ ...current, status: value }))
-                }
-              >
-                <SelectTrigger id="context-field-status" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-              <div className="flex items-center gap-2">
-                {isDynamicField ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleRegenerateDynamicField()}
-                    disabled={regenerating || saving || loading}
-                  >
-                    <RefreshCw className={regenerating ? "size-4 animate-spin" : "size-4"} />
-                    Re-generate
-                  </Button>
-                ) : null}
-                {draft.field_id && !schemaLocked ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleDelete()}
-                    disabled={deleting || saving}
-                  >
-                    <Trash2 className="size-4" />
-                    Delete
-                  </Button>
-                ) : null}
-                <Button
-                  onClick={() => void handleSave()}
-                  disabled={saving || !draft.label.trim() || !draft.key.trim()}
-                >
-                  <Save className="size-4" />
-                  Save Field
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-3 lg:col-span-2">
+        <div className="grid min-h-0 gap-6 overflow-hidden grid-rows-[minmax(0,1fr)_minmax(260px,36%)]">
+          <Card className="min-h-0 overflow-hidden">
+            <CardHeader>
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-medium">Audit History</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Each saved change appends a revision snapshot so prompt-affecting context can be audited and replayed over time.
-                  </p>
+                  <CardTitle className="flex items-center gap-2 text-lg mb-2">
+                    <Database className="mr-2 size-4" />
+                    {draft.field_id ? (
+                      <>
+                        <span>Editing</span>
+                        <span className="bg-primary/10 px-2 text-xl font-semibold text-accent-foreground">
+                          {draft.label.trim() || "Business Context"}
+                        </span>
+                        <span>business context</span>
+                      </>
+                    ) : (
+                      editorTitle
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    {editorDescription}{" "}
+                    <span className="text-xs">
+                      {loading
+                        ? "Reloading fields..."
+                        : "These values are injected into AI prompt execution as shared context."}
+                    </span>
+                  </CardDescription>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">{scope}</Badge>
+                  {isDynamicField ? <Badge variant="secondary">generated</Badge> : null}
+                  <Badge variant="outline">{draft.field_mode || "input"}</Badge>
+                  <Badge variant="outline">{BUSINESS_SECTION}</Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="grid min-h-0 gap-4 overflow-y-auto lg:grid-cols-2">
+              {schemaLocked ? (
+                <div className="text-xs text-destructive lg:col-span-2">
+                  This is a system defined field. Its label, key, mode, and data type are predefined but its descriptions and values should be tailoured for your business.
+                </div>
+              ) : null}
+
+              <div className="mt-2 grid gap-2">
+                <Label className="text-sm" htmlFor="context-field-label">Label</Label>
+                <p className="text-xs text-muted-foreground">
+                  Human-readable display name for this field. Keep it clear enough that reviewers and prompt authors immediately understand what the value represents.
+                </p>
+                <Input
+                  id="context-field-label"
+                  value={draft.label}
+                  disabled={schemaLocked}
+                  onChange={(event) =>
+                    setDraft((current) => {
+                      const nextLabel = event.target.value
+                      const nextDraft = { ...current, label: nextLabel }
+
+                      if (creatingNew && !keyManuallyEdited) {
+                        nextDraft.key = slugifyKey(nextLabel)
+                      }
+
+                      return nextDraft
+                    })
+                  }
+                />
+              </div>
+              <div className="mt-2 grid gap-2">
+                <Label className="text-sm" htmlFor="context-field-key">Key</Label>
+                <p className="text-xs text-muted-foreground">
+                  Stable machine key used in prompts and process templates. Prefer lowercase snake_case because prompts will reference it directly.
+                </p>
+                <Input
+                  id="context-field-key"
+                  value={draft.key}
+                  disabled={schemaLocked}
+                  onChange={(event) => {
+                    setKeyManuallyEdited(true)
+                    setDraft((current) => ({ ...current, key: event.target.value }))
+                  }}
+                />
+              </div>
+              <div className="mt-2 grid gap-2">
+                <Label className="text-sm" htmlFor="context-field-mode">Field Mode</Label>
+                <p className="text-xs text-muted-foreground">
+                  Input fields provide static deployment context to the model. Output fields define target structures, expected ranges, or controlled values for generated results.
+                </p>
+                <Select
+                  value={draft.field_mode || "input"}
+                  disabled={schemaLocked}
+                  onValueChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      acceptable_values:
+                        value === "input" ? [] : current.acceptable_values,
+                      sample_values:
+                        value === "input" ? [] : current.sample_values,
+                      field_mode: value,
+                    }))
+                  }
+                >
+                  <SelectTrigger id="context-field-mode" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="input">Input</SelectItem>
+                    <SelectItem value="output">Output</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="mt-2 grid gap-2">
+                <Label className="text-sm" htmlFor="context-field-type">Data Type</Label>
+                <p className="text-xs text-muted-foreground">
+                  Declares the expected value shape. Use <code>List</code> when the runtime value should be treated as multiple items rather than a single string.
+                </p>
+                <Select
+                  value={draft.data_type}
+                  disabled={schemaLocked}
+                  onValueChange={(value) =>
+                    setDraft((current) => ({ ...current, data_type: value }))
+                  }
+                >
+                  <SelectTrigger id="context-field-type" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="string">String</SelectItem>
+                    <SelectItem value="text">Text</SelectItem>
+                    <SelectItem value="number">Number</SelectItem>
+                    <SelectItem value="boolean">Boolean</SelectItem>
+                    <SelectItem value="enum">Enum</SelectItem>
+                    <SelectItem value="date">Date</SelectItem>
+                    <SelectItem value="url">URL</SelectItem>
+                    <SelectItem value="json">JSON</SelectItem>
+                    <SelectItem value="list">List</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="mt-2 grid gap-2 lg:col-span-2">
+                <Label className="text-sm" htmlFor="context-field-description">Description</Label>
+                <p className="text-xs text-muted-foreground">
+                  Describe what this field means, how it should be maintained, and how prompts or workflows should interpret it. This is the single shared definition used for both people and AI.
+                </p>
+                <Textarea
+                  id="context-field-description"
+                  value={draft.description ?? ""}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, description: event.target.value }))
+                  }
+                  rows={1}
+                />
+              </div>
+              <div className="grid gap-2 lg:col-span-2">
+                <Label className="text-sm" htmlFor="context-field-value">Current Value</Label>
+                <p className="text-xs text-muted-foreground">
+                  {isDynamicField
+                    ? `${describeDynamicSource(draft)}. This value is maintained automatically and included in prompt context as a generated snapshot.`
+                    : (
+                      <>
+                        The actual business or instance value to inject into prompts. For{" "}
+                        <code>List</code> values, enter one item per line or separate them
+                        with commas.
+                      </>
+                    )}
+                </p>
+                <Textarea
+                  id="context-field-value"
+                  value={draft.value ?? ""}
+                  disabled={isDynamicField}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, value: event.target.value }))
+                  }
+                  rows={draft.data_type === "list" ? 5 : 3}
+                  placeholder={
+                    draft.data_type === "list"
+                      ? "One value per line or comma-separated"
+                      : undefined
+                  }
+                />
+              </div>
+              {!isInputField ? (
+                <>
+                  <div className="mt-2 grid gap-2">
+                    <Label className="text-sm" htmlFor="context-field-acceptable-values">Acceptable Values</Label>
+                    <Textarea
+                      id="context-field-acceptable-values"
+                      value={toLines(draft.acceptable_values)}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          acceptable_values: fromLines(event.target.value),
+                        }))
+                      }
+                      rows={6}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      One value per line. Use this for controlled vocabularies or constrained outputs the model should stay within.
+                    </p>
+                  </div>
+                  <div className="mt-2 grid gap-2">
+                    <Label className="text-sm" htmlFor="context-field-sample-values">Sample Values</Label>
+                    <Textarea
+                      id="context-field-sample-values"
+                      value={toLines(draft.sample_values)}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          sample_values: fromLines(event.target.value),
+                        }))
+                      }
+                      rows={6}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      One example per line. Include realistic mock or representative values so prompts have concrete examples for expected output.
+                    </p>
+                  </div>
+                </>
+              ) : null}
+
+              <div className="lg:col-span-2 flex items-end justify-between gap-3">
+                <div className="mt-2 grid gap-2">
+                  <Label className="text-sm" htmlFor="context-field-status">Status</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Active fields are included in prompt context. Inactive fields will not be provided to the model or influence AI generation.
+                  </p>
+                  <Select
+                    value={draft.status}
+                    onValueChange={(value) =>
+                      setDraft((current) => ({ ...current, status: value }))
+                    }
+                  >
+                    <SelectTrigger id="context-field-status" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {isDynamicField ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => void handleRegenerateDynamicField()}
+                      disabled={regenerating || saving || loading}
+                    >
+                      <RefreshCw className={regenerating ? "size-4 animate-spin" : "size-4"} />
+                      Re-generate
+                    </Button>
+                  ) : null}
+                  {draft.field_id && !schemaLocked ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => void handleDelete()}
+                      disabled={deleting || saving}
+                    >
+                      <Trash2 className="size-4" />
+                      Delete
+                    </Button>
+                  ) : null}
+                  <Button
+                    onClick={() => void handleSave()}
+                    disabled={saving || !draft.label.trim() || !draft.key.trim()}
+                  >
+                    <Save className="size-4" />
+                    Save Field
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="min-h-0 overflow-hidden">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Audit History</CardTitle>
+              <CardDescription>
+                Each saved change appends a revision snapshot so prompt-affecting context can be audited and replayed over time.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="min-h-0">
                 {historyLoading ? (
                   <div className="text-xs text-muted-foreground">Loading history...</div>
                 ) : null}
-              </div>
 
-              <AuditHistoryTable
-                columns={historyColumns}
-                rows={history}
-                getRowId={(entry) => entry.revision_id}
-                loading={historyLoading}
-                defaultSortColumnId="changed_at"
-                defaultSortDirection="desc"
-                maxHeight={320}
-                emptyMessage={
-                  selectedFieldId
-                    ? "No revisions recorded yet. Saving this field will create the first audit entry."
-                    : "Select or create a field to view its audit history."
-                }
-              />
-            </div>
-          </CardContent>
-        </Card>
+                <AuditHistoryTable
+                  columns={historyColumns}
+                  rows={history}
+                  getRowId={(entry) => entry.revision_id}
+                  loading={historyLoading}
+                  defaultSortColumnId="changed_at"
+                  defaultSortDirection="desc"
+                  emptyMessage={
+                    selectedFieldId
+                      ? "No revisions recorded yet. Saving this field will create the first audit entry."
+                      : "Select or create a field to view its audit history."
+                  }
+                />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )
