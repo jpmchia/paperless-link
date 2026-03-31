@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown, BrainCircuit, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { type AuditHistoryColumn } from "@/components/audit-history-table"
 import { Button } from "@/components/ui/button"
@@ -19,11 +19,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { TreeView, type TreeDataItem } from "@/components/tree-view"
 import { deleteJson, getJson, postJson } from "@/lib/paperless-client"
 import type {
   AIModel,
   AIModelRunResult,
   AIModelHistoryEntry,
+  AIProcessConfig,
   AIProvider,
   AIProviderModelCatalogEntry,
 } from "@/lib/link-iq-types"
@@ -34,9 +36,11 @@ import { ModelTestCard } from "./components/model-test-card"
 import { ModelUsageCard } from "./components/model-usage-card"
 import { ProviderFormCard } from "./components/provider-form-card"
 import { ProviderModelTree } from "./components/provider-model-tree"
+import { ProcessesPromptsView } from "./processes/processes-prompts-view"
 
 type Props = {
   initialModels: AIModel[]
+  initialProcesses: AIProcessConfig[]
   initialProviders: AIProvider[]
 }
 
@@ -130,8 +134,12 @@ function emptyModel(providerID = ""): AIModel {
 
 export function AINLPView({
   initialModels,
+  initialProcesses,
   initialProviders,
 }: Props) {
+  const [activeSection, setActiveSection] = React.useState<"providers_models" | "processes_prompts">(
+    "providers_models"
+  )
   const [hasMounted, setHasMounted] = React.useState(false)
   const [providers, setProviders] = React.useState(initialProviders)
   const [models, setModels] = React.useState(initialModels)
@@ -206,6 +214,25 @@ export function AINLPView({
           ) ?? null
         : null,
     [providerModels, selectedEnabledCatalogEntry]
+  )
+  const processTreeData = React.useMemo<TreeDataItem[]>(
+    () => [
+      {
+        id: "process-group:taxonomy",
+        name: "Taxonomy",
+        icon: BrainCircuit,
+        onClick: () => setActiveSection("processes_prompts"),
+        children: [
+          {
+            id: "process-prompt:taxonomy.description",
+            name: "Generate a description",
+            icon: Sparkles,
+            onClick: () => setActiveSection("processes_prompts"),
+          },
+        ],
+      },
+    ],
+    []
   )
   const modelHistoryColumns = React.useMemo<AuditHistoryColumn<AIModelHistoryEntry>[]>(
     () => [
@@ -676,17 +703,20 @@ export function AINLPView({
                 selectedProviderID={selectedProviderID}
                 selectedModelKey={selectedModelKey}
                 onSelectProvider={(provider) => {
+                  setActiveSection("providers_models")
                   setSelectedProviderID(provider.provider_id)
                   setSelectedModelKey("")
                   setModelDraft(emptyModel(provider.provider_id))
                   showProviderStep()
                 }}
                 onSelectModel={(provider, model) => {
+                  setActiveSection("providers_models")
                   setSelectedProviderID(provider.provider_id)
                   setSelectedModelKey(`enabled:${model.model_id}`)
                   showEnabledModelStep()
                 }}
                 onCreateProvider={() => {
+                  setActiveSection("providers_models")
                   setSelectedProviderID("")
                   setSelectedModelKey("")
                   setProviderDraft(emptyProvider())
@@ -698,23 +728,49 @@ export function AINLPView({
                 Select a provider to edit it and review the models currently available from that endpoint. Select an enabled model to inspect or update its managed parameters.
               </div>
             </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Processes & prompts</div>
+              <div className="overflow-hidden rounded-lg border">
+                <TreeView
+                  data={processTreeData}
+                  initialSelectedItemId={
+                    activeSection === "processes_prompts"
+                      ? "process-prompt:taxonomy.description"
+                      : undefined
+                  }
+                  className="h-full min-h-0 overflow-auto"
+                />
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Group prompts by process. `Generate a description` is the first prompt under the `Taxonomy` process.
+              </div>
+            </div>
           </div>
         </div>
 
-        <Carousel
-          setApi={setCarouselApi}
-          opts={{ align: "start", containScroll: "trimSnaps" }}
-          className="h-full min-h-0"
-        >
-          <CarouselPrevious
-            className="left-3 z-30 size-14 rounded-2xl border-white/15 bg-background/50 text-foreground shadow-xl backdrop-blur-md hover:bg-background/70"
-            aria-label="Previous AI & NLP step"
+        {activeSection === "processes_prompts" ? (
+          <ProcessesPromptsView
+            initialModels={models}
+            initialProcesses={initialProcesses}
+            initialProviders={providers}
+            embedded
           />
-          <CarouselNext
-            className="right-3 z-30 size-14 rounded-2xl border-white/15 bg-background/50 text-foreground shadow-xl backdrop-blur-md hover:bg-background/70"
-            aria-label="Next AI & NLP step"
-          />
-          <CarouselContent className="h-full">
+        ) : (
+          <Carousel
+            setApi={setCarouselApi}
+            opts={{ align: "start", containScroll: "trimSnaps" }}
+            className="h-full min-h-0"
+          >
+            <CarouselPrevious
+              className="left-3 z-30 size-14 rounded-2xl border-white/15 bg-background/50 text-foreground shadow-xl backdrop-blur-md hover:bg-background/70"
+              aria-label="Previous AI & NLP step"
+            />
+            <CarouselNext
+              className="right-3 z-30 size-14 rounded-2xl border-white/15 bg-background/50 text-foreground shadow-xl backdrop-blur-md hover:bg-background/70"
+              aria-label="Next AI & NLP step"
+            />
+            <CarouselContent className="h-full">
             <CarouselItem className="h-full basis-1/2">
               <ProviderFormCard
                 providerDraft={providerDraft}
@@ -808,8 +864,9 @@ export function AINLPView({
                 formatDateTime={formatDateTime}
               />
             </CarouselItem>
-          </CarouselContent>
-        </Carousel>
+            </CarouselContent>
+          </Carousel>
+        )}
       </div>
     </div>
   )

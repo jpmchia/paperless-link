@@ -21,6 +21,7 @@ export type RoutePermissionKey =
   | "/ai-nlp/processes"
   | "/business-context"
   | "/config"
+  | "/config/preferences"
   | "/dashboard"
   | "/domain-models"
   | "/correspondents"
@@ -57,6 +58,9 @@ export const routePermissionRequirements: Record<
     anyOf: [{ action: "view", type: "document" }],
   },
   "/config": {
+    anyOf: [{ action: "view", type: "appConfig" }],
+  },
+  "/config/preferences": {
     anyOf: [{ action: "view", type: "appConfig" }],
   },
   "/domain-models": {

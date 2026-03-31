@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -18,6 +19,7 @@ import { useAsyncAction } from "@/hooks/use-async-action"
 import { mapNotificationPreferences } from "@/lib/notifications"
 import { setNotificationPreferencesAtom } from "@/lib/stores/notifications"
 import { updateUiSettings } from "@/app/actions/ui-settings"
+import type { ThemePresetSummary } from "@/lib/theme-preset-types"
 
 const DATE_LOCALE_OPTIONS = [
   { value: "__browser_default__", label: "Browser default" },
@@ -45,6 +47,7 @@ const DEFAULT_PAGESIZE_OPTIONS = [
 interface PreferencesSettings {
   date_locale?: string
   default_page_size?: number
+  theme_preset_id?: string | null
   notifications_consumer_new_document?: boolean
   notifications_consumer_success?: boolean
   notifications_consumer_failed?: boolean
@@ -57,9 +60,11 @@ export interface PreferencesFormProps {
   initialSettings?: {
     settings?: PreferencesSettings
   } | null
+  themePresets?: ThemePresetSummary[]
 }
 
-export function PreferencesForm({ initialSettings }: PreferencesFormProps) {
+export function PreferencesForm({ initialSettings, themePresets = [] }: PreferencesFormProps) {
+  const router = useRouter()
   const settings = initialSettings?.settings ?? {}
   const initialNotificationPreferences = mapNotificationPreferences(
     settings as Record<string, unknown>
@@ -68,6 +73,11 @@ export function PreferencesForm({ initialSettings }: PreferencesFormProps) {
   const [dateLocale, setDateLocale] = React.useState<string>(settings.date_locale ?? "")
   const [defaultPageSize, setDefaultPageSize] = React.useState<string>(
     String(settings.default_page_size ?? 25)
+  )
+  const [themePresetId, setThemePresetId] = React.useState<string>(
+    typeof settings.theme_preset_id === "string" && settings.theme_preset_id.length > 0
+      ? settings.theme_preset_id
+      : "__system_default__"
   )
   const [notifyNewDoc, setNotifyNewDoc] = React.useState<boolean>(
     initialNotificationPreferences.consumerNewDocument
@@ -90,6 +100,8 @@ export function PreferencesForm({ initialSettings }: PreferencesFormProps) {
       updateUiSettings({
         date_locale: dateLocale,
         default_page_size: Number(defaultPageSize),
+        theme_preset_id:
+          themePresetId === "__system_default__" ? null : themePresetId,
         notifications_consumer_new_document: notifyNewDoc,
         notifications_consumer_success: notifyConsumerSuccess,
         notifications_consumer_failed: notifyConsumerFailed,
@@ -107,6 +119,7 @@ export function PreferencesForm({ initialSettings }: PreferencesFormProps) {
         documentUpdated: notifyDocUpdated,
         suppressOnDashboard,
       })
+      router.refresh()
     },
   })
 
@@ -155,6 +168,26 @@ export function PreferencesForm({ initialSettings }: PreferencesFormProps) {
           </Select>
           <p className="text-xs text-muted-foreground">
             Default number of documents shown per page in the document list.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Theme preset</Label>
+          <Select value={themePresetId} onValueChange={setThemePresetId}>
+            <SelectTrigger className="w-72">
+              <SelectValue placeholder="System default" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__system_default__">System default</SelectItem>
+              {themePresets.map((preset) => (
+                <SelectItem key={preset.id} value={preset.id}>
+                  {preset.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Choose one of the administrator-defined visual themes for this account.
           </p>
         </div>
       </div>

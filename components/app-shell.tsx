@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { GlobalSearch } from "@/components/global-search/global-search"
 import { ConfirmationDialogProvider } from "@/components/confirmation-dialog-provider"
@@ -12,6 +13,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { getSavedViews, getUiSettings } from "@/lib/api"
+import { getThemePresetById } from "@/lib/theme-presets"
 import {
   emptyPermissions,
   type CurrentUserPermissions,
@@ -67,6 +69,7 @@ export async function AppShell({
   let notificationPreferences = defaultNotificationPreferences
   let appTitle: string | null = null
   let appLogo: string | null = null
+  let themeVariables: Record<string, string> = {}
   try {
     const session = await getServerSession(authOptions)
     if (session) {
@@ -83,6 +86,14 @@ export async function AppShell({
           ? uiSettingsValues.app_logo
           : null
       )
+      const themePresetId =
+        typeof uiSettingsValues.theme_preset_id === "string"
+          ? uiSettingsValues.theme_preset_id
+          : ""
+      if (themePresetId) {
+        const themePreset = await getThemePresetById(themePresetId).catch(() => null)
+        themeVariables = themePreset?.variables ?? {}
+      }
       notificationPreferences = mapNotificationPreferences(
         uiSettingsValues
       )
@@ -103,7 +114,10 @@ export async function AppShell({
         initialPreferences={notificationPreferences}
       >
         <ConfirmationDialogProvider>
-          <SidebarProvider className="h-full">
+          <SidebarProvider
+            className="h-full"
+            style={themeVariables as CSSProperties}
+          >
             <AppSidebar
               appLogo={appLogo}
               appTitle={appTitle}
