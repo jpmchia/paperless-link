@@ -1,0 +1,73 @@
+import { getServerSession } from "next-auth"
+import { NextResponse } from "next/server"
+import { authOptions } from "@/auth"
+import { getUiSettings } from "@/lib/api"
+import { invokeLinkIQAction } from "@/lib/link-iq"
+import { canManageConfig, mapPermissionBootstrapPayload } from "@/lib/permissions"
+
+type MoveBody = {
+  taxonomy_node_id?: string
+  parent_node_id?: string
+  sort_order?: number
+}
+
+async function requireAdmin() {
+  const session = await getServerSession(authOptions)
+  if (!session) return false
+
+  const uiSettings = await getUiSettings().catch(() => null)
+  const permissions = mapPermissionBootstrapPayload(uiSettings)
+  return canManageConfig(permissions)
+}
+
+async function syncGeneratedBusinessContext() {
+  try {
+    await invokeLinkIQAction<{ updated_count?: number }>({
+      capability: "context_field.sync_dynamic",
+    })
+  } catch (error) {
+    console.error("Failed to sync generated business context fields after taxonomy move:", error)
+  }
+}
+
+export async function POST(request: Request) {
+  if (!(await requireAdmin())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  try {
+    const body = (await request.json()) as MoveBody
+    const taxonomyNodeID = String(body.taxonomy_node_id || "").trim()
+
+    if (!taxonomyNodeID) {
+      return NextResponse.json(
+        { error: "taxonomy_node_id is required" },
+        { status: 400 }
+      )
+    }
+
+    const result = await invokeLinkIQAction<{ node?: Record<string, unknown> }>({
+      capability: "taxonomy.move_node",
+      resource_id: taxonomyNodeID,
+      input: {
+        taxonomy_node_id: taxonomyNodeID,
+        parent_node_id: body.parent_node_id || undefined,
+        sort_order: body.sort_order,
+      },
+    })
+
+    await syncGeneratedBusinessContext()
+
+    return NextResponse.json(result.node ?? {})
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to move taxonomy node",
+      },
+      { status: 500 }
+    )
+  }
+}

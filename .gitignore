@@ -51,3 +51,5 @@ storybook-static/
 /.npm-only-allow
 
 package-lock.json
+
+.remember/logs/
