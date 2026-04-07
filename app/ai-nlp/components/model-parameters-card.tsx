@@ -31,6 +31,7 @@ type Props = {
   selectedAvailableCatalogEntry: AIProviderModelCatalogEntry | null
   selectedProviderID: string
   modelDraft: AIModel
+  modelLabelError?: string
   savingModel: boolean
   deletingModel: boolean
   modelHistoryLoading: boolean
@@ -48,6 +49,7 @@ export function ModelParametersCard({
   selectedAvailableCatalogEntry,
   selectedProviderID,
   modelDraft,
+  modelLabelError,
   savingModel,
   deletingModel,
   modelHistoryLoading,
@@ -68,9 +70,9 @@ export function ModelParametersCard({
   return (
     <Card className="overflow-hidden">
       <CardHeader className="border-b pb-4">
-        <CardTitle className="flex items-center gap-2 text-xl">
+        <CardTitle className="flex flex-wrap items-center gap-2">
           <span>Model parameters for</span>
-          <span className="rounded bg-primary/10 px-2 py-0.5 text-xl font-semibold text-primary">
+          <span className="ui-card-title rounded-md bg-primary/10 px-2 text-primary">
             {displayName}
           </span>
         </CardTitle>
@@ -85,17 +87,21 @@ export function ModelParametersCard({
       <CardContent className="min-h-0 overflow-y-auto p-4">
         {selectedEnabledModel ? (
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="grid gap-2 lg:col-span-2">
+            <div className="ui-field-stack lg:col-span-2">
               <Label htmlFor="model-label">Label</Label>
               <Input
                 id="model-label"
                 value={modelDraft.label}
+                aria-invalid={Boolean(modelLabelError)}
                 onChange={(event) =>
                   onDraftChange((current) => ({ ...current, label: event.target.value }))
                 }
               />
+              {modelLabelError ? (
+                <div className="text-xs text-destructive">{modelLabelError}</div>
+              ) : null}
             </div>
-            <div className="grid gap-2">
+            <div className="ui-field-stack">
               <Label htmlFor="model-name">Remote Model Name</Label>
               <Input
                 id="model-name"
@@ -105,7 +111,7 @@ export function ModelParametersCard({
                 }
               />
             </div>
-            <div className="grid gap-2">
+            <div className="ui-field-stack">
               <Label htmlFor="model-type">Model Type</Label>
               <Select
                 value={modelDraft.model_type}
@@ -124,7 +130,7 @@ export function ModelParametersCard({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
+            <div className="ui-field-stack">
               <Label htmlFor="model-context">Max Context Tokens</Label>
               <Input
                 id="model-context"
@@ -138,7 +144,7 @@ export function ModelParametersCard({
                 }
               />
             </div>
-            <div className="grid gap-2">
+            <div className="ui-field-stack">
               <Label htmlFor="model-output">Max Output Tokens</Label>
               <Input
                 id="model-output"
@@ -152,7 +158,7 @@ export function ModelParametersCard({
                 }
               />
             </div>
-            <div className="grid gap-2">
+            <div className="ui-field-stack">
               <Label htmlFor="model-temperature">Temperature</Label>
               <Input
                 id="model-temperature"
@@ -167,7 +173,7 @@ export function ModelParametersCard({
                 }
               />
             </div>
-            <div className="grid gap-2">
+            <div className="ui-field-stack">
               <Label htmlFor="model-top-p">Top P</Label>
               <Input
                 id="model-top-p"
@@ -182,7 +188,7 @@ export function ModelParametersCard({
                 }
               />
             </div>
-            <div className="grid gap-2">
+            <div className="ui-field-stack">
               <Label htmlFor="model-status">Status</Label>
               <Select
                 value={modelDraft.status}
@@ -199,7 +205,7 @@ export function ModelParametersCard({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2 lg:col-span-2">
+            <div className="ui-field-stack lg:col-span-2">
               <Label htmlFor="model-description">Description</Label>
               <Textarea
                 id="model-description"
@@ -212,8 +218,8 @@ export function ModelParametersCard({
                 }
               />
             </div>
-            <div className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground lg:col-span-2">
-              <div className="font-medium text-foreground">Current pricing</div>
+            <div className="ui-help-text rounded-lg border bg-muted/20 p-3 lg:col-span-2">
+              <div className="ui-card-title text-sm">Current pricing</div>
               <div className="mt-2 flex flex-wrap gap-4">
                 <span>Input: {formatCostPerMillion(modelDraft.input_cost_per_million)}/M</span>
                 <span>Output: {formatCostPerMillion(modelDraft.output_cost_per_million)}/M</span>
@@ -223,7 +229,7 @@ export function ModelParametersCard({
               <div className="mt-2">Source: {modelDraft.pricing_source_url || "Not set"}</div>
             </div>
             <div className="lg:col-span-2">
-              <div className="mb-2 text-sm font-medium">Audit history</div>
+              <div className="ui-card-title mb-2 text-sm">Audit history</div>
               <AuditHistoryTable
                 columns={modelHistoryColumns}
                 rows={modelHistory}
@@ -243,7 +249,11 @@ export function ModelParametersCard({
               <Button
                 onClick={onSaveModel}
                 disabled={
-                  savingModel || !selectedProviderID || !modelDraft.label.trim() || !modelDraft.model_name.trim()
+                  savingModel ||
+                  !selectedProviderID ||
+                  !modelDraft.label.trim() ||
+                  !modelDraft.model_name.trim() ||
+                  Boolean(modelLabelError)
                 }
               >
                 <Save className="size-4" />
@@ -253,17 +263,21 @@ export function ModelParametersCard({
           </div>
         ) : selectedAvailableCatalogEntry ? (
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="grid gap-2 lg:col-span-2">
+            <div className="ui-field-stack lg:col-span-2">
               <Label htmlFor="available-model-label">Label</Label>
               <Input
                 id="available-model-label"
                 value={modelDraft.label}
+                aria-invalid={Boolean(modelLabelError)}
                 onChange={(event) =>
                   onDraftChange((current) => ({ ...current, label: event.target.value }))
                 }
               />
+              {modelLabelError ? (
+                <div className="text-xs text-destructive">{modelLabelError}</div>
+              ) : null}
             </div>
-            <div className="grid gap-2">
+            <div className="ui-field-stack">
               <Label htmlFor="available-model-name">Remote model name</Label>
               <Input
                 id="available-model-name"
@@ -273,7 +287,7 @@ export function ModelParametersCard({
                 }
               />
             </div>
-            <div className="grid gap-2">
+            <div className="ui-field-stack">
               <Label htmlFor="available-model-type">Model type</Label>
               <Select
                 value={modelDraft.model_type}
@@ -292,7 +306,7 @@ export function ModelParametersCard({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
+            <div className="ui-field-stack">
               <Label htmlFor="available-model-context">Max context tokens</Label>
               <Input
                 id="available-model-context"
@@ -306,7 +320,7 @@ export function ModelParametersCard({
                 }
               />
             </div>
-            <div className="grid gap-2">
+            <div className="ui-field-stack">
               <Label htmlFor="available-model-output">Max output tokens</Label>
               <Input
                 id="available-model-output"
@@ -320,7 +334,7 @@ export function ModelParametersCard({
                 }
               />
             </div>
-            <div className="grid gap-2">
+            <div className="ui-field-stack">
               <Label htmlFor="available-model-temperature">Temperature</Label>
               <Input
                 id="available-model-temperature"
@@ -335,7 +349,7 @@ export function ModelParametersCard({
                 }
               />
             </div>
-            <div className="grid gap-2">
+            <div className="ui-field-stack">
               <Label htmlFor="available-model-top-p">Top P</Label>
               <Input
                 id="available-model-top-p"
@@ -350,7 +364,7 @@ export function ModelParametersCard({
                 }
               />
             </div>
-            <div className="grid gap-2">
+            <div className="ui-field-stack">
               <Label htmlFor="available-model-status">Status</Label>
               <Select
                 value={modelDraft.status}
@@ -367,7 +381,7 @@ export function ModelParametersCard({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2 lg:col-span-2">
+            <div className="ui-field-stack lg:col-span-2">
               <Label htmlFor="available-model-description">Description</Label>
               <Textarea
                 id="available-model-description"
@@ -380,8 +394,8 @@ export function ModelParametersCard({
                 }
               />
             </div>
-            <div className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground lg:col-span-2">
-              <div className="font-medium text-foreground">Pricing snapshot</div>
+            <div className="ui-help-text rounded-lg border bg-muted/20 p-3 lg:col-span-2">
+              <div className="ui-card-title text-sm">Pricing snapshot</div>
               <div className="mt-2 flex flex-wrap gap-4">
                 <span>Input: {formatCostPerMillion(selectedAvailableCatalogEntry.input_cost_per_million)}/M</span>
                 <span>Output: {formatCostPerMillion(selectedAvailableCatalogEntry.output_cost_per_million)}/M</span>
@@ -396,16 +410,20 @@ export function ModelParametersCard({
               <Button
                 onClick={onSaveModel}
                 disabled={
-                  savingModel || !selectedProviderID || !modelDraft.label.trim() || !modelDraft.model_name.trim()
+                  savingModel ||
+                  !selectedProviderID ||
+                  !modelDraft.label.trim() ||
+                  !modelDraft.model_name.trim() ||
+                  Boolean(modelLabelError)
                 }
               >
                 <Save className="size-4" />
-                Save model
+                Enable model
               </Button>
             </div>
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+          <div className="ui-help-text rounded-lg border border-dashed p-6">
             Select an enabled or available model to view its details.
           </div>
         )}

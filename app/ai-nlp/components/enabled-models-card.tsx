@@ -35,7 +35,7 @@ export function EnabledModelsCard({
   return (
     <Card className="min-h-0 h-full overflow-hidden">
       <CardHeader className="border-b pb-4">
-        <CardTitle className="text-sm">Enabled models</CardTitle>
+        <CardTitle>Enabled models</CardTitle>
         <CardDescription>Your LinkIQ-managed model set for this provider.</CardDescription>
       </CardHeader>
       <CardContent className="min-h-0 overflow-hidden p-4">

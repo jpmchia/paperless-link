@@ -30,6 +30,7 @@ export type ComparisonSlotState = {
 
 export type PromptExampleContext = {
   label: string
+  node_type: string
   parent_path: string
   path_preview: string
   source_scope: string

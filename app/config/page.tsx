@@ -3,15 +3,24 @@ import { TopBar } from "@/app/documents/topbar"
 import Link from "next/link"
 import { ArrowRight, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { getPaperlessApi } from "@/lib/api"
 import { currentUserCan } from "@/lib/permissions"
 import { requireRoutePermission } from "@/lib/server-permissions"
 import { SettingsForm } from "@/app/settings/settings-form"
+import { listTaxonomyNodeTypes } from "@/lib/taxonomy-node-types"
+import { TaxonomyNodeTypesCard } from "./taxonomy-node-types-card"
 
 export default async function ConfigPage() {
   const permissions = await requireRoutePermission("/config")
   const canEditConfig = currentUserCan(permissions, "change", "appConfig")
+  const taxonomyNodeTypes = await listTaxonomyNodeTypes().catch(() => [])
 
   let config: Record<string, unknown> = {}
   try {
@@ -30,13 +39,15 @@ export default async function ConfigPage() {
           <CardHeader>
             <CardTitle className="text-base">Preferences</CardTitle>
             <CardDescription>
-              Open the visual hierarchy style guide and preferences lab used to shape future screen design without changing the live theme.
+              Open the visual hierarchy style guide and preferences lab used to
+              shape future screen design without changing the live theme.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
               <Sparkles className="size-4 text-primary" />
-              Review heading scales, helper text contrast, accent roles, and surface rules in a safe preview environment.
+              Review heading scales, helper text contrast, accent roles, and
+              surface rules in a safe preview environment.
             </div>
             <Button asChild>
               <Link href="/config/preferences">
@@ -46,6 +57,11 @@ export default async function ConfigPage() {
             </Button>
           </CardContent>
         </Card>
+
+        <TaxonomyNodeTypesCard
+          canEdit={canEditConfig}
+          initialNodeTypes={taxonomyNodeTypes}
+        />
 
         <SettingsForm initialConfig={config} canEdit={canEditConfig} />
       </div>

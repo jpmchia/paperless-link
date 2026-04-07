@@ -47,8 +47,8 @@ export function ModelUsageCard({
   return (
     <Card className="h-full min-h-0 overflow-hidden">
       <CardHeader className="border-b pb-4">
-        <CardTitle className="flex items-center gap-2 text-xl">
-          <span className="rounded bg-primary/10 px-2 py-0.5 text-xl font-semibold text-primary">
+        <CardTitle className="flex flex-wrap items-center gap-2">
+          <span className="ui-card-title rounded-md bg-primary/10 px-2 text-primary">
             {displayName}
           </span>
           <span>usage</span>
@@ -86,7 +86,7 @@ export function ModelUsageCard({
             />
 
             <div className="rounded-lg border bg-muted/20 p-4 md:col-span-2">
-              <div className="text-sm font-medium text-foreground">Execution profile</div>
+              <div className="ui-card-title text-sm">Execution profile</div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <KeyValue label="Remote model name" value={selectedEnabledModel.model_name} />
                 <KeyValue label="Pricing source" value={selectedEnabledModel.pricing_source_url || "Not set"} />
@@ -129,7 +129,7 @@ export function ModelUsageCard({
             </div>
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+          <div className="ui-help-text rounded-lg border border-dashed p-6">
             Select an enabled model to review its usage summary.
           </div>
         )}
@@ -151,12 +151,12 @@ function UsageStat({
 }) {
   return (
     <div className="rounded-lg border bg-card p-4">
-      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+      <div className="ui-card-title flex items-center gap-2 text-sm">
         <Icon className="size-4 text-primary" />
         {label}
       </div>
       <div className="mt-3 text-2xl font-semibold text-foreground">{value}</div>
-      {hint ? <div className="mt-1 text-xs text-muted-foreground">{hint}</div> : null}
+      {hint ? <div className="ui-help-text mt-1">{hint}</div> : null}
     </div>
   )
 }
@@ -164,7 +164,7 @@ function UsageStat({
 function KeyValue({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <div className="ui-field-label">
         {label}
       </div>
       <div className="text-sm text-foreground">{value}</div>

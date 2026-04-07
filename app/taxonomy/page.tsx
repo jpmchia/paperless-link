@@ -2,9 +2,12 @@ import { AppShell } from "@/components/app-shell"
 import { TopBar } from "@/app/documents/topbar"
 import { invokeLinkIQAction, LINK_IQ_SOURCE_ID } from "@/lib/link-iq"
 import { requireRoutePermission } from "@/lib/server-permissions"
+import { listTaxonomyNodeTypes } from "@/lib/taxonomy-node-types"
 import { TaxonomyWorkbench } from "./taxonomy-workbench"
 
-type TaxonomyNode = React.ComponentProps<typeof TaxonomyWorkbench>["initialNodes"][number]
+type TaxonomyNode = React.ComponentProps<
+  typeof TaxonomyWorkbench
+>["initialNodes"][number]
 
 function filterScopedNodes(nodes: TaxonomyNode[], sourceID: string) {
   return nodes.filter((node) => {
@@ -22,8 +25,8 @@ async function getTaxonomyNodes() {
       },
     })
 
-    return filterScopedNodes(result.nodes ?? [], LINK_IQ_SOURCE_ID).sort((left, right) =>
-      left.path.localeCompare(right.path)
+    return filterScopedNodes(result.nodes ?? [], LINK_IQ_SOURCE_ID).sort(
+      (left, right) => left.path.localeCompare(right.path)
     )
   } catch {
     return []
@@ -33,10 +36,18 @@ async function getTaxonomyNodes() {
 export default async function TaxonomyPage() {
   const permissions = await requireRoutePermission("/taxonomy")
   const nodes = await getTaxonomyNodes()
+  const configuredNodeTypes = await listTaxonomyNodeTypes().catch(() => [])
 
   return (
-    <AppShell initialPermissions={permissions} topbar={<TopBar title="Taxonomy" />}>
-      <TaxonomyWorkbench initialNodes={nodes} sourceID={LINK_IQ_SOURCE_ID} />
+    <AppShell
+      initialPermissions={permissions}
+      topbar={<TopBar title="Taxonomy" />}
+    >
+      <TaxonomyWorkbench
+        initialNodes={nodes}
+        sourceID={LINK_IQ_SOURCE_ID}
+        configuredNodeTypes={configuredNodeTypes}
+      />
     </AppShell>
   )
 }

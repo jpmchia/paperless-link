@@ -52,13 +52,13 @@ export function ProviderModelTree({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="text-sm font-medium">Providers & models</div>
+        <div className="ui-card-title">Providers & models</div>
         <Button size="sm" variant="outline" onClick={onCreateProvider}>
           <Plus className="size-4" />
           New
         </Button>
       </div>
-      <div className="min-h-0 overflow-hidden rounded-lg border">
+      <div className="min-h-0 overflow-hidden rounded-lg">
         <TreeView
           data={treeData}
           initialSelectedItemId={selectedItemId}

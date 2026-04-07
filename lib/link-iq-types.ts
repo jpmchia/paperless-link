@@ -10,6 +10,7 @@ export type TaxonomyNode = LinkIQScopedRecord & {
   description?: string
   label?: string
   mapping_state?: string
+  node_type?: string
   parent_node_id?: string
   path: string
   sort_order?: number
@@ -198,6 +199,12 @@ export type AIProcessConfig = {
   section: string
   label: string
   description?: string
+  retain_history?: boolean
+  include_history?: boolean
+  history_text_length?: number
+  default_model_id?: string
+  fallback_model_id?: string
+  available_model_ids?: string[]
   provider_id?: string
   model_id?: string
   prompt_template: string
@@ -211,6 +218,7 @@ export type AIGeneratedTextResult = {
   process_key: string
   provider_id: string
   model_id: string
+  model_label?: string
   prompt: string
   output_text: string
   raw_response?: Record<string, unknown>
@@ -220,6 +228,7 @@ export type AIGeneratedTextResult = {
 export type AIModelRunResult = {
   provider_id: string
   model_id: string
+  model_label?: string
   prompt: string
   output_text: string
   raw_response?: Record<string, unknown>

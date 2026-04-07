@@ -57,11 +57,13 @@ export function ProviderFormCard({
   return (
     <Card className="min-h-0 overflow-hidden">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg mb-2">
+        <CardTitle className="mb-2 flex flex-wrap items-center gap-2">
           {isEditing ? (
             <>
-              <span>Editing{" "}</span>
-              <span className="bg-primary/10 px-1 text-xl font-semibold text-accent-foreground">{providerLabel}</span>
+              <span>Editing</span>
+              <span className="ui-card-title rounded-md bg-primary/10 px-2 text-primary">
+                {providerLabel}
+              </span>
             </>
           ) : (
             "Create new Provider"
@@ -72,7 +74,7 @@ export function ProviderFormCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 lg:grid-cols-2">
-        <div className="grid gap-2">
+        <div className="ui-field-stack">
           <Label htmlFor="provider-label">Label</Label>
           <Input
             id="provider-label"
@@ -82,7 +84,7 @@ export function ProviderFormCard({
             }
           />
         </div>
-        <div className="grid gap-2">
+        <div className="ui-field-stack">
           <Label htmlFor="provider-status">Status</Label>
           <Select
             value={providerDraft.status}
@@ -99,7 +101,7 @@ export function ProviderFormCard({
             </SelectContent>
           </Select>
         </div>
-        <div className="grid gap-2">
+        <div className="ui-field-stack">
           <Label htmlFor="provider-type">Provider Source</Label>
           <Select value={providerSourceValue} onValueChange={onProviderSourceChange}>
             <SelectTrigger id="provider-type" className="w-full">
@@ -112,7 +114,7 @@ export function ProviderFormCard({
             </SelectContent>
           </Select>
         </div>
-        <div className="grid gap-2">
+        <div className="ui-field-stack">
           <Label htmlFor="provider-compatibility">API Style</Label>
           <Select
             value={providerDraft.compatibility_mode || defaultCompatibilityMode(providerDraft.provider_type)}
@@ -129,7 +131,7 @@ export function ProviderFormCard({
             </SelectContent>
           </Select>
         </div>
-        <div className="grid gap-2 lg:col-span-2">
+        <div className="ui-field-stack lg:col-span-2">
           <Label htmlFor="provider-base-url">Base API URL</Label>
           <Input
             id="provider-base-url"
@@ -144,7 +146,7 @@ export function ProviderFormCard({
             }
           />
         </div>
-        <div className="grid gap-2 lg:col-span-2">
+        <div className="ui-field-stack lg:col-span-2">
           <Label htmlFor="provider-api-key">API Key</Label>
           <Input
             id="provider-api-key"
@@ -155,7 +157,7 @@ export function ProviderFormCard({
             placeholder={providerDraft.compatibility_mode === "anthropic" ? "sk-ant-..." : "sk-..."}
           />
         </div>
-        <div className="grid gap-2 lg:col-span-2">
+        <div className="ui-field-stack lg:col-span-2">
           <Label htmlFor="provider-description">Description</Label>
           <Input
             id="provider-description"
@@ -174,13 +176,13 @@ export function ProviderFormCard({
             onOpenChange={onProviderAdvancedOpenChange}
             className="rounded-lg border"
           >
-            <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium">
+            <CollapsibleTrigger className="ui-card-title flex w-full items-center justify-between px-4 py-3 text-left text-sm">
               <span>Advanced settings...</span>
               <Badge variant="outline">{providerAdvancedOpen ? "Hide" : "Show"}</Badge>
             </CollapsibleTrigger>
             <CollapsibleContent className="border-t">
               <div className="grid gap-4 p-4 lg:grid-cols-3">
-                <div className="grid gap-2">
+                <div className="ui-field-stack">
                   <Label htmlFor="provider-organization">Organization</Label>
                   <Input
                     id="provider-organization"
@@ -193,7 +195,7 @@ export function ProviderFormCard({
                     }
                   />
                 </div>
-                <div className="grid gap-2">
+                <div className="ui-field-stack">
                   <Label htmlFor="provider-project">Project</Label>
                   <Input
                     id="provider-project"
@@ -203,7 +205,7 @@ export function ProviderFormCard({
                     }
                   />
                 </div>
-                <div className="grid gap-2">
+                <div className="ui-field-stack">
                   <Label htmlFor="provider-timeout">Timeout Seconds</Label>
                   <Input
                     id="provider-timeout"
@@ -217,7 +219,7 @@ export function ProviderFormCard({
                     }
                   />
                 </div>
-                <div className="grid gap-2 lg:col-span-2">
+                <div className="ui-field-stack lg:col-span-2">
                   <Label htmlFor="provider-pricing-url">Pricing Source URL</Label>
                   <Input
                     id="provider-pricing-url"
@@ -231,7 +233,7 @@ export function ProviderFormCard({
                     placeholder="https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
                   />
                 </div>
-                <div className="grid gap-2">
+                <div className="ui-field-stack">
                   <Label htmlFor="provider-pricing-refresh">Pricing Refresh Hours</Label>
                   <Input
                     id="provider-pricing-refresh"
@@ -251,7 +253,7 @@ export function ProviderFormCard({
         </div>
         <div className="lg:col-span-2">
           <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0 flex-1 text-xs text-muted-foreground">
+            <div className="ui-help-text min-w-0 flex-1">
               {providerDraft.compatibility_mode === "anthropic"
                 ? "Uses Anthropic native headers and the Messages API."
                 : "Uses OpenAI-compatible model listing and chat completions."}

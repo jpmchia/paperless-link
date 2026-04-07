@@ -149,6 +149,11 @@ const navSystem: NavItem[] = [
   { title: "Configuration", url: "/config", icon: SlidersHorizontal },
 ]
 
+const APPLICATION_SECTION_CONTENT_ID = "sidebar-section-application-content"
+const VIEWS_SECTION_CONTENT_ID = "sidebar-section-views-content"
+const MANAGEMENT_SECTION_CONTENT_ID = "sidebar-section-management-content"
+const SYSTEM_SECTION_CONTENT_ID = "sidebar-section-system-content"
+
 async function persistViewOrder(orderedIds: number[]) {
   try {
     await updateUiSettings({ sidebar_views_sort_order: orderedIds })
@@ -365,7 +370,10 @@ export function AppSidebar({
         <SidebarGroup>
           <Collapsible open={applicationOpen} onOpenChange={setApplicationOpen}>
             <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex cursor-pointer items-center justify-between transition-colors hover:text-foreground">
+              <CollapsibleTrigger
+                aria-controls={APPLICATION_SECTION_CONTENT_ID}
+                className="flex cursor-pointer items-center justify-between transition-colors hover:text-foreground"
+              >
                 <span>Application</span>
                 {applicationOpen ? (
                   <ChevronDown className="h-3 w-3" />
@@ -374,7 +382,7 @@ export function AppSidebar({
                 )}
               </CollapsibleTrigger>
             </SidebarGroupLabel>
-            <CollapsibleContent>
+            <CollapsibleContent id={APPLICATION_SECTION_CONTENT_ID}>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {navMain.map((item) => (
@@ -400,12 +408,15 @@ export function AppSidebar({
           <SidebarGroup>
             <Collapsible open={viewsOpen} onOpenChange={setViewsOpen}>
               <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex cursor-pointer items-center justify-between transition-colors hover:text-foreground">
+                <CollapsibleTrigger
+                  aria-controls={VIEWS_SECTION_CONTENT_ID}
+                  className="flex cursor-pointer items-center justify-between transition-colors hover:text-foreground"
+                >
                   <span>Saved Views</span>
                   {viewsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                 </CollapsibleTrigger>
               </SidebarGroupLabel>
-              <CollapsibleContent>
+              <CollapsibleContent id={VIEWS_SECTION_CONTENT_ID}>
                 <SidebarGroupContent>
                   {hasMounted ? (
                     <DndContext
@@ -467,17 +478,20 @@ export function AppSidebar({
           <SidebarGroup>
             <Collapsible open={managementOpen} onOpenChange={setManagementOpen}>
               <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex cursor-pointer items-center justify-between transition-colors hover:text-foreground">
+                <CollapsibleTrigger
+                  aria-controls={MANAGEMENT_SECTION_CONTENT_ID}
+                  className="flex cursor-pointer items-center justify-between transition-colors hover:text-foreground"
+                >
                   <span>Management</span>
                   {managementOpen ? (
                     <ChevronDown className="h-3 w-3" />
                   ) : (
                     <ChevronRight className="h-3 w-3" />
-                  )}
-                </CollapsibleTrigger>
-              </SidebarGroupLabel>
-              <CollapsibleContent>
-                <SidebarGroupContent>
+                )}
+              </CollapsibleTrigger>
+            </SidebarGroupLabel>
+              <CollapsibleContent id={MANAGEMENT_SECTION_CONTENT_ID}>
+              <SidebarGroupContent>
                   <SidebarMenu>
                     {managementItems.map((item) => (
                       <SidebarMenuItem key={item.title}>
@@ -510,7 +524,10 @@ export function AppSidebar({
         <SidebarGroup>
           <Collapsible open={systemOpen} onOpenChange={setSystemOpen}>
             <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex cursor-pointer items-center justify-between transition-colors hover:text-foreground">
+              <CollapsibleTrigger
+                aria-controls={SYSTEM_SECTION_CONTENT_ID}
+                className="flex cursor-pointer items-center justify-between transition-colors hover:text-foreground"
+              >
                 <span>System</span>
                 {systemOpen ? (
                   <ChevronDown className="h-3 w-3" />
@@ -519,7 +536,7 @@ export function AppSidebar({
                 )}
               </CollapsibleTrigger>
             </SidebarGroupLabel>
-            <CollapsibleContent>
+            <CollapsibleContent id={SYSTEM_SECTION_CONTENT_ID}>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {systemItems.map((item) => (

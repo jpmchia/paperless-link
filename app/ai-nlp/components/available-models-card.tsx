@@ -59,9 +59,9 @@ export function AvailableModelsCard(props: Props) {
       <CardHeader className="border-b pb-4">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <CardTitle className="flex items-center gap-2 text-xl">
+            <CardTitle className="flex flex-wrap items-center gap-2">
               <span>Available</span>
-              <span className="rounded bg-primary/10 px-2 py-0.5 text-xl font-semibold text-primary">
+              <span className="ui-card-title rounded-md bg-primary/10 px-2 text-primary">
                 {selectedProviderLabel?.trim() || "Provider"}
               </span>
               <span>models</span>

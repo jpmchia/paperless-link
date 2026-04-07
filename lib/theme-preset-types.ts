@@ -36,9 +36,13 @@ export type BackgroundToken =
   | "input"
 
 export type ColorToken =
+  | "background"
   | "foreground"
+  | "card"
   | "card-foreground"
+  | "popover"
   | "popover-foreground"
+  | "muted"
   | "muted-foreground"
   | "brand"
   | "brand-foreground"
@@ -48,13 +52,54 @@ export type ColorToken =
   | "secondary-foreground"
   | "accent"
   | "accent-foreground"
+  | "border"
+  | "input"
+  | "ring"
   | "chart-1"
   | "chart-2"
   | "chart-3"
   | "chart-4"
   | "chart-5"
   | "destructive"
+  | "sidebar"
   | "sidebar-foreground"
+  | "sidebar-border"
+  | "sidebar-ring"
+  | "sidebar-primary"
+  | "sidebar-primary-foreground"
+  | "sidebar-accent"
+  | "sidebar-accent-foreground"
+
+export type ThemeColorRole =
+  | "background"
+  | "foreground"
+  | "card"
+  | "card-foreground"
+  | "popover"
+  | "popover-foreground"
+  | "muted"
+  | "muted-foreground"
+  | "brand"
+  | "brand-foreground"
+  | "primary"
+  | "primary-foreground"
+  | "secondary"
+  | "secondary-foreground"
+  | "accent"
+  | "accent-foreground"
+  | "border"
+  | "input"
+  | "ring"
+  | "destructive"
+  | "chart-1"
+  | "chart-2"
+  | "chart-3"
+  | "chart-4"
+  | "chart-5"
+  | "sidebar"
+  | "sidebar-foreground"
+  | "sidebar-border"
+  | "sidebar-ring"
   | "sidebar-primary"
   | "sidebar-primary-foreground"
   | "sidebar-accent"
@@ -85,9 +130,7 @@ export interface ThemePresetDraft {
   fieldSpacing: number
   fieldSeparation: number
   fieldLabelOffset: number
-  previewBackgroundToken: BackgroundToken
-  previewCardBackgroundToken: BackgroundToken
-  previewInputBackgroundToken: BackgroundToken
+  themeColors: Record<ThemeColorRole, string>
   textRoles: Record<TextRoleKey, TextRoleConfig>
   showNestedCards: boolean
   showBorders: boolean

@@ -42,6 +42,18 @@ function useCarousel() {
   return context
 }
 
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false
+
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target.isContentEditable ||
+    target.closest("[contenteditable='true']") !== null ||
+    target.closest("input, textarea, [role='textbox']") !== null
+  )
+}
+
 function Carousel({
   orientation = "horizontal",
   opts,
@@ -77,6 +89,15 @@ function Carousel({
 
   const handleKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        isEditableTarget(event.target)
+      ) {
+        return
+      }
+
       if (event.key === "ArrowLeft") {
         event.preventDefault()
         scrollPrev()

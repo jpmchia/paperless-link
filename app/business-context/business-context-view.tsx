@@ -374,7 +374,7 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
       <div className="grid min-h-0 flex-1 grid-cols-[320px_minmax(0,1fr)] gap-6 overflow-hidden">
         <Card className="min-h-0 overflow-hidden bg-transparent shadow-none mt-0 pt-0">
           <CardHeader className="px-0 pb-0 pt-0">
-            <CardDescription className="text-sm text-muted-foreground mt-0 pt-0">
+            <CardDescription className="mt-0 pt-0">
               Shared system and instance fields used to enrich AI prompts and background context.
             </CardDescription>
           </CardHeader>
@@ -387,9 +387,9 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
             {SCOPES.map((groupScope) => {
               const groupFields = fieldsByScope[groupScope]
               return (
-                <div key={groupScope} className="space-y-2">
+              <div key={groupScope} className="space-y-2">
                   <div className="flex items-center justify-between gap-2 px-1">
-                    <div className="text-sm font-medium">
+                    <div className="ui-card-title">
                       {groupScope === "system" ? "System Fields" : "Instance Fields"}
                     </div>
                     {groupScope === "instance" ? (
@@ -424,7 +424,7 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
                         }
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <div className="font-medium text-sm">{field.label}</div>
+                          <div className="ui-card-title text-sm">{field.label}</div>
                           <div className="flex items-center gap-1.5">
                             {field.value_source === "dynamic" ? (
                               <Badge variant="secondary">generated</Badge>
@@ -442,11 +442,11 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
                             ) : null}
                           </div>
                         </div>
-                        <div className="mt-1 truncate text-xs text-muted-foreground">{field.key}</div>
+                        <div className="ui-caption mt-1 truncate">{field.key}</div>
                       </button>
                     ))}
                     {groupFields.length === 0 ? (
-                      <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      <div className="ui-help-text rounded-lg border border-dashed p-4">
                         No {groupScope} fields configured yet.
                       </div>
                     ) : null}
@@ -462,12 +462,12 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="flex items-center gap-2 text-lg mb-2">
+                  <CardTitle className="mb-2 flex flex-wrap items-center gap-2">
                     <Database className="mr-2 size-4" />
                     {draft.field_id ? (
                       <>
                         <span>Editing</span>
-                        <span className="bg-primary/10 px-2 text-xl font-semibold text-accent-foreground">
+                        <span className="ui-card-title rounded-md bg-primary/10 px-2 text-primary">
                           {draft.label.trim() || "Business Context"}
                         </span>
                         <span>business context</span>
@@ -478,7 +478,7 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
                   </CardTitle>
                   <CardDescription>
                     {editorDescription}{" "}
-                    <span className="text-xs">
+                    <span className="ui-subtext">
                       {loading
                         ? "Reloading fields..."
                         : "These values are injected into AI prompt execution as shared context."}
@@ -495,14 +495,14 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
             </CardHeader>
             <CardContent className="grid min-h-0 gap-4 overflow-y-auto lg:grid-cols-2">
               {schemaLocked ? (
-                <div className="text-xs text-destructive lg:col-span-2">
+                <div className="ui-help-text text-destructive lg:col-span-2">
                   This is a system defined field. Its label, key, mode, and data type are predefined but its descriptions and values should be tailoured for your business.
                 </div>
               ) : null}
 
-              <div className="mt-2 grid gap-2">
-                <Label className="text-sm" htmlFor="context-field-label">Label</Label>
-                <p className="text-xs text-muted-foreground">
+              <div className="ui-field-stack mt-[var(--field-label-offset)]">
+                <Label htmlFor="context-field-label">Label</Label>
+                <p className="ui-help-text">
                   Human-readable display name for this field. Keep it clear enough that reviewers and prompt authors immediately understand what the value represents.
                 </p>
                 <Input
@@ -523,9 +523,9 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
                   }
                 />
               </div>
-              <div className="mt-2 grid gap-2">
-                <Label className="text-sm" htmlFor="context-field-key">Key</Label>
-                <p className="text-xs text-muted-foreground">
+              <div className="ui-field-stack mt-[var(--field-label-offset)]">
+                <Label htmlFor="context-field-key">Key</Label>
+                <p className="ui-help-text">
                   Stable machine key used in prompts and process templates. Prefer lowercase snake_case because prompts will reference it directly.
                 </p>
                 <Input
@@ -538,9 +538,9 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
                   }}
                 />
               </div>
-              <div className="mt-2 grid gap-2">
-                <Label className="text-sm" htmlFor="context-field-mode">Field Mode</Label>
-                <p className="text-xs text-muted-foreground">
+              <div className="ui-field-stack mt-[var(--field-label-offset)]">
+                <Label htmlFor="context-field-mode">Field Mode</Label>
+                <p className="ui-help-text">
                   Input fields provide static deployment context to the model. Output fields define target structures, expected ranges, or controlled values for generated results.
                 </p>
                 <Select
@@ -566,9 +566,9 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
                   </SelectContent>
                 </Select>
               </div>
-              <div className="mt-2 grid gap-2">
-                <Label className="text-sm" htmlFor="context-field-type">Data Type</Label>
-                <p className="text-xs text-muted-foreground">
+              <div className="ui-field-stack mt-[var(--field-label-offset)]">
+                <Label htmlFor="context-field-type">Data Type</Label>
+                <p className="ui-help-text">
                   Declares the expected value shape. Use <code>List</code> when the runtime value should be treated as multiple items rather than a single string.
                 </p>
                 <Select
@@ -594,9 +594,9 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
                   </SelectContent>
                 </Select>
               </div>
-              <div className="mt-2 grid gap-2 lg:col-span-2">
-                <Label className="text-sm" htmlFor="context-field-description">Description</Label>
-                <p className="text-xs text-muted-foreground">
+              <div className="ui-field-stack mt-[var(--field-label-offset)] lg:col-span-2">
+                <Label htmlFor="context-field-description">Description</Label>
+                <p className="ui-help-text">
                   Describe what this field means, how it should be maintained, and how prompts or workflows should interpret it. This is the single shared definition used for both people and AI.
                 </p>
                 <Textarea
@@ -608,9 +608,9 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
                   rows={1}
                 />
               </div>
-              <div className="grid gap-2 lg:col-span-2">
-                <Label className="text-sm" htmlFor="context-field-value">Current Value</Label>
-                <p className="text-xs text-muted-foreground">
+              <div className="ui-field-stack mt-[var(--field-label-offset)] lg:col-span-2">
+                <Label htmlFor="context-field-value">Current Value</Label>
+                <p className="ui-help-text">
                   {isDynamicField
                     ? `${describeDynamicSource(draft)}. This value is maintained automatically and included in prompt context as a generated snapshot.`
                     : (
@@ -638,8 +638,8 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
               </div>
               {!isInputField ? (
                 <>
-                  <div className="mt-2 grid gap-2">
-                    <Label className="text-sm" htmlFor="context-field-acceptable-values">Acceptable Values</Label>
+                  <div className="ui-field-stack mt-[var(--field-label-offset)]">
+                    <Label htmlFor="context-field-acceptable-values">Acceptable Values</Label>
                     <Textarea
                       id="context-field-acceptable-values"
                       value={toLines(draft.acceptable_values)}
@@ -651,12 +651,12 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
                       }
                       rows={6}
                     />
-                    <p className="text-xs text-muted-foreground">
+                    <p className="ui-help-text">
                       One value per line. Use this for controlled vocabularies or constrained outputs the model should stay within.
                     </p>
                   </div>
-                  <div className="mt-2 grid gap-2">
-                    <Label className="text-sm" htmlFor="context-field-sample-values">Sample Values</Label>
+                  <div className="ui-field-stack mt-[var(--field-label-offset)]">
+                    <Label htmlFor="context-field-sample-values">Sample Values</Label>
                     <Textarea
                       id="context-field-sample-values"
                       value={toLines(draft.sample_values)}
@@ -668,7 +668,7 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
                       }
                       rows={6}
                     />
-                    <p className="text-xs text-muted-foreground">
+                    <p className="ui-help-text">
                       One example per line. Include realistic mock or representative values so prompts have concrete examples for expected output.
                     </p>
                   </div>
@@ -676,9 +676,9 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
               ) : null}
 
               <div className="lg:col-span-2 flex items-end justify-between gap-3">
-                <div className="mt-2 grid gap-2">
-                  <Label className="text-sm" htmlFor="context-field-status">Status</Label>
-                  <p className="text-xs text-muted-foreground">
+                <div className="ui-field-stack mt-[var(--field-label-offset)]">
+                  <Label htmlFor="context-field-status">Status</Label>
+                  <p className="ui-help-text">
                     Active fields are included in prompt context. Inactive fields will not be provided to the model or influence AI generation.
                   </p>
                   <Select
@@ -732,14 +732,14 @@ export function BusinessContextView({ initialFields, initialLoadError = null }: 
 
           <Card className="min-h-0 overflow-hidden">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Audit History</CardTitle>
+              <CardTitle>Audit History</CardTitle>
               <CardDescription>
                 Each saved change appends a revision snapshot so prompt-affecting context can be audited and replayed over time.
               </CardDescription>
             </CardHeader>
             <CardContent className="min-h-0">
                 {historyLoading ? (
-                  <div className="text-xs text-muted-foreground">Loading history...</div>
+                  <div className="ui-help-text">Loading history...</div>
                 ) : null}
 
                 <AuditHistoryTable

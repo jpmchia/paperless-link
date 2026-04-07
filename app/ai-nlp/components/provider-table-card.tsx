@@ -38,7 +38,7 @@ export function ProviderTableCard({
       <CardHeader className="border-b pb-4">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <CardTitle className="text-sm">Providers</CardTitle>
+            <CardTitle>Providers</CardTitle>
             <CardDescription>
               Manage the model providers available to LinkIQ.
             </CardDescription>
@@ -76,15 +76,15 @@ export function ProviderTableCard({
                     >
                       <TableCell className="py-2.5">
                         <div className="min-w-0">
-                          <div className="truncate font-medium text-sm">{provider.label}</div>
-                          <div className="truncate text-[11px] text-muted-foreground">
+                          <div className="ui-card-title truncate text-sm">{provider.label}</div>
+                          <div className="ui-caption truncate">
                             {provider.compatibility_mode === "anthropic"
                               ? "Anthropic"
                               : "OpenAI-compatible"}
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="truncate py-2.5 text-xs text-muted-foreground">
+                      <TableCell className="ui-caption truncate py-2.5">
                         {provider.base_url}
                       </TableCell>
                       <TableCell className="py-2.5 text-xs">
@@ -97,7 +97,7 @@ export function ProviderTableCard({
                   ))
                 ) : (
                   <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={4} className="px-4 py-6 text-sm text-muted-foreground">
+                    <TableCell colSpan={4} className="ui-help-text px-4 py-6 text-sm">
                       No providers configured yet.
                     </TableCell>
                   </TableRow>

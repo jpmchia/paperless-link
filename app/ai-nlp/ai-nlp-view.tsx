@@ -3,8 +3,11 @@
 import * as React from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown, BrainCircuit, Sparkles } from "lucide-react"
 import { toast } from "sonner"
+import {
+  LLMActivityDialog,
+  type LLMAuditEntry,
+} from "@/components/ai/llm-activity-dialog"
 import { type AuditHistoryColumn } from "@/components/audit-history-table"
-import { Button } from "@/components/ui/button"
 import {
   Carousel,
   CarouselApi,
@@ -19,7 +22,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
 import { TreeView, type TreeDataItem } from "@/components/tree-view"
+import {
+  allowsExistingDuplicateLabel,
+  findDuplicateModelLabel,
+} from "@/lib/ai-models"
+import { appendLLMExecutionEntry, useLLMExecutionEntries } from "@/lib/llm-activity"
 import { deleteJson, getJson, postJson } from "@/lib/paperless-client"
 import type {
   AIModel,
@@ -165,6 +174,7 @@ export function AINLPView({
   const [modelHistoryLoading, setModelHistoryLoading] = React.useState(false)
   const [modelHistory, setModelHistory] = React.useState<AIModelHistoryEntry[]>([])
   const [modelTestRunCount, setModelTestRunCount] = React.useState(0)
+  const [modelActivityOpen, setModelActivityOpen] = React.useState(false)
   const [carouselApi, setCarouselApi] = React.useState<CarouselApi>()
   const [catalogActionLoadingKey, setCatalogActionLoadingKey] = React.useState("")
   const [modelSort, setModelSort] = React.useState<ModelSortState>({
@@ -185,9 +195,31 @@ export function AINLPView({
     () => models.filter((model) => model.provider_id === selectedProviderID),
     [models, selectedProviderID]
   )
+  const activeProviderModels = React.useMemo(
+    () => providerModels.filter((model) => model.status !== "inactive"),
+    [providerModels]
+  )
+  const selectedEnabledModelID = React.useMemo(
+    () =>
+      selectedModelKey.startsWith("enabled:")
+        ? selectedModelKey.slice("enabled:".length)
+        : "",
+    [selectedModelKey]
+  )
 
-  const enabledCatalogEntries = catalog.enabled
-  const availableCatalogEntries = catalog.available
+  const { enabled: enabledCatalogEntries, available: availableCatalogEntries } = React.useMemo(
+    () => reconcileCatalogEntries(catalog, activeProviderModels),
+    [activeProviderModels, catalog]
+  )
+  const enabledProviderModels = React.useMemo(() => {
+    const enabledModelIDs = new Set(
+      enabledCatalogEntries
+        .map((entry: AIProviderModelCatalogEntry) => entry.enabled_model_id)
+        .filter((value: string | undefined): value is string => Boolean(value))
+    )
+
+    return activeProviderModels.filter((model) => enabledModelIDs.has(model.model_id))
+  }, [activeProviderModels, enabledCatalogEntries])
   const sortedCatalogEntries = React.useMemo(
     () => sortCatalogEntries([...enabledCatalogEntries, ...availableCatalogEntries], modelSort),
     [enabledCatalogEntries, availableCatalogEntries, modelSort]
@@ -195,26 +227,49 @@ export function AINLPView({
   const selectedEnabledCatalogEntry = React.useMemo(
     () =>
       enabledCatalogEntries.find(
-        (entry) => `enabled:${entry.enabled_model_id}` === selectedModelKey
+        (entry: AIProviderModelCatalogEntry) =>
+          entry.enabled_model_id === selectedEnabledModelID
       ) ?? null,
-    [enabledCatalogEntries, selectedModelKey]
+    [enabledCatalogEntries, selectedEnabledModelID]
   )
   const selectedAvailableCatalogEntry = React.useMemo(
     () =>
       availableCatalogEntries.find(
-        (entry) => `available:${entry.catalog_id}` === selectedModelKey
+        (entry: AIProviderModelCatalogEntry) =>
+          `available:${entry.catalog_id}` === selectedModelKey
       ) ?? null,
     [availableCatalogEntries, selectedModelKey]
   )
   const selectedEnabledModel = React.useMemo(
     () =>
-      selectedEnabledCatalogEntry?.enabled_model_id
-        ? providerModels.find(
-            (model) => model.model_id === selectedEnabledCatalogEntry.enabled_model_id
+      selectedEnabledModelID
+        ? activeProviderModels.find(
+            (model) => model.model_id === selectedEnabledModelID
           ) ?? null
         : null,
-    [providerModels, selectedEnabledCatalogEntry]
+    [activeProviderModels, selectedEnabledModelID]
   )
+  const modelLabelError = React.useMemo(() => {
+    const duplicate = findDuplicateModelLabel(
+      enabledProviderModels,
+      modelDraft.provider_id || selectedProviderID,
+      modelDraft.label,
+      modelDraft.model_id
+    )
+    if (!duplicate) return ""
+    if (allowsExistingDuplicateLabel(selectedEnabledModel, modelDraft.label)) {
+      return ""
+    }
+
+    return `Model labels must be unique within a provider. "${duplicate.label}" already exists.`
+  }, [
+    modelDraft.label,
+    modelDraft.model_id,
+    modelDraft.provider_id,
+    enabledProviderModels,
+    selectedEnabledModel,
+    selectedProviderID,
+  ])
   const processTreeData = React.useMemo<TreeDataItem[]>(
     () => [
       {
@@ -289,6 +344,22 @@ export function AINLPView({
     ],
     []
   )
+  const modelExecutionEntries = useLLMExecutionEntries(
+    selectedEnabledModel?.model_id
+      ? { model_ids: [selectedEnabledModel.model_id] }
+      : undefined
+  )
+  const modelAuditEntries = React.useMemo<LLMAuditEntry[]>(
+    () =>
+      modelHistory.map((entry) => ({
+        id: entry.revision_id,
+        changed_at: entry.changed_at,
+        changed_by: entry.changed_by_username || entry.changed_by_user_id,
+        status: entry.status,
+        summary: entry.change_reason || `Updated ${entry.label}`,
+      })),
+    [modelHistory]
+  )
 
   React.useEffect(() => {
     setHasMounted(true)
@@ -310,19 +381,16 @@ export function AINLPView({
       return
     }
 
-    const enabledSelection =
-      enabledCatalogEntries.find((entry) => `enabled:${entry.enabled_model_id}` === selectedModelKey) ??
-      null
-    if (enabledSelection?.enabled_model_id) {
-      const enabledModel = providerModels.find((model) => model.model_id === enabledSelection.enabled_model_id)
-      if (enabledModel) {
-        setModelDraft({ ...enabledModel })
-        return
-      }
+    if (selectedEnabledModel) {
+      setModelDraft({ ...selectedEnabledModel })
+      return
     }
 
     const availableSelection =
-      availableCatalogEntries.find((entry) => `available:${entry.catalog_id}` === selectedModelKey) ??
+      availableCatalogEntries.find(
+        (entry: AIProviderModelCatalogEntry) =>
+          `available:${entry.catalog_id}` === selectedModelKey
+      ) ??
       null
     if (availableSelection) {
       setModelDraft({
@@ -346,15 +414,27 @@ export function AINLPView({
     const defaultEnabled = enabledCatalogEntries[0]
     if (defaultEnabled?.enabled_model_id) {
       setSelectedModelKey(`enabled:${defaultEnabled.enabled_model_id}`)
-      const enabledModel = providerModels.find((model) => model.model_id === defaultEnabled.enabled_model_id)
+      const enabledModel = activeProviderModels.find(
+        (model) => model.model_id === defaultEnabled.enabled_model_id
+      )
       setModelDraft(enabledModel ? { ...enabledModel } : emptyModel(selectedProviderID))
+    } else if (activeProviderModels[0]) {
+      setSelectedModelKey(`enabled:${activeProviderModels[0].model_id}`)
+      setModelDraft({ ...activeProviderModels[0] })
     } else if (availableCatalogEntries[0]) {
       setSelectedModelKey(`available:${availableCatalogEntries[0].catalog_id}`)
     } else {
       setSelectedModelKey("")
       setModelDraft(emptyModel(selectedProviderID))
     }
-  }, [availableCatalogEntries, enabledCatalogEntries, providerModels, selectedModelKey, selectedProviderID])
+  }, [
+    activeProviderModels,
+    availableCatalogEntries,
+    enabledCatalogEntries,
+    selectedEnabledModel,
+    selectedModelKey,
+    selectedProviderID,
+  ])
 
   async function reloadAll() {
     setLoading(true)
@@ -479,6 +559,13 @@ export function AINLPView({
   }
 
   async function handleSaveModel() {
+    if (modelLabelError) {
+      toast.error("Duplicate model label", {
+        description: modelLabelError,
+      })
+      return
+    }
+
     setSavingModel(true)
     try {
       const saved = await postJson<AIModel>("/api/link-iq/ai/models", modelDraft)
@@ -578,6 +665,13 @@ export function AINLPView({
 
   async function handleEnableSelectedModel() {
     if (!selectedProviderID || !modelDraft.catalog_id) return
+    if (modelLabelError) {
+      toast.error("Duplicate model label", {
+        description: modelLabelError,
+      })
+      return
+    }
+
     setSavingModel(true)
     try {
       const saved = await postJson<AIModel>("/api/link-iq/ai/models/enable", {
@@ -668,10 +762,37 @@ export function AINLPView({
       throw new Error("Select an enabled model first")
     }
 
-    return await postJson<AIModelRunResult>(
-      `/api/link-iq/ai/models/${selectedEnabledModel.model_id}/run`,
-      { prompt }
-    )
+    try {
+      const result = await postJson<AIModelRunResult>(
+        `/api/link-iq/ai/models/${selectedEnabledModel.model_id}/run`,
+        { prompt }
+      )
+      appendLLMExecutionEntry({
+        source: "ai.model.run",
+        trigger: "Direct model test",
+        provider_id: selectedEnabledModel.provider_id,
+        provider_label: selectedProvider?.label,
+        model_id: selectedEnabledModel.model_id,
+        model_label: result.model_label || selectedEnabledModel.label,
+        prompt: result.prompt || prompt,
+        output_text: result.output_text || "",
+        generated_at: result.generated_at,
+      })
+      return result
+    } catch (error) {
+      appendLLMExecutionEntry({
+        source: "ai.model.run",
+        trigger: "Direct model test",
+        provider_id: selectedEnabledModel.provider_id,
+        provider_label: selectedProvider?.label,
+        model_id: selectedEnabledModel.model_id,
+        model_label: selectedEnabledModel.label,
+        prompt,
+        error:
+          error instanceof Error ? error.message : "Failed to run model test",
+      })
+      throw error
+    }
   }
 
   if (!hasMounted) {
@@ -724,14 +845,16 @@ export function AINLPView({
                   showProviderStep()
                 }}
               />
-              <div className="pt-1 text-xs text-muted-foreground">
+              <div className="ui-help-text pt-1">
                 Select a provider to edit it and review the models currently available from that endpoint. Select an enabled model to inspect or update its managed parameters.
               </div>
             </div>
 
+            <Separator />
+
             <div className="space-y-2">
-              <div className="text-sm font-medium">Processes & prompts</div>
-              <div className="overflow-hidden rounded-lg border">
+              <div className="ui-card-title">Processes & prompts</div>
+              <div className="overflow-hidden rounded-lg">
                 <TreeView
                   data={processTreeData}
                   initialSelectedItemId={
@@ -742,7 +865,7 @@ export function AINLPView({
                   className="h-full min-h-0 overflow-auto"
                 />
               </div>
-              <div className="text-xs text-muted-foreground">
+              <div className="ui-help-text">
                 Group prompts by process. `Generate a description` is the first prompt under the `Taxonomy` process.
               </div>
             </div>
@@ -762,12 +885,13 @@ export function AINLPView({
             opts={{ align: "start", containScroll: "trimSnaps" }}
             className="h-full min-h-0"
           >
+             
             <CarouselPrevious
-              className="left-3 z-30 size-14 rounded-2xl border-white/15 bg-background/50 text-foreground shadow-xl backdrop-blur-md hover:bg-background/70"
+              className="left-0 z-30 size-10 rounded-[5rem] border-white/50 bg-accent/50 text-foreground shadow-xl backdrop-blur-md hover:bg-foreground/70"
               aria-label="Previous AI & NLP step"
             />
             <CarouselNext
-              className="right-3 z-30 size-14 rounded-2xl border-white/15 bg-background/50 text-foreground shadow-xl backdrop-blur-md hover:bg-background/70"
+              className="right-0 z-30 size-10 rounded-[5rem] border-white/50 bg-accent/50 text-foreground shadow-xl backdrop-blur-md hover:bg-foreground/50 [&_svg]:size-8 [&_svg]:translate-x-0.5"
               aria-label="Next AI & NLP step"
             />
             <CarouselContent className="h-full">
@@ -829,6 +953,7 @@ export function AINLPView({
                 selectedAvailableCatalogEntry={selectedAvailableCatalogEntry}
                 selectedProviderID={selectedProviderID}
                 modelDraft={modelDraft}
+                modelLabelError={modelLabelError}
                 savingModel={savingModel}
                 deletingModel={deletingModel}
                 modelHistoryLoading={modelHistoryLoading}
@@ -844,6 +969,12 @@ export function AINLPView({
 
             <CarouselItem className="h-full basis-1/2">
               <ModelTestCard
+                activityDisabled={
+                  modelExecutionEntries.length === 0 &&
+                  modelAuditEntries.length === 0 &&
+                  !selectedEnabledModel
+                }
+                onOpenActivity={() => setModelActivityOpen(true)}
                 selectedEnabledModel={selectedEnabledModel}
                 onRunModel={handleRunModelTest}
                 onTestCompleted={() => setModelTestRunCount((current) => current + 1)}
@@ -867,6 +998,17 @@ export function AINLPView({
             </CarouselContent>
           </Carousel>
         )}
+        <LLMActivityDialog
+          open={modelActivityOpen}
+          onOpenChange={setModelActivityOpen}
+          title="LLM activity"
+          description="Review direct model test executions and the audit trail for the selected enabled model."
+          executionEntries={modelExecutionEntries}
+          auditEntries={modelAuditEntries}
+          auditLoading={modelHistoryLoading}
+          auditTargetLabel={selectedEnabledModel?.label}
+          executionEmptyMessage="No direct model test executions have been recorded for this model yet."
+        />
       </div>
     </div>
   )
@@ -902,5 +1044,60 @@ function getCatalogEntrySortValue(
       return entry.output_cost_per_million ?? Number.POSITIVE_INFINITY
     case "context":
       return entry.max_context_tokens ?? 0
+  }
+}
+
+function reconcileCatalogEntries(
+  catalog: {
+    available: AIProviderModelCatalogEntry[]
+    enabled: AIProviderModelCatalogEntry[]
+  },
+  activeModels: AIModel[]
+) {
+  const activeModelByCatalogID = new Map<string, AIModel>()
+  const activeModelByName = new Map<string, AIModel>()
+
+  for (const model of activeModels) {
+    if (model.catalog_id) {
+      activeModelByCatalogID.set(model.catalog_id, model)
+    }
+    if (model.model_name) {
+      activeModelByName.set(model.model_name, model)
+    }
+  }
+
+  const normalizedEnabled = new Map<string, AIProviderModelCatalogEntry>()
+
+  const markEnabled = (entry: AIProviderModelCatalogEntry) => {
+    const matchedModel =
+      (entry.catalog_id
+        ? activeModelByCatalogID.get(entry.catalog_id)
+        : undefined) ?? activeModelByName.get(entry.model_name)
+
+    const normalizedEntry = matchedModel
+      ? {
+          ...entry,
+          enabled_model_id: entry.enabled_model_id || matchedModel.model_id,
+        }
+      : entry
+
+    if (normalizedEntry.enabled_model_id) {
+      normalizedEnabled.set(normalizedEntry.catalog_id, normalizedEntry)
+    }
+
+    return normalizedEntry
+  }
+
+  for (const entry of catalog.enabled) {
+    markEnabled(entry)
+  }
+
+  const normalizedAvailable = catalog.available
+    .map((entry) => markEnabled(entry))
+    .filter((entry) => !entry.enabled_model_id)
+
+  return {
+    enabled: Array.from(normalizedEnabled.values()),
+    available: normalizedAvailable,
   }
 }

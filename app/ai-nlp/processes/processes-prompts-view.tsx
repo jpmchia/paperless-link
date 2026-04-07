@@ -4,7 +4,14 @@ import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import type { IDisposable, editor as MonacoEditor } from "monaco-editor"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import {
+  LLMActivityDialog,
+  type LLMAuditEntry,
+} from "@/components/ai/llm-activity-dialog"
+import {
+  buildBusinessContextToken,
+  normalizeAIProcessAllocation,
+} from "@/lib/ai-processes"
 import {
   Carousel,
   type CarouselApi,
@@ -13,9 +20,11 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel"
+import { appendLLMExecutionEntry, useLLMExecutionEntries } from "@/lib/llm-activity"
 import { getJson, postJson } from "@/lib/paperless-client"
 import type {
   AIModel,
+  AIModelHistoryEntry,
   AIProcessConfig,
   AIProvider,
   ContextField,
@@ -38,36 +47,60 @@ type Props = {
 }
 
 const BUSINESS_CONTEXT_SECTION = "business_context"
+const DEFAULT_RETAIN_HISTORY = true
+const DEFAULT_INCLUDE_HISTORY = true
+const DEFAULT_HISTORY_TEXT_LENGTH = 4000
+
+function normalizeTaxonomyProcess(process: AIProcessConfig): AIProcessConfig {
+  const normalizedAllocation = normalizeAIProcessAllocation(process)
+  const retainHistory = process.retain_history ?? DEFAULT_RETAIN_HISTORY
+  const includeHistory =
+    retainHistory && (process.include_history ?? DEFAULT_INCLUDE_HISTORY)
+  const historyTextLength =
+    typeof process.history_text_length === "number" &&
+    Number.isFinite(process.history_text_length) &&
+    process.history_text_length > 0
+      ? Math.round(process.history_text_length)
+      : DEFAULT_HISTORY_TEXT_LENGTH
+
+  return {
+    ...normalizedAllocation,
+    retain_history: retainHistory,
+    include_history: includeHistory,
+    history_text_length: historyTextLength,
+  }
+}
 
 function defaultTaxonomyProcess(): AIProcessConfig {
-  return {
+  return normalizeTaxonomyProcess({
     process_key: "taxonomy.description",
     section: "taxonomy",
     label: "Taxonomy Description",
-    description: "Generate concise taxonomy node descriptions from node context.",
+    description:
+      "Generate concise taxonomy node descriptions from node context.",
     provider_id: "",
     model_id: "",
     prompt_template:
-      "Write a concise, business-friendly description for a taxonomy node in a document intelligence system.\n\nNode label: {{ .label }}\n{{ if .parent_path }}Parent path: {{ .parent_path }}\n{{ end }}{{ if .path_preview }}Full path: {{ .path_preview }}\n{{ end }}Source scope: {{ .source_scope }}\n{{ if .source_id }}Source identifier: {{ .source_id }}\n{{ end }}{{ if .existing_description }}Existing description: {{ .existing_description }}\n{{ end }}\nReturn only the description text in 1-2 sentences, with no bullets or prefixes.",
+      "Write a concise, business-friendly description for a taxonomy node in a document intelligence system.\n\nNode label: {{ .label }}\n{{ if .node_type }}Node type: {{ .node_type }}\n{{ end }}{{ if .parent_path }}Parent path: {{ .parent_path }}\n{{ end }}{{ if .path_preview }}Full path: {{ .path_preview }}\n{{ end }}Source scope: {{ .source_scope }}\n{{ if .source_id }}Source identifier: {{ .source_id }}\n{{ end }}{{ if .existing_description }}Existing description: {{ .existing_description }}\n{{ end }}\nReturn only the description text in 1-2 sentences, with no bullets or prefixes.",
     output_format: "text",
     status: "active",
-  }
+  })
 }
 
 function createEmptyComparisonSlots(
   process: AIProcessConfig,
   models: AIModel[]
 ): ComparisonSlotState[] {
-  const firstMatchingModel =
-    process.model_id && models.some((model) => model.model_id === process.model_id)
-      ? process.model_id
-      : ""
+  const firstModelID = process.default_model_id || process.model_id || ""
+  const firstMatchingModel = firstModelID
+    ? models.find((model) => model.model_id === firstModelID) ?? null
+    : null
 
   return [
     {
       id: "comparison-1",
-      providerID: process.provider_id || "",
-      modelID: firstMatchingModel,
+      providerID: firstMatchingModel?.provider_id || process.provider_id || "",
+      modelID: firstMatchingModel?.model_id || "",
       running: false,
       result: null,
       error: "",
@@ -97,27 +130,45 @@ export function ProcessesPromptsView({
   initialProviders,
   embedded = false,
 }: Props) {
-  const initialProcess =
-    initialProcesses.find((process) => process.process_key === "taxonomy.description") ??
-    defaultTaxonomyProcess()
+  const initialProcess = normalizeTaxonomyProcess(
+    initialProcesses.find(
+      (process) => process.process_key === "taxonomy.description"
+    ) ?? defaultTaxonomyProcess()
+  )
 
   const [providers, setProviders] = React.useState(initialProviders)
   const [models, setModels] = React.useState(initialModels)
-  const [businessContextFields, setBusinessContextFields] = React.useState<ContextField[]>([])
+  const [businessContextFields, setBusinessContextFields] = React.useState<
+    ContextField[]
+  >([])
   const [taxonomyProcessDraft, setTaxonomyProcessDraft] =
     React.useState<AIProcessConfig>(initialProcess)
-  const [comparisonSlots, setComparisonSlots] = React.useState<ComparisonSlotState[]>(
-    () => createEmptyComparisonSlots(initialProcess, initialModels)
-  )
+  const [comparisonSlots, setComparisonSlots] = React.useState<
+    ComparisonSlotState[]
+  >(() => createEmptyComparisonSlots(initialProcess, initialModels))
   const [loading, setLoading] = React.useState(false)
   const [savingProcess, setSavingProcess] = React.useState(false)
-  const [selectedFieldID, setSelectedFieldID] = React.useState<string>("process:label")
-  const [renderFieldPillsInEditor, setRenderFieldPillsInEditor] = React.useState(true)
+  const [processActivityOpen, setProcessActivityOpen] = React.useState(false)
+  const [processAuditLoading, setProcessAuditLoading] = React.useState(false)
+  const [processAuditHistory, setProcessAuditHistory] = React.useState<
+    AIModelHistoryEntry[]
+  >([])
+  const [selectedFieldID, setSelectedFieldID] =
+    React.useState<string>("process:label")
+  const [renderFieldPillsInEditor, setRenderFieldPillsInEditor] =
+    React.useState(true)
   const [carouselApi, setCarouselApi] = React.useState<CarouselApi>()
-  const promptEditorRef = React.useRef<MonacoEditor.IStandaloneCodeEditor | null>(null)
+  const [manualSelectionModelID, setManualSelectionModelID] = React.useState(
+    initialProcess.default_model_id || initialProcess.model_id || ""
+  )
+  const promptEditorRef =
+    React.useRef<MonacoEditor.IStandaloneCodeEditor | null>(null)
   const selectionListenerRef = React.useRef<IDisposable | null>(null)
   const decorationIDsRef = React.useRef<string[]>([])
-  const lastSelectionRef = React.useRef<{ start: number; end: number }>({ start: 0, end: 0 })
+  const lastSelectionRef = React.useRef<{ start: number; end: number }>({
+    start: 0,
+    end: 0,
+  })
 
   const processFields = React.useMemo<PromptFieldDescriptor[]>(
     () => [
@@ -130,10 +181,20 @@ export function ProcessesPromptsView({
         source: "process",
       },
       {
+        id: "process:node_type",
+        label: "Node Type",
+        token: "{{ .node_type }}",
+        description:
+          "An optional free-text type that classifies the taxonomy node.",
+        sampleValues: ["Business Area", "Department", "Document Type"],
+        source: "process",
+      },
+      {
         id: "process:parent_path",
         label: "Parent Path",
         token: "{{ .parent_path }}",
-        description: "The parent branch path for the taxonomy node, if one exists.",
+        description:
+          "The parent branch path for the taxonomy node, if one exists.",
         sampleValues: ["CoSec > Company", "Finance > Accounts Payable"],
         source: "process",
       },
@@ -157,7 +218,8 @@ export function ProcessesPromptsView({
         id: "process:source_id",
         label: "Source Identifier",
         token: "{{ .source_id }}",
-        description: "The source identifier for instance-scoped nodes when available.",
+        description:
+          "The source identifier for instance-scoped nodes when available.",
         sampleValues: ["example-ngx"],
         source: "process",
       },
@@ -165,7 +227,8 @@ export function ProcessesPromptsView({
         id: "process:existing_description",
         label: "Existing Description",
         token: "{{ .existing_description }}",
-        description: "The current saved description for the node, if one already exists.",
+        description:
+          "The current saved description for the node, if one already exists.",
         sampleValues: ["Documents relating to company incorporation filings."],
         source: "process",
       },
@@ -178,7 +241,7 @@ export function ProcessesPromptsView({
       businessContextFields.map((field) => ({
         id: `business:${field.field_id}`,
         label: field.label,
-        token: `{{ index .business_context "${field.key}" }}`,
+        token: buildBusinessContextToken(field.key),
         description: field.description,
         sampleValues: field.sample_values,
         acceptableValues: field.acceptable_values,
@@ -194,7 +257,9 @@ export function ProcessesPromptsView({
     [processFields, businessFieldDescriptors]
   )
 
-  const referenceDescriptors = React.useMemo<Map<string, PromptFieldReferenceDescriptor>>(() => {
+  const referenceDescriptors = React.useMemo<
+    Map<string, PromptFieldReferenceDescriptor>
+  >(() => {
     const map = new Map<string, PromptFieldReferenceDescriptor>()
 
     for (const field of allFields) {
@@ -202,7 +267,10 @@ export function ProcessesPromptsView({
         if (!map.has(reference)) {
           map.set(reference, {
             reference,
-            label: reference === ".business_context" ? "Business context" : field.label,
+            label:
+              reference === ".business_context"
+                ? "Business context"
+                : field.label,
             description:
               reference === ".business_context"
                 ? "Business context map used to resolve instance and system business definitions."
@@ -228,58 +296,110 @@ export function ProcessesPromptsView({
     )
 
     return {
-      label: processFields.find((field) => field.id === "process:label")?.sampleValues?.[0] || "Company",
+      label:
+        processFields.find((field) => field.id === "process:label")
+          ?.sampleValues?.[0] || "Company",
+      node_type:
+        processFields.find((field) => field.id === "process:node_type")
+          ?.sampleValues?.[0] || "Business Area",
       parent_path:
-        processFields.find((field) => field.id === "process:parent_path")?.sampleValues?.[0] ||
-        "",
+        processFields.find((field) => field.id === "process:parent_path")
+          ?.sampleValues?.[0] || "",
       path_preview:
-        processFields.find((field) => field.id === "process:path_preview")?.sampleValues?.[0] ||
-        "",
+        processFields.find((field) => field.id === "process:path_preview")
+          ?.sampleValues?.[0] || "",
       source_scope:
-        processFields.find((field) => field.id === "process:source_scope")?.sampleValues?.[0] ||
-        "global",
+        processFields.find((field) => field.id === "process:source_scope")
+          ?.sampleValues?.[0] || "global",
       source_id:
-        processFields.find((field) => field.id === "process:source_id")?.sampleValues?.[0] ||
-        "",
+        processFields.find((field) => field.id === "process:source_id")
+          ?.sampleValues?.[0] || "",
       existing_description:
-        processFields.find((field) => field.id === "process:existing_description")?.sampleValues?.[0] ||
-        "",
+        processFields.find(
+          (field) => field.id === "process:existing_description"
+        )?.sampleValues?.[0] || "",
       business_context: businessContext,
     }
   }, [businessContextFields, processFields])
 
   const renderedPrompt = React.useMemo(
-    () => renderPromptTemplate(taxonomyProcessDraft.prompt_template, exampleContext),
+    () =>
+      renderPromptTemplate(
+        taxonomyProcessDraft.prompt_template,
+        exampleContext
+      ),
     [exampleContext, taxonomyProcessDraft.prompt_template]
   )
+  const processExecutionEntries = useLLMExecutionEntries({
+    process_key: "taxonomy.description",
+  })
+  const processAuditEntries = React.useMemo<LLMAuditEntry[]>(
+    () =>
+      processAuditHistory.map((entry) => ({
+        id: entry.revision_id,
+        changed_at: entry.changed_at,
+        changed_by: entry.changed_by_username || entry.changed_by_user_id,
+        status: entry.status,
+        summary: entry.change_reason || `Updated ${entry.label}`,
+      })),
+    [processAuditHistory]
+  )
+  const defaultAllocatedModel = React.useMemo(
+    () =>
+      models.find(
+        (model) => model.model_id === taxonomyProcessDraft.default_model_id
+      ) ?? null,
+    [models, taxonomyProcessDraft.default_model_id]
+  )
+  const manualSelectableModelIDs = React.useMemo(() => {
+    const values = [
+      taxonomyProcessDraft.default_model_id,
+      taxonomyProcessDraft.fallback_model_id,
+      ...(taxonomyProcessDraft.available_model_ids ?? []),
+    ]
+
+    return Array.from(new Set(values.filter(Boolean))) as string[]
+  }, [
+    taxonomyProcessDraft.available_model_ids,
+    taxonomyProcessDraft.default_model_id,
+    taxonomyProcessDraft.fallback_model_id,
+  ])
 
   async function reloadAll() {
     setLoading(true)
     try {
-      const [providersResponse, modelsResponse, processesResponse, businessContextResponse] =
-        await Promise.all([
-          getJson<{ providers?: AIProvider[] }>("/api/link-iq/ai/providers"),
-          getJson<{ models?: AIModel[] }>("/api/link-iq/ai/models"),
-          getJson<{ processes?: AIProcessConfig[] }>("/api/link-iq/ai/processes"),
-          getJson<{ fields?: ContextField[] }>(
-            `/api/link-iq/context-fields?section=${BUSINESS_CONTEXT_SECTION}`
-          ),
-        ])
+      const [
+        providersResponse,
+        modelsResponse,
+        processesResponse,
+        businessContextResponse,
+      ] = await Promise.all([
+        getJson<{ providers?: AIProvider[] }>("/api/link-iq/ai/providers"),
+        getJson<{ models?: AIModel[] }>("/api/link-iq/ai/models"),
+        getJson<{ processes?: AIProcessConfig[] }>("/api/link-iq/ai/processes"),
+        getJson<{ fields?: ContextField[] }>(
+          `/api/link-iq/context-fields?section=${BUSINESS_CONTEXT_SECTION}`
+        ),
+      ])
 
       const nextProviders = providersResponse.providers ?? []
       const nextModels = modelsResponse.models ?? []
       const nextProcesses = processesResponse.processes ?? []
       const nextBusinessContextFields = businessContextResponse.fields ?? []
-      const nextProcess =
-        nextProcesses.find((process) => process.process_key === "taxonomy.description") ??
-        defaultTaxonomyProcess()
+      const nextProcess = normalizeTaxonomyProcess(
+        nextProcesses.find(
+          (process) => process.process_key === "taxonomy.description"
+        ) ?? defaultTaxonomyProcess()
+      )
 
       setProviders(nextProviders)
       setModels(nextModels)
       setBusinessContextFields(nextBusinessContextFields)
       setTaxonomyProcessDraft(nextProcess)
       setComparisonSlots((current) =>
-        current.some((slot) => slot.providerID || slot.modelID || slot.result || slot.error)
+        current.some(
+          (slot) => slot.providerID || slot.modelID || slot.result || slot.error
+        )
           ? current
           : createEmptyComparisonSlots(nextProcess, nextModels)
       )
@@ -293,10 +413,24 @@ export function ProcessesPromptsView({
   }
 
   React.useEffect(() => {
-    if (!allFields.some((field) => field.id === selectedFieldID) && allFields[0]) {
+    if (
+      !allFields.some((field) => field.id === selectedFieldID) &&
+      allFields[0]
+    ) {
       setSelectedFieldID(allFields[0].id)
     }
   }, [allFields, selectedFieldID])
+
+  React.useEffect(() => {
+    if (
+      manualSelectionModelID &&
+      manualSelectableModelIDs.includes(manualSelectionModelID)
+    ) {
+      return
+    }
+
+    setManualSelectionModelID(manualSelectableModelIDs[0] || "")
+  }, [manualSelectableModelIDs, manualSelectionModelID])
 
   React.useEffect(() => {
     void reloadAll()
@@ -304,11 +438,40 @@ export function ProcessesPromptsView({
   }, [])
 
   React.useEffect(() => {
+    async function loadProcessAuditHistory() {
+      if (!taxonomyProcessDraft.default_model_id) {
+        setProcessAuditHistory([])
+        return
+      }
+
+      setProcessAuditLoading(true)
+      try {
+        const result = await getJson<{ history?: AIModelHistoryEntry[] }>(
+          `/api/link-iq/ai/models/${taxonomyProcessDraft.default_model_id}/history?limit=100`
+        )
+        setProcessAuditHistory(result.history ?? [])
+      } catch (error) {
+        toast.error("Failed to load process audit history", {
+          description: error instanceof Error ? error.message : "Unknown error",
+        })
+        setProcessAuditHistory([])
+      } finally {
+        setProcessAuditLoading(false)
+      }
+    }
+
+    void loadProcessAuditHistory()
+  }, [taxonomyProcessDraft.default_model_id])
+
+  React.useEffect(() => {
     return () => {
       selectionListenerRef.current?.dispose()
       const editor = promptEditorRef.current
       if (editor && decorationIDsRef.current.length > 0) {
-        decorationIDsRef.current = editor.deltaDecorations(decorationIDsRef.current, [])
+        decorationIDsRef.current = editor.deltaDecorations(
+          decorationIDsRef.current,
+          []
+        )
       }
     }
   }, [])
@@ -319,7 +482,10 @@ export function ProcessesPromptsView({
     if (!editor || !model) return
 
     if (!renderFieldPillsInEditor) {
-      decorationIDsRef.current = editor.deltaDecorations(decorationIDsRef.current, [])
+      decorationIDsRef.current = editor.deltaDecorations(
+        decorationIDsRef.current,
+        []
+      )
       return
     }
 
@@ -369,7 +535,10 @@ export function ProcessesPromptsView({
       }
     }
 
-    decorationIDsRef.current = editor.deltaDecorations(decorationIDsRef.current, decorations)
+    decorationIDsRef.current = editor.deltaDecorations(
+      decorationIDsRef.current,
+      decorations
+    )
   }, [referenceDescriptors, renderFieldPillsInEditor])
 
   React.useEffect(() => {
@@ -396,12 +565,16 @@ export function ProcessesPromptsView({
       const selection = editor?.getSelection()
       const start =
         explicitPosition ??
-        (selection && model ? model.getOffsetAt(selection.getStartPosition()) : undefined) ??
+        (selection && model
+          ? model.getOffsetAt(selection.getStartPosition())
+          : undefined) ??
         lastSelectionRef.current.start ??
         text.length
       const end =
         explicitPosition ??
-        (selection && model ? model.getOffsetAt(selection.getEndPosition()) : undefined) ??
+        (selection && model
+          ? model.getOffsetAt(selection.getEndPosition())
+          : undefined) ??
         lastSelectionRef.current.end ??
         start
       const nextText = `${text.slice(0, start)}${token}${text.slice(end)}`
@@ -433,7 +606,10 @@ export function ProcessesPromptsView({
   async function handleSaveProcess() {
     setSavingProcess(true)
     try {
-      await postJson<AIProcessConfig>("/api/link-iq/ai/processes", taxonomyProcessDraft)
+      await postJson<AIProcessConfig>(
+        "/api/link-iq/ai/processes",
+        normalizeTaxonomyProcess(taxonomyProcessDraft)
+      )
       toast.success("Taxonomy process updated")
       await reloadAll()
     } catch (error) {
@@ -448,6 +624,13 @@ export function ProcessesPromptsView({
   async function handleRunComparison(slotID: string) {
     const slot = comparisonSlots.find((entry) => entry.id === slotID)
     if (!slot?.modelID) return
+    const selectedModel =
+      models.find((model) => model.model_id === slot.modelID) ?? null
+    const selectedProvider =
+      providers.find(
+        (provider) =>
+          provider.provider_id === (selectedModel?.provider_id || slot.providerID)
+      ) ?? null
 
     setComparisonSlots((current) =>
       current.map((entry) =>
@@ -456,10 +639,14 @@ export function ProcessesPromptsView({
     )
 
     try {
-      const result = await postJson<{ output_text?: string; prompt?: string; generated_at?: string }>(
-        `/api/link-iq/ai/models/${slot.modelID}/run`,
-        { prompt: renderedPrompt }
-      )
+      const result = await postJson<{
+        model_label?: string
+        output_text?: string
+        prompt?: string
+        generated_at?: string
+      }>(`/api/link-iq/ai/models/${slot.modelID}/run`, {
+        prompt: renderedPrompt,
+      })
 
       setComparisonSlots((current) =>
         current.map((entry) =>
@@ -479,18 +666,45 @@ export function ProcessesPromptsView({
             : entry
         )
       )
+      appendLLMExecutionEntry({
+        source: "ai.model.run",
+        trigger: "Process comparison",
+        process_key: taxonomyProcessDraft.process_key,
+        process_label: taxonomyProcessDraft.label,
+        provider_id: selectedModel?.provider_id || slot.providerID,
+        provider_label: selectedProvider?.label,
+        model_id: slot.modelID,
+        model_label: result.model_label || selectedModel?.label,
+        prompt: result.prompt || renderedPrompt,
+        output_text: result.output_text || "",
+        generated_at: result.generated_at,
+      })
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to run comparison"
       setComparisonSlots((current) =>
         current.map((entry) =>
           entry.id === slotID
             ? {
                 ...entry,
                 running: false,
-                error: error instanceof Error ? error.message : "Failed to run comparison",
+                error: message,
               }
             : entry
         )
       )
+      appendLLMExecutionEntry({
+        source: "ai.model.run",
+        trigger: "Process comparison",
+        process_key: taxonomyProcessDraft.process_key,
+        process_label: taxonomyProcessDraft.label,
+        provider_id: selectedModel?.provider_id || slot.providerID,
+        provider_label: selectedProvider?.label,
+        model_id: slot.modelID,
+        model_label: selectedModel?.label,
+        prompt: renderedPrompt,
+        error: message,
+      })
       toast.error("Failed to run comparison", {
         description: error instanceof Error ? error.message : "Unknown error",
       })
@@ -511,7 +725,7 @@ export function ProcessesPromptsView({
         className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden"
       >
         <CarouselContent className="ml-0 h-full">
-          <CarouselItem className="flex h-full min-h-0 basis-full flex-col pl-0 pr-0">
+          <CarouselItem className="flex h-full min-h-0 basis-full flex-col pr-0 pl-0">
             <PromptTemplateConfigurationCard
               promptDraft={taxonomyProcessDraft}
               businessFields={businessFieldDescriptors}
@@ -520,7 +734,31 @@ export function ProcessesPromptsView({
               selectedFieldID={selectedFieldID}
               onSelectField={setSelectedFieldID}
               onChangePromptTemplate={(value) =>
-                setTaxonomyProcessDraft((current) => ({ ...current, prompt_template: value }))
+                setTaxonomyProcessDraft((current) => ({
+                  ...current,
+                  prompt_template: value,
+                }))
+              }
+              onChangeRetainHistory={(value) =>
+                setTaxonomyProcessDraft((current) => ({
+                  ...current,
+                  retain_history: value,
+                  include_history: value
+                    ? (current.include_history ?? DEFAULT_INCLUDE_HISTORY)
+                    : false,
+                }))
+              }
+              onChangeIncludeHistory={(value) =>
+                setTaxonomyProcessDraft((current) => ({
+                  ...current,
+                  include_history: value,
+                }))
+              }
+              onChangeHistoryTextLength={(value) =>
+                setTaxonomyProcessDraft((current) => ({
+                  ...current,
+                  history_text_length: value ?? DEFAULT_HISTORY_TEXT_LENGTH,
+                }))
               }
               onInsertField={insertPromptToken}
               onReload={() => void reloadAll()}
@@ -573,25 +811,61 @@ export function ProcessesPromptsView({
             />
           </CarouselItem>
 
-          <CarouselItem className="flex h-full min-h-0 basis-full flex-col pl-0 pr-0">
+          <CarouselItem className="flex h-full min-h-0 basis-full flex-col pr-0 pl-0">
             <ModelAllocationCard
               promptDraft={taxonomyProcessDraft}
-              providers={providers}
               models={models}
-              onChangeProvider={(providerID) => {
-                const nextModel = models.find((model) => model.provider_id === providerID)
-                setTaxonomyProcessDraft((current) => ({
-                  ...current,
-                  provider_id: providerID,
-                  model_id:
-                    current.provider_id === providerID && current.model_id
-                      ? current.model_id
-                      : nextModel?.model_id || "",
-                }))
-              }}
-              onChangeModel={(modelID) =>
-                setTaxonomyProcessDraft((current) => ({ ...current, model_id: modelID }))
+              providers={providers}
+              manualSelectionModelID={manualSelectionModelID}
+              activityDisabled={
+                processExecutionEntries.length === 0 &&
+                processAuditEntries.length === 0 &&
+                !taxonomyProcessDraft.default_model_id
               }
+              onChangeAvailableModel={(modelID, enabled) =>
+                setTaxonomyProcessDraft((current) =>
+                  normalizeTaxonomyProcess({
+                    ...current,
+                    available_model_ids: enabled
+                      ? [...(current.available_model_ids ?? []), modelID]
+                      : (current.available_model_ids ?? []).filter(
+                          (value) => value !== modelID
+                        ),
+                  })
+                )
+              }
+              onChangeDefaultModel={(modelID) => {
+                const nextModel =
+                  models.find((model) => model.model_id === modelID) ?? null
+                setTaxonomyProcessDraft((current) =>
+                  normalizeTaxonomyProcess({
+                    ...current,
+                    provider_id: nextModel?.provider_id || "",
+                    default_model_id: modelID,
+                    model_id: modelID,
+                    fallback_model_id:
+                      current.fallback_model_id === modelID
+                        ? ""
+                        : current.fallback_model_id,
+                    available_model_ids: (current.available_model_ids ?? []).filter(
+                      (value) => value !== modelID
+                    ),
+                  })
+                )
+              }}
+              onChangeFallbackModel={(modelID) =>
+                setTaxonomyProcessDraft((current) =>
+                  normalizeTaxonomyProcess({
+                    ...current,
+                    fallback_model_id: modelID,
+                    available_model_ids: (current.available_model_ids ?? []).filter(
+                      (value) => value !== modelID
+                    ),
+                  })
+                )
+              }
+              onChangeManualSelectionModel={setManualSelectionModelID}
+              onOpenActivity={() => setProcessActivityOpen(true)}
               onSave={() => void handleSaveProcess()}
               saving={savingProcess}
             />
@@ -599,18 +873,29 @@ export function ProcessesPromptsView({
         </CarouselContent>
 
         <CarouselPrevious
-          className="absolute left-4 top-1/2 z-20 h-16 w-16 -translate-y-1/2 rounded-full border-white/15 bg-background/55 text-foreground shadow-2xl backdrop-blur-md hover:bg-background/70"
+          className="absolute top-1/2 left-4 z-20 h-16 w-16 -translate-y-1/2 rounded-full border-white/15 bg-background/55 text-foreground shadow-2xl backdrop-blur-md hover:bg-background/70"
           variant="ghost"
         >
           <ChevronLeft className="size-8" />
         </CarouselPrevious>
         <CarouselNext
-          className="absolute right-4 top-1/2 z-20 h-16 w-16 -translate-y-1/2 rounded-full border-white/15 bg-background/55 text-foreground shadow-2xl backdrop-blur-md hover:bg-background/70"
+          className="absolute top-1/2 right-4 z-20 h-16 w-16 -translate-y-1/2 rounded-full border-white/15 bg-background/55 text-foreground shadow-2xl backdrop-blur-md hover:bg-background/70"
           variant="ghost"
         >
           <ChevronRight className="size-8" />
         </CarouselNext>
       </Carousel>
+      <LLMActivityDialog
+        open={processActivityOpen}
+        onOpenChange={setProcessActivityOpen}
+        title="LLM activity"
+        description="Review taxonomy process executions and the audit trail of the currently allocated default model."
+        executionEntries={processExecutionEntries}
+        auditEntries={processAuditEntries}
+        auditLoading={processAuditLoading}
+        auditTargetLabel={defaultAllocatedModel?.label}
+        executionEmptyMessage="No executions have been recorded for this process yet."
+      />
     </div>
   )
 
@@ -623,34 +908,49 @@ function extractDotReferences(token: string) {
 
 function renderPromptTemplate(template: string, context: PromptExampleContext) {
   let output = template
-  const ifPattern = /{{\s*if\s+(.+?)\s*}}([\s\S]*?)(?:{{\s*else\s*}}([\s\S]*?))?{{\s*end\s*}}/g
+  const ifPattern =
+    /{{\s*if\s+(.+?)\s*}}([\s\S]*?)(?:{{\s*else\s*}}([\s\S]*?))?{{\s*end\s*}}/g
 
   let previous = ""
   while (output !== previous) {
     previous = output
-    output = output.replace(ifPattern, (_, condition: string, truthyBlock: string, falsyBlock?: string) => {
-      return resolveTemplateValue(condition, context)
-        ? truthyBlock
-        : (falsyBlock ?? "")
-    })
+    output = output.replace(
+      ifPattern,
+      (_, condition: string, truthyBlock: string, falsyBlock?: string) => {
+        return resolveTemplateValue(condition, context)
+          ? truthyBlock
+          : (falsyBlock ?? "")
+      }
+    )
   }
+
+  output = output.replace(
+    /{{\s*with\s+\.business_context\s*}}\s*{{\s*index\s+\.\s+"([^"]+)"\s*}}\s*{{\s*end\s*}}/g,
+    (_, key: string) => context.business_context[key] ?? ""
+  )
 
   output = output.replace(
     /{{\s*index\s+\.business_context\s+"([^"]+)"\s*}}/g,
     (_, key: string) => context.business_context[key] ?? ""
   )
 
-  output = output.replace(/{{\s*(\.[A-Za-z_][\w.]*)\s*}}/g, (_, reference: string) => {
-    const value = resolveTemplateValue(reference, context)
-    return typeof value === "string" ? value : ""
-  })
+  output = output.replace(
+    /{{\s*(\.[A-Za-z_][\w.]*)\s*}}/g,
+    (_, reference: string) => {
+      const value = resolveTemplateValue(reference, context)
+      return typeof value === "string" ? value : ""
+    }
+  )
 
   output = output.replace(/{{[^}]+}}/g, "")
   output = output.replace(/\n{3,}/g, "\n\n")
   return output.trim()
 }
 
-function resolveTemplateValue(reference: string, context: PromptExampleContext) {
+function resolveTemplateValue(
+  reference: string,
+  context: PromptExampleContext
+) {
   const trimmed = reference.trim()
   if (trimmed.startsWith("index .business_context")) {
     const match = trimmed.match(/index\s+\.business_context\s+"([^"]+)"/)

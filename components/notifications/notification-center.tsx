@@ -106,6 +106,7 @@ export function NotificationCenter() {
     >
       <DropdownMenuTrigger asChild>
         <Button
+          id="shell-notification-center-trigger"
           variant="outline"
           size="icon"
           className="relative"

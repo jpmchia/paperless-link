@@ -58,6 +58,19 @@ function resolvePaperlessAssetUrl(value: string | null) {
   }
 }
 
+function serializeThemeVariables(variables: Record<string, string>) {
+  const entries = Object.entries(variables).filter(
+    ([key, value]) => key.startsWith("--") && typeof value === "string" && value.length > 0
+  )
+  if (entries.length === 0) return ""
+
+  const cssBody = entries
+    .map(([key, value]) => `${key}: ${value.replace(/<\/style/gi, "<\\\\/style")};`)
+    .join(" ")
+
+  return `:root { ${cssBody} }`
+}
+
 export async function AppShell({
   children,
   initialPermissions,
@@ -114,6 +127,9 @@ export async function AppShell({
         initialPreferences={notificationPreferences}
       >
         <ConfirmationDialogProvider>
+          {Object.keys(themeVariables).length > 0 ? (
+            <style>{serializeThemeVariables(themeVariables)}</style>
+          ) : null}
           <SidebarProvider
             className="h-full"
             style={themeVariables as CSSProperties}

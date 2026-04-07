@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
@@ -30,6 +31,9 @@ type Props = {
   selectedFieldID: string
   onSelectField: (fieldID: string) => void
   onChangePromptTemplate: (value: string) => void
+  onChangeRetainHistory: (value: boolean) => void
+  onChangeIncludeHistory: (value: boolean) => void
+  onChangeHistoryTextLength: (value: number | undefined) => void
   onInsertField: (token: string, explicitPosition?: number) => void
   onReload: () => void
   onSave: () => void
@@ -53,6 +57,9 @@ export function PromptTemplateConfigurationCard({
   selectedFieldID,
   onSelectField,
   onChangePromptTemplate,
+  onChangeRetainHistory,
+  onChangeIncludeHistory,
+  onChangeHistoryTextLength,
   onInsertField,
   onReload,
   onSave,
@@ -70,16 +77,22 @@ export function PromptTemplateConfigurationCard({
     [businessFields, processFields]
   )
   const selectedField = React.useMemo(
-    () => allFields.find((field) => field.id === selectedFieldID) ?? processFields[0] ?? null,
+    () =>
+      allFields.find((field) => field.id === selectedFieldID) ??
+      processFields[0] ??
+      null,
     [allFields, processFields, selectedFieldID]
   )
 
   return (
     <Card className="flex h-full min-h-0 flex-col overflow-hidden">
       <CardHeader>
-        <CardTitle className="text-base">Step 1. Prompt template configuration</CardTitle>
+        <CardTitle className="text-base">
+          Step 1. Prompt template configuration
+        </CardTitle>
         <CardDescription>
-          Define the reusable taxonomy prompt template and the fields available to it.
+          Define the reusable taxonomy prompt template and the fields available
+          to it.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -108,6 +121,73 @@ export function PromptTemplateConfigurationCard({
           </div>
 
           <div className="grid min-h-0 flex-1 gap-4">
+            <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_12rem]">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="taxonomy-process-retain-history">
+                    Retain history
+                  </Label>
+                  <Switch
+                    id="taxonomy-process-retain-history"
+                    checked={promptDraft.retain_history !== false}
+                    onCheckedChange={onChangeRetainHistory}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Keep generated prompt and response history for this process.
+                  Default is enabled.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="taxonomy-process-include-history">
+                    Include history in prompt
+                  </Label>
+                  <Switch
+                    id="taxonomy-process-include-history"
+                    checked={promptDraft.include_history !== false}
+                    disabled={promptDraft.retain_history === false}
+                    onCheckedChange={onChangeIncludeHistory}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Feed retained history back into prompt construction for
+                  continuity.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="taxonomy-process-history-length">
+                  History text length
+                </Label>
+                <Input
+                  id="taxonomy-process-history-length"
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputMode="numeric"
+                  disabled={
+                    promptDraft.retain_history === false ||
+                    promptDraft.include_history === false
+                  }
+                  value={promptDraft.history_text_length ?? ""}
+                  onChange={(event) => {
+                    const nextValue = Number.parseInt(event.target.value, 10)
+                    onChangeHistoryTextLength(
+                      Number.isFinite(nextValue) && nextValue > 0
+                        ? nextValue
+                        : undefined
+                    )
+                  }}
+                  placeholder="4000"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Maximum history text to include, in characters.
+                </p>
+              </div>
+            </div>
+
             <div className="grid min-h-0 flex-1 gap-2">
               <div className="flex items-center justify-between gap-3">
                 <Label htmlFor="taxonomy-prompt">Prompt Template</Label>
@@ -129,8 +209,9 @@ export function PromptTemplateConfigurationCard({
                 onDrop={(event) => {
                   event.preventDefault()
                   const token =
-                    event.dataTransfer.getData("application/x-linkiq-prompt-token") ||
-                    event.dataTransfer.getData("text/plain")
+                    event.dataTransfer.getData(
+                      "application/x-linkiq-prompt-token"
+                    ) || event.dataTransfer.getData("text/plain")
                   if (!token) return
                   onInsertField(token)
                 }}
@@ -152,9 +233,10 @@ export function PromptTemplateConfigurationCard({
                   onMount={(editor) => {
                     promptEditorRef.current = editor
                     selectionListenerRef.current?.dispose()
-                    selectionListenerRef.current = editor.onDidChangeCursorSelection(() => {
-                      rememberSelectionFromEditor()
-                    })
+                    selectionListenerRef.current =
+                      editor.onDidChangeCursorSelection(() => {
+                        rememberSelectionFromEditor()
+                      })
                     rememberSelectionFromEditor()
                     applyFieldDecorations()
                   }}
@@ -167,7 +249,8 @@ export function PromptTemplateConfigurationCard({
               <Label>Prompt preview</Label>
               <div className="max-h-56 overflow-y-auto rounded-md border bg-muted/20 px-4 py-3 text-xs leading-6 text-foreground">
                 <pre className="whitespace-pre-wrap">
-                  {renderedPrompt || "The live rendered prompt will appear here as you edit the template."}
+                  {renderedPrompt ||
+                    "The live rendered prompt will appear here as you edit the template."}
                 </pre>
               </div>
             </div>
@@ -177,7 +260,10 @@ export function PromptTemplateConfigurationCard({
             <Button variant="outline" onClick={onReload} disabled={loading}>
               Reload
             </Button>
-            <Button onClick={onSave} disabled={saving || !promptDraft.prompt_template.trim()}>
+            <Button
+              onClick={onSave}
+              disabled={saving || !promptDraft.prompt_template.trim()}
+            >
               <Save className="size-4" />
               Save template
             </Button>
@@ -188,33 +274,64 @@ export function PromptTemplateConfigurationCard({
           <div>
             <div className="text-sm font-medium">Template Syntax</div>
             <div className="mt-1 text-xs text-muted-foreground">
-              Recommended syntax is Go <code>text/template</code>. It gives variable substitution and built-in <code>if</code>/<code>else</code> logic without introducing another runtime.
+              Recommended syntax is Go <code>text/template</code>. It gives
+              variable substitution and built-in <code>if</code>/
+              <code>else</code> logic without introducing another runtime.
             </div>
           </div>
 
           <div>
             <div className="text-sm font-medium">Available Variables</div>
             <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-              <li><code>{'{{ .label }}'}</code> node label</li>
-              <li><code>{'{{ .parent_path }}'}</code> parent path</li>
-              <li><code>{'{{ .path_preview }}'}</code> proposed full path</li>
-              <li><code>{'{{ .source_scope }}'}</code> source scope</li>
-              <li><code>{'{{ .source_id }}'}</code> source identifier</li>
-              <li><code>{'{{ .existing_description }}'}</code> current description, if any</li>
-              <li><code>{'{{ index .business_context "organisation_name" }}'}</code> business context values from the Business Context screen</li>
-              <li><code>{'{{ .system_context }}'}</code> and <code>{'{{ .instance_context }}'}</code> maps for shared static fields</li>
+              <li>
+                <code>{"{{ .label }}"}</code> node label
+              </li>
+              <li>
+                <code>{"{{ .parent_path }}"}</code> parent path
+              </li>
+              <li>
+                <code>{"{{ .path_preview }}"}</code> proposed full path
+              </li>
+              <li>
+                <code>{"{{ .source_scope }}"}</code> source scope
+              </li>
+              <li>
+                <code>{"{{ .source_id }}"}</code> source identifier
+              </li>
+              <li>
+                <code>{"{{ .existing_description }}"}</code> current
+                description, if any
+              </li>
+              <li>
+                <code>
+                  {
+                    '{{ with .business_context }}{{ index . "organisation_name" }}{{ end }}'
+                  }
+                </code>{" "}
+                business context values from the Business Context screen
+              </li>
+              <li>
+                <code>{"{{ .system_context }}"}</code> and{" "}
+                <code>{"{{ .instance_context }}"}</code> maps for shared static
+                fields
+              </li>
             </ul>
           </div>
 
           <div>
             <div className="text-sm font-medium">Conditional Example</div>
-            <pre className="mt-2 overflow-x-auto rounded-md bg-background p-3 text-[11px] leading-5 text-muted-foreground"><code>{`Node label: {{ .label }}\n{{ if .parent_path }}Parent: {{ .parent_path }}{{ end }}`}</code></pre>
+            <pre className="mt-2 overflow-x-auto rounded-md bg-background p-3 text-[11px] leading-5 text-muted-foreground">
+              <code>{`Node label: {{ .label }}\n{{ if .parent_path }}Parent: {{ .parent_path }}{{ end }}`}</code>
+            </pre>
           </div>
 
           <div>
             <div className="text-sm font-medium">Product Direction</div>
             <div className="mt-1 text-xs text-muted-foreground">
-              Keep provider and model assignments task-specific. That lets the commercial service layer route different enrichment workloads to managed or customer-supplied models without changing prompt definitions.
+              Keep provider and model assignments task-specific. That lets the
+              commercial service layer route different enrichment workloads to
+              managed or customer-supplied models without changing prompt
+              definitions.
             </div>
           </div>
         </div>
@@ -230,9 +347,12 @@ function SelectedFieldPreview({
 }) {
   return (
     <div className="h-full rounded-lg border bg-background p-4">
-      <div className="text-sm font-medium">{field?.label || "Field details"}</div>
+      <div className="text-sm font-medium">
+        {field?.label || "Field details"}
+      </div>
       <div className="mt-2 text-xs text-muted-foreground">
-        {field?.description || "Select a field to inspect its meaning and example values."}
+        {field?.description ||
+          "Select a field to inspect its meaning and example values."}
       </div>
       {field ? (
         <div className="mt-3 space-y-3 text-xs">
@@ -245,7 +365,9 @@ function SelectedFieldPreview({
           {field.currentValue ? (
             <div>
               <div className="font-medium text-foreground">Current value</div>
-              <div className="mt-1 text-muted-foreground">{field.currentValue}</div>
+              <div className="mt-1 text-muted-foreground">
+                {field.currentValue}
+              </div>
             </div>
           ) : null}
           {field.sampleValues?.length ? (
@@ -253,7 +375,11 @@ function SelectedFieldPreview({
               <div className="font-medium text-foreground">Sample values</div>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {field.sampleValues.map((value) => (
-                  <Badge key={value} variant="outline" className="h-auto px-2 py-1 text-[11px]">
+                  <Badge
+                    key={value}
+                    variant="outline"
+                    className="h-auto px-2 py-1 text-[11px]"
+                  >
                     {value}
                   </Badge>
                 ))}
@@ -262,10 +388,16 @@ function SelectedFieldPreview({
           ) : null}
           {field.acceptableValues?.length ? (
             <div>
-              <div className="font-medium text-foreground">Acceptable values</div>
+              <div className="font-medium text-foreground">
+                Acceptable values
+              </div>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {field.acceptableValues.map((value) => (
-                  <Badge key={value} variant="secondary" className="h-auto px-2 py-1 text-[11px]">
+                  <Badge
+                    key={value}
+                    variant="secondary"
+                    className="h-auto px-2 py-1 text-[11px]"
+                  >
                     {value}
                   </Badge>
                 ))}
@@ -274,7 +406,8 @@ function SelectedFieldPreview({
           ) : null}
           {field.dataType ? (
             <div className="text-muted-foreground">
-              Data type: <span className="text-foreground">{field.dataType}</span>
+              Data type:{" "}
+              <span className="text-foreground">{field.dataType}</span>
             </div>
           ) : null}
         </div>
@@ -315,12 +448,15 @@ function FieldPaletteBox({
               />
             ))
           ) : (
-            <div className="text-xs text-muted-foreground">No fields available.</div>
+            <div className="text-xs text-muted-foreground">
+              No fields available.
+            </div>
           )}
         </div>
       </ScrollArea>
       <div className="mt-2 text-[11px] text-muted-foreground">
-        Click to inspect, double-click to insert, or drag into the prompt template.
+        Click to inspect, double-click to insert, or drag into the prompt
+        template.
       </div>
     </div>
   )
@@ -344,7 +480,10 @@ function FieldPill({
       onClick={onSelect}
       onDoubleClick={onInsert}
       onDragStart={(event) => {
-        event.dataTransfer.setData("application/x-linkiq-prompt-token", field.token)
+        event.dataTransfer.setData(
+          "application/x-linkiq-prompt-token",
+          field.token
+        )
         event.dataTransfer.setData("text/plain", field.token)
         event.dataTransfer.effectAllowed = "copy"
       }}

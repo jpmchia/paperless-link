@@ -4,7 +4,10 @@ import { authOptions } from "@/auth"
 import { getUiSettings } from "@/lib/api"
 import { invokeLinkIQAction } from "@/lib/link-iq"
 import type { AIGeneratedTextResult } from "@/lib/link-iq-types"
-import { canManageConfig, mapPermissionBootstrapPayload } from "@/lib/permissions"
+import {
+  canManageConfig,
+  mapPermissionBootstrapPayload,
+} from "@/lib/permissions"
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions)
@@ -24,19 +27,23 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       existing_description?: string
       label?: string
+      node_type?: string
       parent_path?: string
       path_preview?: string
       source_id?: string
       source_scope?: string
     }
 
-    const result = await invokeLinkIQAction<{ generation?: AIGeneratedTextResult }>({
+    const result = await invokeLinkIQAction<{
+      generation?: AIGeneratedTextResult
+    }>({
       capability: "ai.process.run",
       input: {
         process_key: "taxonomy.description",
         variables: {
           existing_description: body.existing_description || "",
           label: body.label || "",
+          node_type: body.node_type || "",
           parent_path: body.parent_path || "",
           path_preview: body.path_preview || "",
           source_id: body.source_id || "",

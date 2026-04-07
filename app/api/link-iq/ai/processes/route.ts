@@ -2,9 +2,12 @@ import { getServerSession } from "next-auth"
 import { NextResponse } from "next/server"
 import { authOptions } from "@/auth"
 import { getUiSettings } from "@/lib/api"
+import { buildAIProcessUpsertInput } from "@/lib/ai-processes"
 import { invokeLinkIQAction } from "@/lib/link-iq"
-import type { AIProcessConfig } from "@/lib/link-iq-types"
+import type { AIProcessConfig, ContextField } from "@/lib/link-iq-types"
 import { canManageConfig, mapPermissionBootstrapPayload } from "@/lib/permissions"
+
+const BUSINESS_CONTEXT_SECTION = "business_context"
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions)
@@ -45,9 +48,22 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as AIProcessConfig
+    const businessContextResult = await invokeLinkIQAction<{
+      fields?: ContextField[]
+    }>({
+      capability: "context_field.list",
+      input: {
+        section: BUSINESS_CONTEXT_SECTION,
+        status: "active",
+      },
+    }).catch(() => ({ fields: [] }))
+
     const result = await invokeLinkIQAction<{ process?: AIProcessConfig }>({
       capability: "ai.process.upsert",
-      input: body as unknown as Record<string, unknown>,
+      input: buildAIProcessUpsertInput(
+        body,
+        businessContextResult.fields ?? []
+      ),
     })
 
     return NextResponse.json(result.process ?? {})

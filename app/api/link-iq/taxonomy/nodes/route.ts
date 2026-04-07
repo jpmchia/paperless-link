@@ -3,7 +3,10 @@ import { NextResponse } from "next/server"
 import { authOptions } from "@/auth"
 import { getUiSettings } from "@/lib/api"
 import { invokeLinkIQAction, LINK_IQ_SOURCE_ID } from "@/lib/link-iq"
-import { canManageConfig, mapPermissionBootstrapPayload } from "@/lib/permissions"
+import {
+  canManageConfig,
+  mapPermissionBootstrapPayload,
+} from "@/lib/permissions"
 
 type TaxonomyNode = {
   created_at?: string
@@ -11,6 +14,7 @@ type TaxonomyNode = {
   description?: string
   label?: string
   mapping_state?: string
+  node_type?: string
   parent_node_id?: string
   path?: string
   sort_order?: number
@@ -19,6 +23,15 @@ type TaxonomyNode = {
   status?: string
   taxonomy_node_id?: string
   updated_at?: string
+}
+
+function hasTaxonomyNodeID(
+  node: TaxonomyNode
+): node is TaxonomyNode & { taxonomy_node_id: string } {
+  return (
+    typeof node.taxonomy_node_id === "string" &&
+    node.taxonomy_node_id.length > 0
+  )
 }
 
 async function requireSession() {
@@ -41,7 +54,10 @@ async function syncGeneratedBusinessContext() {
       capability: "context_field.sync_dynamic",
     })
   } catch (error) {
-    console.error("Failed to sync generated business context fields after taxonomy save:", error)
+    console.error(
+      "Failed to sync generated business context fields after taxonomy save:",
+      error
+    )
   }
 }
 
@@ -58,7 +74,8 @@ async function handleGet(request: Request) {
     const url = new URL(request.url)
     const sourceID = url.searchParams.get("source_id") || LINK_IQ_SOURCE_ID
     const status = url.searchParams.get("status")
-    const includeAllScopes = url.searchParams.get("include_all_scopes") === "true"
+    const includeAllScopes =
+      url.searchParams.get("include_all_scopes") === "true"
     const result = await invokeLinkIQAction<{ nodes?: TaxonomyNode[] }>({
       capability: "taxonomy.list",
       input: {
@@ -69,13 +86,19 @@ async function handleGet(request: Request) {
       },
     })
 
-    const nodes = (result.nodes ?? []).filter((node) => {
-      if (includeAllScopes) return true
-      if (node.source_scope === "link_global" || !node.source_scope) return true
-      return node.source_id === sourceID
-    })
+    const nodes = (result.nodes ?? []).filter(
+      (node): node is TaxonomyNode & { taxonomy_node_id: string } => {
+        if (!hasTaxonomyNodeID(node)) return false
+        if (includeAllScopes) return true
+        if (node.source_scope === "link_global" || !node.source_scope)
+          return true
+        return node.source_id === sourceID
+      }
+    )
 
-    return NextResponse.json({ nodes })
+    return NextResponse.json({
+      nodes,
+    })
   } catch (error) {
     return NextResponse.json(
       {
@@ -101,19 +124,35 @@ export async function POST(request: Request) {
       sourceScope === "link_global"
         ? ""
         : String(body.source_id || LINK_IQ_SOURCE_ID).trim()
+    const normalizedNodeType = body.node_type?.trim() || undefined
 
     const result = await invokeLinkIQAction<{ node?: TaxonomyNode }>({
       capability: "taxonomy.upsert_node",
       input: {
         ...body,
+        node_type: normalizedNodeType,
         source_id: normalizedSourceID || undefined,
         source_scope: sourceScope,
       },
     })
 
+    const savedNode =
+      result.node ??
+      ({
+        ...body,
+        node_type: normalizedNodeType,
+        source_id: normalizedSourceID || undefined,
+        source_scope: sourceScope,
+      } as TaxonomyNode)
+
+    const taxonomyNodeID = savedNode.taxonomy_node_id?.trim()
     await syncGeneratedBusinessContext()
 
-    return NextResponse.json(result.node ?? {})
+    return NextResponse.json({
+      ...savedNode,
+      taxonomy_node_id: taxonomyNodeID || undefined,
+      node_type: savedNode.node_type?.trim() || normalizedNodeType,
+    })
   } catch (error) {
     return NextResponse.json(
       {

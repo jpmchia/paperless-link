@@ -49,6 +49,7 @@ type ContextDocument = {
 type TaxonomyNode = {
   depth: number
   label: string
+  node_type?: string
   path: string
   source_id?: string
   source_scope?: string
@@ -442,17 +443,24 @@ export function DocumentContextTab({
                       {availableNodes.map((node) => (
                         <CommandItem
                           key={node.taxonomy_node_id}
-                          value={`${node.path} ${node.label}`}
+                          value={`${node.path} ${node.label} ${node.node_type || ""}`}
                           onSelect={() => addNode(node.taxonomy_node_id)}
                         >
                           <div className="flex min-w-0 flex-col">
                             <span className="truncate text-sm">
                               {node.path}
                             </span>
-                            <span className="text-xs text-muted-foreground">
-                              {node.source_scope === "link_global"
-                                ? "Global taxonomy"
-                                : node.source_id || "Scoped taxonomy"}
+                            <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              {node.node_type ? (
+                                <span className="rounded-full border px-1.5 py-0.5 font-medium text-foreground/75">
+                                  {node.node_type}
+                                </span>
+                              ) : null}
+                              <span>
+                                {node.source_scope === "link_global"
+                                  ? "Global taxonomy"
+                                  : node.source_id || "Scoped taxonomy"}
+                              </span>
                             </span>
                           </div>
                         </CommandItem>
@@ -491,6 +499,9 @@ export function DocumentContextTab({
                         {isPrimary ? <Badge>Primary</Badge> : null}
                       </div>
                       <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                        {assignment.node?.node_type ? (
+                          <span>Type: {assignment.node.node_type}</span>
+                        ) : null}
                         <span>
                           {assignment.node?.source_scope || "link_global"}
                         </span>

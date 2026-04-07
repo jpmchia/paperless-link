@@ -9,15 +9,16 @@ import type {
   TaxonomyNode,
 } from "@/lib/link-iq-types"
 import { requireRoutePermission } from "@/lib/server-permissions"
+import { isManagedTaxonomyNodeTypeQualifier } from "@/lib/taxonomy-node-types"
 import { DomainModelsWorkbench } from "./domain-models-workbench"
 
-type DocumentTypeOption =
-  React.ComponentProps<typeof DomainModelsWorkbench>["initialDocumentTypes"][number]
+type DocumentTypeOption = React.ComponentProps<
+  typeof DomainModelsWorkbench
+>["initialDocumentTypes"][number]
 
-function filterScopedRecords<T extends { source_id?: string; source_scope?: string }>(
-  records: T[],
-  sourceID: string
-) {
+function filterScopedRecords<
+  T extends { source_id?: string; source_scope?: string },
+>(records: T[], sourceID: string) {
   return records.filter((record) => {
     if (!record.source_scope || record.source_scope === "link_global") {
       return true
@@ -49,8 +50,8 @@ async function getTaxonomyNodes() {
       },
     })
 
-    return filterScopedRecords(result.nodes ?? [], LINK_IQ_SOURCE_ID).sort((left, right) =>
-      left.path.localeCompare(right.path)
+    return filterScopedRecords(result.nodes ?? [], LINK_IQ_SOURCE_ID).sort(
+      (left, right) => left.path.localeCompare(right.path)
     )
   } catch {
     return []
@@ -81,7 +82,10 @@ async function getQualifiers() {
       },
     })
 
-    return filterScopedRecords(result.qualifiers ?? [], LINK_IQ_SOURCE_ID)
+    return filterScopedRecords(
+      result.qualifiers ?? [],
+      LINK_IQ_SOURCE_ID
+    ).filter((qualifier) => !isManagedTaxonomyNodeTypeQualifier(qualifier))
   } catch {
     return []
   }
@@ -92,7 +96,9 @@ async function getDocumentTypes() {
     const data = await getPaperlessApi<PaginatedResults<DocumentTypeOption>>(
       "document_types/?page_size=100000"
     )
-    return (data.results ?? []).sort((left, right) => left.name.localeCompare(right.name))
+    return (data.results ?? []).sort((left, right) =>
+      left.name.localeCompare(right.name)
+    )
   } catch {
     return []
   }
@@ -100,14 +106,19 @@ async function getDocumentTypes() {
 
 export default async function DomainModelsPage() {
   const permissions = await requireRoutePermission("/domain-models")
-  const [contextProfiles, taxonomyNodes, documentTypes, entityTypes, qualifiers] =
-    await Promise.all([
-      getContextProfiles(),
-      getTaxonomyNodes(),
-      getDocumentTypes(),
-      getEntityTypes(),
-      getQualifiers(),
-    ])
+  const [
+    contextProfiles,
+    taxonomyNodes,
+    documentTypes,
+    entityTypes,
+    qualifiers,
+  ] = await Promise.all([
+    getContextProfiles(),
+    getTaxonomyNodes(),
+    getDocumentTypes(),
+    getEntityTypes(),
+    getQualifiers(),
+  ])
 
   return (
     <AppShell

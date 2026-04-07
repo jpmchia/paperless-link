@@ -298,7 +298,7 @@ export function PermissionsTab({ document, usersList, groupsList }: Props) {
             />
 
             <div className="space-y-4">
-                <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mt-8 border-b pb-2">View Access</h4>
+                <h4 className="text-sm font-semibold tracking-wider text-muted-foreground mt-8 border-b pb-2">View Access</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                     control={form.control}
@@ -326,7 +326,7 @@ export function PermissionsTab({ document, usersList, groupsList }: Props) {
             </div>
 
             <div className="space-y-4">
-                <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mt-8 border-b pb-2">Edit Access</h4>
+                <h4 className="text-sm font-semibold tracking-wider text-muted-foreground mt-8 border-b pb-2">Edit Access</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                     control={form.control}

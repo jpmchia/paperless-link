@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Play } from "lucide-react"
+import { History, Play } from "lucide-react"
 import {
   Message,
   MessageContent,
@@ -14,6 +14,9 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai/prompt-input"
+import {
+  Button,
+} from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -30,12 +33,16 @@ type TestMessage = {
 }
 
 type Props = {
+  activityDisabled?: boolean
+  onOpenActivity: () => void
   selectedEnabledModel: AIModel | null
   onRunModel: (prompt: string) => Promise<AIModelRunResult>
   onTestCompleted: () => void
 }
 
 export function ModelTestCard({
+  activityDisabled = false,
+  onOpenActivity,
   selectedEnabledModel,
   onRunModel,
   onTestCompleted,
@@ -87,15 +94,27 @@ export function ModelTestCard({
   return (
     <Card className="h-full min-h-0 overflow-hidden">
       <CardHeader className="border-b pb-4">
-        <CardTitle className="flex items-center gap-2 text-xl">
-          <span>Test</span>
-          <span className="rounded bg-primary/10 px-2 py-0.5 text-xl font-semibold text-primary">
-            {displayName}
-          </span>
-        </CardTitle>
-        <CardDescription>
-          Run an ad hoc prompt directly against the selected enabled model to validate output quality before assigning it to live processes.
-        </CardDescription>
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-2">
+            <CardTitle className="flex flex-wrap items-center gap-2">
+              <span>Test</span>
+              <span className="ui-card-title rounded-md bg-primary/10 px-2 text-primary">
+                {displayName}
+              </span>
+            </CardTitle>
+            <CardDescription>
+              Run an ad hoc prompt directly against the selected enabled model to validate output quality before assigning it to live processes.
+            </CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            onClick={onOpenActivity}
+            disabled={activityDisabled}
+          >
+            <History className="size-4" />
+            Activity
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="flex min-h-0 flex-col gap-4 p-4">
         {selectedEnabledModel ? (
@@ -110,7 +129,7 @@ export function ModelTestCard({
                   ))}
                 </div>
               ) : (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                <div className="ui-help-text flex h-full items-center justify-center text-sm">
                   Submit a prompt to test this model.
                 </div>
               )}
@@ -128,7 +147,7 @@ export function ModelTestCard({
               </PromptInputBody>
               <PromptInputFooter>
                 <PromptInputTools>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="ui-help-text">
                     Single-turn test prompt
                   </div>
                 </PromptInputTools>
@@ -139,7 +158,7 @@ export function ModelTestCard({
             </PromptInput>
           </>
         ) : (
-          <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+          <div className="ui-help-text rounded-lg border border-dashed p-6">
             Select an enabled model to run a direct prompt test.
           </div>
         )}

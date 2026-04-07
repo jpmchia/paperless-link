@@ -36,7 +36,7 @@ export function ModelCatalogTableSection({
 }: Props) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border">
-      <div className="border-b px-3 py-2 text-sm font-medium">{title}</div>
+      <div className="ui-card-title border-b px-3 py-2">{title}</div>
       <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full table-fixed caption-bottom text-xs">
           <thead className="[&_tr]:border-b">
