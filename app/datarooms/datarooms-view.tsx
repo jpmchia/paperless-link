@@ -37,407 +37,71 @@ import {
   DialogHeader as DraggableDialogHeader,
   DialogTitle as DraggableDialogTitle,
 } from "@/components/draggable-dialog"
-import { SidebarMenuButton } from "@/components/ui/sidebar"
 import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import {
-  Building2,
-  ChevronRightIcon,
-  FileType,
-  FolderIcon,
-  GitBranch,
-  PauseCircleIcon,
-  PlayCircleIcon,
-  Trash2Icon,
-  Users,
-} from "lucide-react"
-import { DataroomConfigurationCard } from "./components/dataroom-configuration-card"
-import { FolderHierarchyCard } from "@/app/datarooms/components/folder-hierarchy-card"
-import { AuthorisedMembersCard } from "./components/authorised-members-card"
-import { DataTable } from "@/app/documents/data-table"
+  DataroomsCarouselFoldersWorkspaceSlide,
+  DataroomsCarouselOverviewSlide,
+  DataroomsCarouselPublishSlide,
+  DataroomsCarouselReleaseHistorySlide,
+  DataroomsCarouselShell,
+} from "./carousel"
 import type { Document as DocumentsTableRow, LookupMaps as DocumentsLookupMaps } from "@/app/documents/columns"
+import {
+  ACCESS_PRESETS,
+  AUTO_PUBLISH_TIMES,
+  EMAIL_TEMPLATE_DEFINITIONS,
+  QUILL_FORMATS,
+  QUILL_MODULES,
+  STANDARD_METADATA_FIELDS,
+} from "./datarooms-constants"
+import { asNumber, asString, normalizePaginatedArray, normalizeUsersResponse } from "./datarooms-normalize"
+import type {
+  AnalyticsResponse,
+  CorrespondentOption,
+  CustomFieldOption,
+  DataroomListResponse,
+  DocumentTypeOption,
+  EntityTypeOption,
+  FoldersResponse,
+  InviteesResponse,
+  OwnersResponse,
+  PaginatedWithCount,
+  PaperlessDocument,
+  PaperlessUser,
+  PlacementsResponse,
+  PublishWorkspaceView,
+  ReleaseItemsResponse,
+  ReleasesResponse,
+  StoragePathOption,
+  TagOption,
+  TaxonomyNodeOption,
+} from "./datarooms-types"
+import { buildFolderTree, FolderTreeItem } from "./components/folder-tree"
 
-const ReactQuill = dynamic(() => import("react-quill"), { ssr: false })
+const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false })
 
-type DataroomListResponse = { datarooms?: Dataroom[] }
-type OwnersResponse = { owners?: DataroomOwner[] }
-type FoldersResponse = { folders?: DataroomFolder[]; folder_counts?: Record<string, number> }
-type InviteesResponse = { invitees?: DataroomInvitee[] }
-type AnalyticsResponse = {
-  summary?: DataroomSummaryCount[]
-  invitees?: DataroomInviteeStats[]
-}
-type PlacementsResponse = { placements?: DataroomDocumentPlacement[] }
-type ReleasesResponse = { releases?: DataroomRelease[] }
-type ReleaseItemsResponse = { items?: DataroomReleaseItem[] }
-type Paginated<T> = { results?: T[] } | T[]
-type PaginatedWithCount<T> = {
-  count?: number
-  next?: string | null
-  previous?: string | null
-  results?: T[]
-}
-type PaperlessUser = {
-  id: number
-  username?: string
-  first_name?: string
-  last_name?: string
-  email?: string
-  last_login?: string
-}
-type TaxonomyNodeOption = { taxonomy_node_id?: string; label?: string; path?: string }
-type DocumentTypeOption = { id: number; name?: string }
-type CorrespondentOption = { id: number; name?: string }
-type EntityTypeOption = { entity_type_id?: string; label?: string }
-type TagOption = { id: number; name?: string; color?: string | number }
-type StoragePathOption = { id: number; name?: string }
-type CustomFieldOption = {
-  id: number
-  name?: string
-  data_type?: string
-  extra_data?: {
-    select_options?: Array<string | { id?: string | number; label?: string }>
-  }
-}
-type PaperlessDocument = {
-  id: number
-  title?: string
-  content?: string
-  created?: string
-  added?: string
-  modified?: string
-  archive_serial_number?: number | null
-  correspondent?: number | null
-  document_type?: number | null
-  storage_path?: number | null
-  tags?: number[]
-  custom_fields?: { value: unknown; field: number }[]
-  owner?: number | null
-  notes?: { id: number; note?: string }[]
-  num_notes?: number | null
-  page_count?: number | null
-  is_shared_by_requester?: boolean
-  original_md5?: string
-  archive_md5?: string
-  original_file_size?: number
-  archive_file_size?: number
-}
-
-const STANDARD_METADATA_FIELDS = [
-  { key: "title", label: "Title" },
-  { key: "content", label: "Content" },
-  { key: "created", label: "Created date" },
-  { key: "correspondent", label: "Correspondent" },
-  { key: "document_type", label: "Document type" },
-  { key: "tags", label: "Tags" },
-  { key: "archive_serial_number", label: "Archive serial number" },
-  { key: "storage_path", label: "Storage path" },
-  { key: "original_md5", label: "Original MD5 checksum" },
-  { key: "archive_md5", label: "Archive MD5 checksum" },
-  { key: "original_file_size", label: "Original file size (bytes)" },
-  { key: "archive_file_size", label: "Archive file size (bytes)" },
-] as const
-
-function asString(value: unknown): string {
-  return typeof value === "string" ? value : ""
-}
-
-function asNumber(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : null
-  }
-  return null
-}
-
-function normalizeUsersResponse(payload: unknown): PaperlessUser[] {
-  if (Array.isArray(payload)) return payload as PaperlessUser[]
-  if (!payload || typeof payload !== "object") return []
-  const record = payload as Record<string, unknown>
-  if (Array.isArray(record.results)) return record.results as PaperlessUser[]
-  if (Array.isArray(record.users)) return record.users as PaperlessUser[]
-  if (Array.isArray(record.all)) return record.all as PaperlessUser[]
-  return []
-}
-
-function normalizePaginatedArray<T>(payload: unknown): T[] {
-  if (Array.isArray(payload)) return payload as T[]
-  if (!payload || typeof payload !== "object") return []
-  const record = payload as Record<string, unknown>
-  if (Array.isArray(record.results)) return record.results as T[]
-  if (Array.isArray(record.nodes)) return record.nodes as T[]
-  if (Array.isArray(record.entity_types)) return record.entity_types as T[]
-  if (Array.isArray(record.correspondents)) return record.correspondents as T[]
-  if (Array.isArray(record.document_types)) return record.document_types as T[]
-  if (Array.isArray(record.documentTypes)) return record.documentTypes as T[]
-  if (Array.isArray(record.tags)) return record.tags as T[]
-  if (Array.isArray(record.custom_fields)) return record.custom_fields as T[]
-  if (Array.isArray(record.customFields)) return record.customFields as T[]
-  if (Array.isArray(record.all)) return record.all as T[]
-  return []
-}
-
-const ACCESS_PRESETS = [
-  "one-time access",
-  "12 hours",
-  "24 hours",
-  "48 hours",
-  "5 days",
-  "1 week",
-  "2 weeks",
-  "1 month",
-  "3 months",
-  "indefinitely",
-]
-
-const EMAIL_TEMPLATE_DEFINITIONS = [
-  {
-    key: "activation",
-    name: "Activation",
-    variables: ["{{MagicURL}}", "{{DataroomTitle}}", "{{InviteeEmail}}", "{{BrandingLogoURL}}"],
-  },
-  {
-    key: "magic_link_login",
-    name: "Magic Link Login",
-    variables: ["{{MagicURL}}", "{{DataroomTitle}}", "{{InviteeEmail}}", "{{BrandingLogoURL}}"],
-  },
-] as const
-
-const QUILL_MODULES = {
-  toolbar: [
-    [{ header: [1, 2, 3, false] }],
-    ["bold", "italic", "underline", "strike"],
-    [{ list: "ordered" }, { list: "bullet" }],
-    [{ align: [] }],
-    ["link"],
-    ["clean"],
-  ],
-}
-
-const QUILL_FORMATS = [
-  "header",
-  "bold",
-  "italic",
-  "underline",
-  "strike",
-  "list",
-  "bullet",
-  "align",
-  "link",
-]
-
-const AUTO_PUBLISH_TIMES = Array.from({ length: 48 }, (_, index) => {
-  const hour = String(Math.floor(index / 2)).padStart(2, "0")
-  const minute = index % 2 === 0 ? "00" : "30"
-  return `${hour}:${minute}`
-})
-
-type FolderTreeNode = {
-  folder: DataroomFolder
-  children: FolderTreeNode[]
-}
-
-type PublishWorkspaceView = "immediate" | "scheduled" | "manual"
-
-function linkedItemIconForType(type?: DataroomFolder["linked_item_type"]) {
-  switch (type) {
-    case "taxonomy":
-      return GitBranch
-    case "document_type":
-      return FileType
-    case "correspondent":
-      return Users
-    case "domain_entity":
-      return Building2
-    default:
-      return null
-  }
-}
-
-function buildFolderTree(folders: DataroomFolder[]): FolderTreeNode[] {
-  const byID = new Map<string, FolderTreeNode>()
-  folders.forEach((folder) => {
-    byID.set(folder.folder_id, { folder, children: [] })
-  })
-
-  const roots: FolderTreeNode[] = []
-  byID.forEach((node) => {
-    const parentID = node.folder.parent_folder_id
-    if (parentID && byID.has(parentID) && parentID !== node.folder.folder_id) {
-      byID.get(parentID)?.children.push(node)
-      return
-    }
-    roots.push(node)
-  })
-
-  const sortNodes = (nodes: FolderTreeNode[]) => {
-    nodes.sort((left, right) => left.folder.label.localeCompare(right.folder.label))
-    nodes.forEach((node) => sortNodes(node.children))
-  }
-  sortNodes(roots)
-  return roots
-}
-
-function FolderTreeItem({
-  node,
-  level,
-  selectedFolderID,
-  folderCounts,
-  fallbackImmediate,
-  fallbackScheduledTime,
-  savingFolderID,
-  deletingFolderID,
-  onSelectFolder,
-  onToggleFolderHold,
-  onRemoveFolder,
-}: {
-  node: FolderTreeNode
-  level: number
-  selectedFolderID?: string
-  folderCounts: Record<string, number>
-  fallbackImmediate: boolean
-  fallbackScheduledTime?: string
-  savingFolderID?: string | null
-  deletingFolderID?: string | null
-  onSelectFolder: (folder: DataroomFolder) => void
-  onToggleFolderHold: (folder: DataroomFolder) => void
-  onRemoveFolder: (folder: DataroomFolder) => void
-}) {
-  const [open, setOpen] = React.useState(level < 1)
-  const hasChildren = node.children.length > 0
-  const isSelected = selectedFolderID === node.folder.folder_id
-  const resolvedScheduledTime =
-    node.folder.auto_publish_scheduled_time || fallbackScheduledTime || "00:00"
-  const scheduleMode: "default" | "immediate" | "scheduled" =
-    node.folder.auto_publish_immediately == null
-      ? "default"
-      : node.folder.auto_publish_immediately
-        ? "immediate"
-        : "scheduled"
-  const isSaving = savingFolderID === node.folder.folder_id
-  const isDeleting = deletingFolderID === node.folder.folder_id
-  const LinkedTypeIcon = linkedItemIconForType(node.folder.linked_item_type)
-
-  return (
-    <div className="space-y-1">
-      <div
-        className={cn(
-          "grid grid-cols-[minmax(0,1fr)_180px] items-center gap-1 rounded-md px-1 py-0.5 text-sm",
-          isSelected && "bg-sidebar-accent/35 text-sidebar-foreground ring-1 ring-sidebar-border/60",
-        )}
-      >
-        <div className="flex min-w-0 items-center gap-1">
-          {hasChildren ? (
-            <Collapsible open={open} onOpenChange={setOpen}>
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="inline-flex size-6 items-center justify-center rounded hover:bg-muted"
-                >
-                  <ChevronRightIcon
-                    className={cn("size-4 transition-transform duration-200", open && "rotate-90")}
-                  />
-                </button>
-              </CollapsibleTrigger>
-            </Collapsible>
-          ) : (
-            <span className="inline-flex size-6 items-center justify-center" />
-          )}
-          <SidebarMenuButton asChild className="h-7 min-w-0 px-1">
-            <button
-              type="button"
-              className={cn(
-                "flex min-w-0 flex-1 items-center gap-2 rounded-sm px-1 text-left transition-colors",
-                "hover:bg-muted/50",
-              )}
-              onClick={() => onSelectFolder(node.folder)}
-            >
-              <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-              <span className="truncate text-[15px] leading-5">{node.folder.label}</span>
-              {LinkedTypeIcon ? (
-                <LinkedTypeIcon className="size-3.5 shrink-0 text-muted-foreground" />
-              ) : null}
-              <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
-                fields{" "}
-                {(node.folder.published_metadata_fields?.length ?? 0) +
-                  (node.folder.published_custom_field_ids?.length ?? 0)}
-              </span>
-              <span className="ml-auto text-muted-foreground text-xs">
-                ({folderCounts[node.folder.folder_id] ?? 0})
-              </span>
-            </button>
-          </SidebarMenuButton>
-        </div>
-        <div className="flex items-center justify-end gap-1">
-          <Badge variant="outline" className="h-6 text-[10px]">
-            {scheduleMode === "default"
-              ? `Default ${fallbackImmediate ? "Immediate" : `${fallbackScheduledTime || "00:00"}`}`
-              : scheduleMode === "immediate"
-                ? "Immediate"
-                : `${resolvedScheduledTime}`}
-          </Badge>
-          <Button
-            type="button"
-            variant={node.folder.publishing_on_hold ? "secondary" : "outline"}
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={() => onToggleFolderHold(node.folder)}
-            disabled={isSaving || isDeleting}
-            title={node.folder.publishing_on_hold ? "Enable publishing" : "Disable / hold publishing"}
-            aria-label={node.folder.publishing_on_hold ? "Enable publishing" : "Disable publishing"}
-          >
-            {node.folder.publishing_on_hold ? (
-              <PlayCircleIcon className="size-3.5" />
-            ) : (
-              <PauseCircleIcon className="size-3.5" />
-            )}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-            onClick={() => onRemoveFolder(node.folder)}
-            disabled={isSaving || isDeleting}
-          >
-            <Trash2Icon className="size-3.5" />
-          </Button>
-        </div>
-      </div>
-      {hasChildren && open ? (
-        <div className="ml-4 border-muted/50 border-l pl-2">
-          {node.children.map((child) => (
-            <FolderTreeItem
-              key={child.folder.folder_id}
-              node={child}
-              level={level + 1}
-              selectedFolderID={selectedFolderID}
-              folderCounts={folderCounts}
-              fallbackImmediate={fallbackImmediate}
-              fallbackScheduledTime={fallbackScheduledTime}
-              savingFolderID={savingFolderID}
-              deletingFolderID={deletingFolderID}
-              onSelectFolder={onSelectFolder}
-              onToggleFolderHold={onToggleFolderHold}
-              onRemoveFolder={onRemoveFolder}
-            />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  )
-}
+/**
+ * Bisect carousel issues (e.g. “Maximum update depth”): set to an object with the slides you
+ * want mounted (`true` / `false`). Use one `true` at a time to find the bad slide.
+ * Keep as `null` for normal behavior (all four slides).
+ *
+ * Example — only the overview slide:
+ * `{ overview: true, folders: false, publish: false, history: false }`
+ */
+const DEBUG_DATAROOM_CAROUSEL_SLIDES: {
+  overview: boolean
+  folders: boolean
+  publish: boolean
+  history: boolean
+} | null = null
 
 export function DataroomsView() {
+  const carouselSlides = DEBUG_DATAROOM_CAROUSEL_SLIDES ?? {
+    overview: true,
+    folders: true,
+    publish: false,
+    history: false,
+  }
+
   const [hasMounted, setHasMounted] = React.useState(false)
   const [rooms, setRooms] = React.useState<Dataroom[]>([])
   const [selectedId, setSelectedId] = React.useState<string>("")
@@ -503,7 +167,7 @@ export function DataroomsView() {
     [invitees],
   )
 
-  const formatDateTime = React.useCallback((value?: string) => {
+  const formatDateTime = React.useCallback((value?: string | null) => {
     if (!value) return "n/a"
     const parsed = new Date(value)
     if (Number.isNaN(parsed.getTime())) return value
@@ -1700,529 +1364,175 @@ export function DataroomsView() {
 
   return (
     <div className="relative flex h-full min-h-0 flex-1 gap-0 overflow-hidden px-4 py-4">
-      <Carousel className="h-full w-full" opts={{ align: "start" }}>
-        <CarouselPrevious className="-left-2 top-1/2 z-20" />
-        <CarouselNext className="-right-2 top-1/2 z-20" />
-        <CarouselContent className="ml-0 h-full">
-          <CarouselItem className="h-full basis-full pl-0">
-            <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-4">
-              <div className="min-h-0 overflow-auto">
-                <DataroomConfigurationCard
-                  selectedId={selectedId}
-                  rooms={rooms}
-                  roomDraft={roomDraft}
-                  setSelectedId={setSelectedId}
-                  setRoomDraft={setRoomDraft}
-                  startCreateNewDataroom={startCreateNewDataroom}
-                  onSave={() => void (selectedId ? saveDataroom() : createDataroom())}
-                  formatDateInputValue={formatDateInputValue}
-                  toISODateString={toISODateString}
-                  autoPublishTimes={AUTO_PUBLISH_TIMES}
-                  handleBrandingLogoUpload={handleBrandingLogoUpload}
-                  handleBrandingLogoDarkUpload={handleBrandingLogoDarkUpload}
-                  brandingLogoFileName={brandingLogoFileName}
-                  brandingLogoDarkFileName={brandingLogoDarkFileName}
-                  setBrandingLogoFileName={setBrandingLogoFileName}
-                  setBrandingLogoDarkFileName={setBrandingLogoDarkFileName}
-                  ownerSearch={ownerSearch}
-                  setOwnerSearch={setOwnerSearch}
-                  ownerToAdd={ownerToAdd}
-                  setOwnerToAdd={setOwnerToAdd}
-                  filteredUsers={filteredUsers}
-                  formatUserLabel={formatUserLabel}
-                  addOwner={() => void addOwner()}
-                  ownerRows={ownerRows}
-                  formatDateTime={formatDateTime}
-                  removeOwner={(subjectID) => void removeOwner(subjectID)}
-                  emailTemplateDefinitions={EMAIL_TEMPLATE_DEFINITIONS}
-                  onOpenTemplateEditor={setTemplateEditorKey}
-                />
-              </div>
-              <div className="min-h-0 overflow-auto">
-                <AuthorisedMembersCard
-                  pendingInviteCount={pendingInviteCount}
-                  inviteeDraft={inviteeDraft}
-                  setInviteeDraft={setInviteeDraft}
-                  accessPresets={ACCESS_PRESETS}
-                  saveInvitee={() => void saveInvitee()}
-                  selectedId={selectedId}
-                  invitees={invitees}
-                  inviteeStatsByKey={inviteeStatsByKey}
-                  formatDateTime={formatDateTime}
-                  scheduledInviteDates={scheduledInviteDates}
-                  scheduleInviteDate={(invitee, value) => void scheduleInviteDate(invitee, value)}
-                  sendingInviteKey={sendingInviteKey}
-                  roomSlug={roomDraft.slug}
-                  sendInviteNow={(invitee) => void sendInviteNow(invitee)}
-                  getSummaryCount={getSummaryCount}
-                  memberActionKey={memberActionKey}
-                  toggleInviteeDisabled={(invitee) => void toggleInviteeDisabled(invitee)}
-                  removeInvitee={(invitee) => void removeInvitee(invitee)}
-                  setMemberDetailKey={setMemberDetailKey}
-                />
-              </div>
-            </div>
-          </CarouselItem>
-
-          <CarouselItem className="h-full basis-full pl-0">
-            <div className="grid h-full min-h-0 grid-cols-4 grid-rows-2 gap-4">
-              <div className="col-span-2 row-span-2 min-h-0 overflow-auto">
-                <FolderHierarchyCard
-                  selectedId={selectedId}
-                  treeContent={folderTreeContent}
-                  folderDraft={folderDraft}
-                  setFolderDraft={setFolderDraft}
-                  saveFolder={() => void saveFolder()}
-                  resetFolderDraft={() => {
-                    setFolderDraft({})
-                    setSelectedTaxonomyNodeID("")
-                    setSelectedDocumentTypeID("")
-                    setSelectedCorrespondentID("")
-                    setSelectedDomainEntityID("")
-                    setIncludeAllTaxonomyItems(false)
-                    setIncludeAllDocumentTypeItems(false)
-                    setIncludeAllCorrespondentItems(false)
-                    setIncludeAllDomainEntityItems(false)
-                  }}
-                  folders={folders}
-                  selectedTaxonomyNodeID={selectedTaxonomyNodeID}
-                  setSelectedTaxonomyNodeID={setSelectedTaxonomyNodeID}
-                  taxonomyNodes={taxonomyNodes}
-                  addFolderFromCatalog={(label: string) => void addFolderFromCatalog(label)}
-                  includeAllTaxonomyItems={includeAllTaxonomyItems}
-                  setIncludeAllTaxonomyItems={setIncludeAllTaxonomyItems}
-                  selectedTaxonomyNodeLabel={selectedTaxonomyNodeLabel}
-                  selectedDocumentTypeID={selectedDocumentTypeID}
-                  setSelectedDocumentTypeID={setSelectedDocumentTypeID}
-                  documentTypes={documentTypes}
-                  includeAllDocumentTypeItems={includeAllDocumentTypeItems}
-                  setIncludeAllDocumentTypeItems={setIncludeAllDocumentTypeItems}
-                  selectedDocumentTypeLabel={selectedDocumentTypeLabel}
-                  selectedCorrespondentID={selectedCorrespondentID}
-                  setSelectedCorrespondentID={setSelectedCorrespondentID}
-                  correspondents={correspondents}
-                  includeAllCorrespondentItems={includeAllCorrespondentItems}
-                  setIncludeAllCorrespondentItems={setIncludeAllCorrespondentItems}
-                  selectedCorrespondentLabel={selectedCorrespondentLabel}
-                  selectedDomainEntityID={selectedDomainEntityID}
-                  setSelectedDomainEntityID={setSelectedDomainEntityID}
-                  domainEntities={domainEntities}
-                  includeAllDomainEntityItems={includeAllDomainEntityItems}
-                  setIncludeAllDomainEntityItems={setIncludeAllDomainEntityItems}
-                  selectedDomainEntityLabel={selectedDomainEntityLabel}
-                  customFields={customFields}
-                  standardMetadataFields={STANDARD_METADATA_FIELDS.map((field) => ({
-                    key: field.key,
-                    label: field.label,
-                  }))}
-                  generatedRulesText={generatedFolderRulesText}
-                  autoPublishTimes={AUTO_PUBLISH_TIMES}
-                  applyGeneratedRules={() =>
-                    setFolderDraft((previous) => ({ ...previous, rules: generatedFolderRulesText }))
-                  }
-                />
-              </div>
-              {effectivePublishWorkspaceView === "manual" ? (
-                <>
-                  <Card className="col-span-2 min-h-0">
-                    <CardHeader>
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <CardTitle>Source documents</CardTitle>
-                          <CardDescription>
-                            {selectedHierarchyFolder
-                              ? `Context: ${selectedHierarchyFolder.label} (${selectedHierarchyFolder.linked_item_label || "manual folder"})`
-                              : "Select a folder in the tree to apply context, then choose source documents."}
-                          </CardDescription>
-                        </div>
-                        <select
-                          className="h-9 w-[190px] rounded-md border border-input bg-input/20 px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                          value={effectivePublishWorkspaceView}
-                          onChange={(event) => setPublishWorkspaceView(event.target.value as PublishWorkspaceView)}
-                          disabled={isManualSelectedFolder}
-                        >
-                          <option value="immediate">Immediate view</option>
-                          <option value="scheduled">Scheduled view</option>
-                          <option value="manual">Manual schedule view</option>
-                        </select>
-                        <Button
-                          onClick={() => void scheduleSelectedDocuments()}
-                          disabled={!selectedId || selectedDocumentCount === 0 || publishingDocuments}
-                          className="min-w-[152px]"
-                        >
-                          {publishingDocuments ? "Scheduling..." : "Schedule selected"}
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={documentSearch}
-                          onChange={(event) => setDocumentSearch(event.target.value)}
-                          placeholder="Search by title or ID"
-                        />
-                        <Button variant="outline" onClick={() => void loadSourceDocuments()} disabled={documentsLoading}>
-                          Refresh
-                        </Button>
-                      </div>
-                      <div className="h-[360px] min-h-0 overflow-hidden rounded-md border p-2">
-                        {documentsLoading ? (
-                          <p className="text-muted-foreground text-xs">Loading documents...</p>
-                        ) : documentsTableData.length === 0 ? (
-                          <p className="text-muted-foreground text-xs">No matching documents.</p>
-                        ) : (
-                          <DataTable
-                            lookup={documentsLookup}
-                            data={documentsTableData}
-                            pageCount={1}
-                            onSelectedIdsChange={(ids) => {
-                              setSelectedDocumentIDs(
-                                Object.fromEntries(ids.map((id) => [String(id), true])),
-                              )
-                            }}
-                            onPreviewDocument={(document) =>
-                              setSelectedReleaseDocumentID(String(document.id))
-                            }
-                          />
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="col-span-2 min-h-0">
-                    <CardHeader>
-                      <CardTitle>Published and scheduled</CardTitle>
-                      <CardDescription>
-                        {selectedHierarchyFolder
-                          ? `Showing release items for ${selectedHierarchyFolder.label}.`
-                          : "Select a folder in the tree to scope release items."}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="max-h-44 overflow-auto text-sm">
-                      <div className="space-y-2">
-                        <div className="space-y-1">
-                          <p className="text-[11px] text-muted-foreground">Published</p>
-                          {selectedFolderPublishedItems.length === 0 ? (
-                            <p className="text-muted-foreground text-xs">No published release items.</p>
-                          ) : (
-                            selectedFolderPublishedItems.slice(0, 80).map((item) => (
-                              <div
-                                key={`pub-${item.folder_id}-${item.document_id}`}
-                                className="grid grid-cols-[84px_minmax(0,1fr)_120px] gap-2 rounded border px-2 py-1 text-xs"
-                              >
-                                <span className="font-mono text-muted-foreground">{item.document_id}</span>
-                                <span className="truncate">
-                                  {folders.find((folder) => folder.folder_id === item.folder_id)?.label || item.folder_id}
-                                </span>
-                                <span className="text-right text-muted-foreground">
-                                  {item.published_at ? formatDateTime(item.published_at) : "published"}
-                                </span>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-[11px] text-muted-foreground">Scheduled</p>
-                          {selectedFolderScheduledItems.length === 0 ? (
-                            <p className="text-muted-foreground text-xs">No scheduled release items.</p>
-                          ) : (
-                            selectedFolderScheduledItems.slice(0, 80).map((item) => (
-                              <div
-                                key={`sch-${item.folder_id}-${item.document_id}`}
-                                className="grid grid-cols-[84px_minmax(0,1fr)_120px] gap-2 rounded border bg-muted/30 px-2 py-1 text-xs"
-                              >
-                                <span className="font-mono text-muted-foreground">{item.document_id}</span>
-                                <span className="truncate">
-                                  {folders.find((folder) => folder.folder_id === item.folder_id)?.label || item.folder_id}
-                                </span>
-                                <span className="text-right text-muted-foreground">
-                                  {item.scheduled_at ? formatDateTime(item.scheduled_at) : "scheduled"}
-                                </span>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </>
-              ) : (
-                <Card className="col-span-2 row-span-2 min-h-0">
-                  <CardHeader>
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <CardTitle>
-                          {effectivePublishWorkspaceView === "immediate"
-                            ? "Immediate view"
-                            : "Scheduled view"}
-                        </CardTitle>
-                        <CardDescription>
-                          {effectivePublishWorkspaceView === "immediate"
-                            ? "One list of included documents with dataroom publish timestamps."
-                            : `One list showing already published documents and new documents queued for ${scheduledDefaultTime}.`}
-                        </CardDescription>
-                      </div>
-                      <select
-                        className="h-9 w-[190px] rounded-md border border-input bg-input/20 px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                        value={effectivePublishWorkspaceView}
-                        onChange={(event) => setPublishWorkspaceView(event.target.value as PublishWorkspaceView)}
-                        disabled={isManualSelectedFolder}
-                      >
-                        <option value="immediate">Immediate view</option>
-                        <option value="scheduled">Scheduled view</option>
-                        <option value="manual">Manual schedule view</option>
-                      </select>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={documentSearch}
-                        onChange={(event) => setDocumentSearch(event.target.value)}
-                        placeholder="Search by title or ID"
-                      />
-                      <Button variant="outline" onClick={() => void loadSourceDocuments()} disabled={documentsLoading}>
-                        Refresh
-                      </Button>
-                    </div>
-                    {effectivePublishWorkspaceView === "scheduled" && lastPublishedAtForSelectedFolder ? (
-                      <p className="text-muted-foreground text-xs">
-                        Last published in selected scope: {formatDateTime(lastPublishedAtForSelectedFolder)}
-                      </p>
-                    ) : null}
-                    <div className="max-h-[460px] overflow-auto rounded-md border p-2">
-                      {documentsLoading ? (
-                        <p className="text-muted-foreground text-xs">Loading documents...</p>
-                      ) : effectivePublishWorkspaceView === "immediate" && immediateWorkspaceRows.length === 0 ? (
-                        <p className="text-muted-foreground text-xs">No included documents in scope.</p>
-                      ) : effectivePublishWorkspaceView === "scheduled" && scheduledWorkspaceRows.length === 0 ? (
-                        <p className="text-muted-foreground text-xs">
-                          No published items or newly detected documents since the last release.
-                        </p>
-                      ) : (
-                        <div className="space-y-1">
-                          {(effectivePublishWorkspaceView === "immediate"
-                            ? immediateWorkspaceRows
-                            : scheduledWorkspaceRows
-                          )
-                            .slice(0, 220)
-                            .map((row) => (
-                              <div
-                                key={`workspace-${row.id}`}
-                                className="grid grid-cols-[84px_minmax(0,1fr)_150px_164px] items-center gap-2 rounded border px-2 py-1 text-xs"
-                              >
-                                <span className="font-mono text-muted-foreground">{row.id}</span>
-                                <span className="truncate">{row.title}</span>
-                                <Badge
-                                  variant={row.status === "published" ? "outline" : "secondary"}
-                                  className="h-5 w-fit text-[10px]"
-                                >
-                                  {row.status}
-                                </Badge>
-                                <span className="text-right text-muted-foreground">
-                                  {"publishedAt" in row
-                                    ? row.publishedAt
-                                      ? formatDateTime(row.publishedAt)
-                                      : row.scheduledAt
-                                        ? `Scheduled ${formatDateTime(row.scheduledAt)}`
-                                        : "Not yet published"
-                                    : row.referenceTime
-                                      ? formatDateTime(row.referenceTime)
-                                      : `Scheduled ${scheduledDefaultTime}`}
-                                </span>
-                              </div>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </CarouselItem>
-
-          <CarouselItem className="h-full basis-full pl-0">
-            <div className="grid h-full min-h-0 grid-cols-2 gap-4">
-              <Card className="min-h-0">
-                <CardHeader>
-                  <CardTitle>Publish selection</CardTitle>
-                  <CardDescription>Choose target folder and publish selected documents.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Label className="min-w-[96px]">Target folder</Label>
-                    <select
-                      className="h-9 w-full rounded-md border border-input bg-input/20 px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                      value={publishTargetFolderID || "__auto__"}
-                      onChange={(event) =>
-                        setPublishTargetFolderID(event.target.value === "__auto__" ? "" : event.target.value)
-                      }
-                    >
-                      <option value="__auto__">Auto (selected parent / first folder)</option>
-                      {folders.map((folder) => (
-                        <option key={folder.folder_id} value={folder.folder_id}>
-                          {folder.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <p className="text-muted-foreground text-xs">
-                    Selected documents: {selectedDocumentCount}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Label className="min-w-[96px]">Method</Label>
-                    <select
-                      className="h-9 w-full rounded-md border border-input bg-input/20 px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-                      value={publishMode}
-                      onChange={(event) => setPublishMode(event.target.value as "immediate" | "scheduled")}
-                    >
-                      <option value="immediate">Immediate</option>
-                      <option value="scheduled">Scheduled date/time</option>
-                    </select>
-                  </div>
-                  {publishMode === "scheduled" ? (
-                    <div className="flex items-center gap-2">
-                      <Label className="min-w-[96px]">Scheduled at</Label>
-                      <Input
-                        type="datetime-local"
-                        value={scheduledPublishAt}
-                        onChange={(event) => setScheduledPublishAt(event.target.value)}
-                      />
-                    </div>
-                  ) : null}
-                  <Button
-                    onClick={() => void publishSelectedDocuments()}
-                    disabled={!selectedId || selectedDocumentCount === 0 || publishingDocuments}
-                  >
-                    {publishingDocuments
-                      ? publishMode === "scheduled"
-                        ? "Scheduling..."
-                        : "Publishing..."
-                      : publishMode === "scheduled"
-                        ? "Schedule selected"
-                        : "Publish selected"}
-                  </Button>
-                </CardContent>
-              </Card>
-              <Card className="min-h-0">
-                <CardHeader>
-                  <CardTitle>Publishing summary</CardTitle>
-                  <CardDescription>Folder-level publishing totals.</CardDescription>
-                </CardHeader>
-                <CardContent className="max-h-44 overflow-auto text-sm">
-                  {folders.length === 0 ? (
-                    <p className="text-muted-foreground text-xs">No folders configured.</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {folders.map((folder) => (
-                        <div
-                          key={folder.folder_id}
-                          className="grid grid-cols-[minmax(0,1fr)_50px] items-center rounded border px-2 py-1 text-xs"
-                        >
-                          <span className="truncate">{folder.label}</span>
-                          <span className="text-right text-muted-foreground">
-                            {placementCountsByFolder.get(folder.folder_id) ?? 0}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </CarouselItem>
-          <CarouselItem className="h-full basis-full pl-0">
-            <div className="grid h-full min-h-0 grid-cols-3 gap-4">
-              <Card className="col-span-2 min-h-0">
-                <CardHeader>
-                  <CardTitle>Document list view</CardTitle>
-                  <CardDescription>
-                    Select a document to view release and audit history.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="max-h-[70vh] space-y-1 overflow-auto">
-                  {filteredSourceDocuments.slice(0, 200).map((doc) => {
-                    const docID = String(doc.id)
-                    const isSelected = selectedReleaseDocumentID === docID
-                    const status = releaseItemStatusByDocumentID.get(docID)
-                    const hasChanges = upstreamChangedDocumentIDs.has(docID)
-                    return (
-                      <button
-                        type="button"
-                        key={`history-doc-${docID}`}
-                        className={cn(
-                          "flex w-full items-center gap-2 rounded border px-2 py-1 text-left text-xs",
-                          isSelected && "border-primary bg-muted/40",
-                        )}
-                        onClick={() => setSelectedReleaseDocumentID(docID)}
-                      >
-                        <span className="font-mono text-muted-foreground">{docID}</span>
-                        <span className="truncate">{doc.title || `Document ${docID}`}</span>
-                        {status ? (
-                          <Badge variant="outline" className="ml-auto h-5 text-[10px]">
-                            {status}
-                          </Badge>
-                        ) : null}
-                        {hasChanges ? (
-                          <Badge variant="secondary" className="h-5 text-[10px]">
-                            upstream changed
-                          </Badge>
-                        ) : null}
-                      </button>
-                    )
-                  })}
-                </CardContent>
-              </Card>
-              <Card className="min-h-0">
-                <CardHeader>
-                  <CardTitle>Release / Audit history</CardTitle>
-                  <CardDescription>
-                    Immutable snapshots and publish actions for the selected document.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="max-h-[70vh] space-y-2 overflow-auto text-xs">
-                  {releases.length === 0 ? (
-                    <p className="text-muted-foreground">No releases yet.</p>
-                  ) : (
-                    releases.map((release) => {
-                      const relevantItems = (release.manifest ?? []).filter(
-                        (item) =>
-                          !selectedReleaseDocumentID ||
-                          String(item.document_id) === String(selectedReleaseDocumentID),
-                      )
-                      if (selectedReleaseDocumentID && relevantItems.length === 0) return null
-                      return (
-                        <div key={release.release_id} className="space-y-1 rounded border p-2">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline">v{release.version}</Badge>
-                            <Badge variant="secondary">{release.status}</Badge>
-                          </div>
-                          <p className="text-muted-foreground">
-                            Actor: {release.published_by_subject_id || "system"}
-                          </p>
-                          <p className="text-muted-foreground">
-                            Created: {formatDateTime(release.created_at)}
-                          </p>
-                          <p className="text-muted-foreground">
-                            Published: {formatDateTime(release.published_at)}
-                          </p>
-                          <p className="text-muted-foreground">
-                            Snapshot immutable; upstream updates require explicit republish.
-                          </p>
-                          {relevantItems.length > 0 ? (
-                            <p className="text-muted-foreground">
-                              Items in scope: {relevantItems.length}
-                            </p>
-                          ) : null}
-                        </div>
-                      )
-                    })
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </CarouselItem>
-        </CarouselContent>
-      </Carousel>
+      <DataroomsCarouselShell>
+        {carouselSlides.overview ? (
+        <DataroomsCarouselOverviewSlide
+          configuration={{
+            selectedId,
+            rooms,
+            roomDraft,
+            setSelectedId,
+            setRoomDraft,
+            startCreateNewDataroom,
+            onSave: () => void (selectedId ? saveDataroom() : createDataroom()),
+            formatDateInputValue,
+            toISODateString,
+            autoPublishTimes: AUTO_PUBLISH_TIMES,
+            handleBrandingLogoUpload,
+            handleBrandingLogoDarkUpload,
+            brandingLogoFileName,
+            brandingLogoDarkFileName,
+            setBrandingLogoFileName,
+            setBrandingLogoDarkFileName,
+            ownerSearch,
+            setOwnerSearch,
+            ownerToAdd,
+            setOwnerToAdd,
+            filteredUsers,
+            formatUserLabel,
+            addOwner: () => void addOwner(),
+            ownerRows,
+            formatDateTime,
+            removeOwner: (subjectID) => void removeOwner(subjectID),
+            emailTemplateDefinitions: EMAIL_TEMPLATE_DEFINITIONS,
+            onOpenTemplateEditor: setTemplateEditorKey,
+          }}
+          members={{
+            pendingInviteCount,
+            inviteeDraft,
+            setInviteeDraft,
+            accessPresets: ACCESS_PRESETS,
+            saveInvitee: () => void saveInvitee(),
+            selectedId,
+            invitees,
+            inviteeStatsByKey,
+            formatDateTime,
+            scheduledInviteDates,
+            scheduleInviteDate: (invitee, value) => void scheduleInviteDate(invitee, value),
+            sendingInviteKey,
+            roomSlug: roomDraft.slug,
+            sendInviteNow: (invitee) => void sendInviteNow(invitee),
+            getSummaryCount,
+            memberActionKey,
+            toggleInviteeDisabled: (invitee) => void toggleInviteeDisabled(invitee),
+            removeInvitee: (invitee) => void removeInvitee(invitee),
+            setMemberDetailKey,
+          }}
+        />
+        ) : null}
+        {carouselSlides.folders ? (
+        <DataroomsCarouselFoldersWorkspaceSlide
+          folderHierarchy={{
+            selectedId,
+            treeContent: folderTreeContent,
+            folderDraft,
+            setFolderDraft,
+            saveFolder: () => void saveFolder(),
+            resetFolderDraft: () => {
+              setFolderDraft({})
+              setSelectedTaxonomyNodeID("")
+              setSelectedDocumentTypeID("")
+              setSelectedCorrespondentID("")
+              setSelectedDomainEntityID("")
+              setIncludeAllTaxonomyItems(false)
+              setIncludeAllDocumentTypeItems(false)
+              setIncludeAllCorrespondentItems(false)
+              setIncludeAllDomainEntityItems(false)
+            },
+            folders,
+            selectedTaxonomyNodeID,
+            setSelectedTaxonomyNodeID,
+            taxonomyNodes,
+            addFolderFromCatalog: (label: string) => void addFolderFromCatalog(label),
+            includeAllTaxonomyItems,
+            setIncludeAllTaxonomyItems,
+            selectedTaxonomyNodeLabel,
+            selectedDocumentTypeID,
+            setSelectedDocumentTypeID,
+            documentTypes,
+            includeAllDocumentTypeItems,
+            setIncludeAllDocumentTypeItems,
+            selectedDocumentTypeLabel,
+            selectedCorrespondentID,
+            setSelectedCorrespondentID,
+            correspondents,
+            includeAllCorrespondentItems,
+            setIncludeAllCorrespondentItems,
+            selectedCorrespondentLabel,
+            selectedDomainEntityID,
+            setSelectedDomainEntityID,
+            domainEntities,
+            includeAllDomainEntityItems,
+            setIncludeAllDomainEntityItems,
+            selectedDomainEntityLabel,
+            customFields,
+            standardMetadataFields: STANDARD_METADATA_FIELDS.map((field) => ({
+              key: field.key,
+              label: field.label,
+            })),
+            generatedRulesText: generatedFolderRulesText,
+            autoPublishTimes: AUTO_PUBLISH_TIMES,
+            applyGeneratedRules: () =>
+              setFolderDraft((previous) => ({ ...previous, rules: generatedFolderRulesText })),
+          }}
+          workspace={{
+            effectivePublishWorkspaceView,
+            isManualSelectedFolder,
+            setPublishWorkspaceView,
+            selectedHierarchyFolder,
+            documentsLoading,
+            documentSearch,
+            setDocumentSearch,
+            loadSourceDocuments,
+            documentsTableData,
+            documentsLookup,
+            setSelectedDocumentIDs,
+            setSelectedReleaseDocumentID,
+            selectedFolderPublishedItems,
+            selectedFolderScheduledItems,
+            folders,
+            formatDateTime,
+            scheduleSelectedDocuments,
+            selectedId,
+            selectedDocumentCount,
+            publishingDocuments,
+            immediateWorkspaceRows,
+            scheduledWorkspaceRows,
+            lastPublishedAtForSelectedFolder,
+            scheduledDefaultTime,
+          }}
+        />
+        ) : null}
+        {carouselSlides.publish ? (
+        // <DataroomsCarouselPublishSlide
+        //   folders={folders}
+        //   publishTargetFolderID={publishTargetFolderID}
+        //   setPublishTargetFolderID={setPublishTargetFolderID}
+        //   selectedDocumentCount={selectedDocumentCount}
+        //   publishMode={publishMode}
+        //   setPublishMode={setPublishMode}
+        //   scheduledPublishAt={scheduledPublishAt}
+        //   setScheduledPublishAt={setScheduledPublishAt}
+        //   publishSelectedDocuments={() => void publishSelectedDocuments()}
+        //   publishingDocuments={publishingDocuments}
+        //   selectedId={selectedId}
+        //   placementCountsByFolder={placementCountsByFolder}
+        // />
+        <div>Publish</div>
+        ) : null}
+        {carouselSlides.history ? (
+        // <DataroomsCarouselReleaseHistorySlide
+        //   filteredSourceDocuments={filteredSourceDocuments}
+        //   selectedReleaseDocumentID={selectedReleaseDocumentID}
+        //   setSelectedReleaseDocumentID={setSelectedReleaseDocumentID}
+        //   releaseItemStatusByDocumentID={releaseItemStatusByDocumentID}
+        //   upstreamChangedDocumentIDs={upstreamChangedDocumentIDs}
+        //   releases={releases}
+        //   formatDateTime={formatDateTime}
+        // />
+        <div>Release history</div>
+        ) : null}
+      </DataroomsCarouselShell>
 
       <DraggableDialog
         open={Boolean(templateEditorKey)}
