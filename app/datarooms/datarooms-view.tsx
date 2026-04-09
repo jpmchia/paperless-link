@@ -739,7 +739,7 @@ export function DataroomsView() {
   }, [])
 
   const loadDetail = React.useCallback(async (id: string) => {
-    if (!id) return
+    if (!id) return null
     setLoading(true)
     try {
       const [room, ownerData, folderData, inviteeData, analyticsData, placementsData, releasesData, publishedItemsData, scheduledItemsData] = await Promise.all([
@@ -772,8 +772,14 @@ export function DataroomsView() {
       setReleases(releasesData.releases ?? [])
       setPublishedReleaseItems(publishedItemsData.items ?? [])
       setScheduledReleaseItems(scheduledItemsData.items ?? [])
+      return {
+        room,
+        owners: ownerData.owners ?? [],
+        folders: folderData.folders ?? [],
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load dataroom details")
+      return null
     } finally {
       setLoading(false)
     }
@@ -1026,35 +1032,11 @@ export function DataroomsView() {
         folderDraft.rules?.trim()
           ? folderDraft.rules
           : existingFolder?.rules || generatedFolderRulesText
-      const nextLinkedItem = selectedTaxonomyNodeID
-        ? {
-            linked_item_type: "taxonomy" as const,
-            linked_item_id: selectedTaxonomyNodeID,
-            linked_item_label: selectedTaxonomyNodeLabel || existingFolder?.linked_item_label || "",
-          }
-        : selectedDocumentTypeID
-          ? {
-              linked_item_type: "document_type" as const,
-              linked_item_id: selectedDocumentTypeID,
-              linked_item_label: selectedDocumentTypeLabel || existingFolder?.linked_item_label || "",
-            }
-          : selectedCorrespondentID
-            ? {
-                linked_item_type: "correspondent" as const,
-                linked_item_id: selectedCorrespondentID,
-                linked_item_label: selectedCorrespondentLabel || existingFolder?.linked_item_label || "",
-              }
-            : selectedDomainEntityID
-              ? {
-                  linked_item_type: "domain_entity" as const,
-                  linked_item_id: selectedDomainEntityID,
-                  linked_item_label: selectedDomainEntityLabel || existingFolder?.linked_item_label || "",
-                }
-              : {
-                  linked_item_type: existingFolder?.linked_item_type,
-                  linked_item_id: existingFolder?.linked_item_id,
-                  linked_item_label: existingFolder?.linked_item_label,
-                }
+      const nextLinkedItem = {
+        linked_item_type: folderDraft.linked_item_type ?? existingFolder?.linked_item_type,
+        linked_item_id: folderDraft.linked_item_id ?? existingFolder?.linked_item_id,
+        linked_item_label: folderDraft.linked_item_label ?? existingFolder?.linked_item_label,
+      }
 
       const savedFolder = await postJson<DataroomFolder>(`/api/link-iq/datarooms/${selectedId}/folders`, {
         ...existingFolder,
@@ -1072,7 +1054,16 @@ export function DataroomsView() {
         setFolderDraft({})
         setPublishTargetFolderID("")
       }
-      await loadDetail(selectedId)
+      const detail = await loadDetail(selectedId)
+      if (isUpdate && savedFolder?.folder_id) {
+        const refreshed =
+          detail?.folders.find((entry) => entry.folder_id === savedFolder.folder_id) ||
+          detail?.folders.find((entry) => entry.folder_id === folderIDForSave) ||
+          null
+        if (refreshed) {
+          hydrateFolderDraftFromSelection(refreshed)
+        }
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save folder")
     }

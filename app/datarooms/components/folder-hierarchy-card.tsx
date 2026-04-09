@@ -288,7 +288,10 @@ export function FolderHierarchyCard({
               {[
                 {
                   label: "Taxonomy node",
-                  value: selectedTaxonomyNodeID,
+                  value:
+                    folderDraft.linked_item_type === "taxonomy"
+                      ? folderDraft.linked_item_id || ""
+                      : "",
                   setValue: setSelectedTaxonomyNodeID,
                   options: taxonomyNodes.map((node) => ({
                     key: node.taxonomy_node_id || node.label || "",
@@ -296,15 +299,23 @@ export function FolderHierarchyCard({
                     text: node.path || node.label || "(unnamed node)",
                     addLabel: node.path || node.label || "Taxonomy node",
                   })),
-                  includeAll: includeAllTaxonomyItems,
+                  includeAll:
+                    folderDraft.linked_item_type === "taxonomy" &&
+                    Boolean(folderDraft.linked_item_id),
                   setIncludeAll: setIncludeAllTaxonomyItems,
-                  includeLabel: selectedTaxonomyNodeLabel || "(taxonomy node)",
+                  includeLabel:
+                    folderDraft.linked_item_type === "taxonomy"
+                      ? folderDraft.linked_item_label || selectedTaxonomyNodeLabel || "(taxonomy node)"
+                      : selectedTaxonomyNodeLabel || "(taxonomy node)",
                   sourceType: "taxonomy" as const,
                   icon: GitBranch,
                 },
                 {
                   label: "Document type",
-                  value: selectedDocumentTypeID,
+                  value:
+                    folderDraft.linked_item_type === "document_type"
+                      ? folderDraft.linked_item_id || ""
+                      : "",
                   setValue: setSelectedDocumentTypeID,
                   options: documentTypes.map((item) => ({
                     key: String(item.id),
@@ -312,15 +323,23 @@ export function FolderHierarchyCard({
                     text: item.name || `Document type ${item.id}`,
                     addLabel: item.name || `Document type ${item.id}`,
                   })),
-                  includeAll: includeAllDocumentTypeItems,
+                  includeAll:
+                    folderDraft.linked_item_type === "document_type" &&
+                    Boolean(folderDraft.linked_item_id),
                   setIncludeAll: setIncludeAllDocumentTypeItems,
-                  includeLabel: selectedDocumentTypeLabel || "(document type)",
+                  includeLabel:
+                    folderDraft.linked_item_type === "document_type"
+                      ? folderDraft.linked_item_label || selectedDocumentTypeLabel || "(document type)"
+                      : selectedDocumentTypeLabel || "(document type)",
                   sourceType: "document_type" as const,
                   icon: FileType,
                 },
                 {
                   label: "Correspondent",
-                  value: selectedCorrespondentID,
+                  value:
+                    folderDraft.linked_item_type === "correspondent"
+                      ? folderDraft.linked_item_id || ""
+                      : "",
                   setValue: setSelectedCorrespondentID,
                   options: correspondents.map((item) => ({
                     key: String(item.id),
@@ -328,15 +347,23 @@ export function FolderHierarchyCard({
                     text: item.name || `Correspondent ${item.id}`,
                     addLabel: item.name || `Correspondent ${item.id}`,
                   })),
-                  includeAll: includeAllCorrespondentItems,
+                  includeAll:
+                    folderDraft.linked_item_type === "correspondent" &&
+                    Boolean(folderDraft.linked_item_id),
                   setIncludeAll: setIncludeAllCorrespondentItems,
-                  includeLabel: selectedCorrespondentLabel || "(correspondent)",
+                  includeLabel:
+                    folderDraft.linked_item_type === "correspondent"
+                      ? folderDraft.linked_item_label || selectedCorrespondentLabel || "(correspondent)"
+                      : selectedCorrespondentLabel || "(correspondent)",
                   sourceType: "correspondent" as const,
                   icon: Users,
                 },
                 {
                   label: "Domain entity",
-                  value: selectedDomainEntityID,
+                  value:
+                    folderDraft.linked_item_type === "domain_entity"
+                      ? folderDraft.linked_item_id || ""
+                      : "",
                   setValue: setSelectedDomainEntityID,
                   options: domainEntities.map((item) => ({
                     key: item.entity_type_id || item.label || "",
@@ -344,9 +371,14 @@ export function FolderHierarchyCard({
                     text: item.label || item.entity_type_id || "(unnamed entity)",
                     addLabel: item.label || item.entity_type_id || "Domain entity",
                   })),
-                  includeAll: includeAllDomainEntityItems,
+                  includeAll:
+                    folderDraft.linked_item_type === "domain_entity" &&
+                    Boolean(folderDraft.linked_item_id),
                   setIncludeAll: setIncludeAllDomainEntityItems,
-                  includeLabel: selectedDomainEntityLabel || "(domain entity)",
+                  includeLabel:
+                    folderDraft.linked_item_type === "domain_entity"
+                      ? folderDraft.linked_item_label || selectedDomainEntityLabel || "(domain entity)"
+                      : selectedDomainEntityLabel || "(domain entity)",
                   sourceType: "domain_entity" as const,
                   icon: Building2,
                 },
@@ -360,9 +392,17 @@ export function FolderHierarchyCard({
                     <div className="grid items-center gap-2 md:grid-cols-[320px_auto]">
                       <Select
                         value={section.value || "__none__"}
-                        onValueChange={(value) =>
-                          section.setValue(value === "__none__" ? "" : value)
-                        }
+                        onValueChange={(value) => {
+                          const nextValue = value === "__none__" ? "" : value
+                          section.setValue(nextValue)
+                          const selected = section.options.find((option) => option.value === nextValue)
+                          setFolderDraft((previous) => ({
+                            ...previous,
+                            linked_item_type: nextValue ? section.sourceType : undefined,
+                            linked_item_id: nextValue || undefined,
+                            linked_item_label: selected?.text || undefined,
+                          }))
+                        }}
                       >
                         <SelectTrigger className="w-[320px] max-w-full text-[13px]">
                           <SelectValue placeholder={`Select ${section.label.toLowerCase()}`} />
@@ -396,7 +436,31 @@ export function FolderHierarchyCard({
                     <div className="flex items-center gap-2">
                       <Checkbox
                         checked={section.includeAll}
-                        onCheckedChange={(checked) => section.setIncludeAll(Boolean(checked))}
+                        onCheckedChange={(checked) => {
+                          const includeAll = Boolean(checked)
+                          section.setIncludeAll(includeAll)
+                          if (!includeAll) {
+                            setFolderDraft((previous) => {
+                              if (previous.linked_item_type !== section.sourceType) return previous
+                              return {
+                                ...previous,
+                                linked_item_type: undefined,
+                                linked_item_id: undefined,
+                                linked_item_label: undefined,
+                              }
+                            })
+                            section.setValue("")
+                            return
+                          }
+                          const selected = section.options.find((option) => option.value === section.value)
+                          if (!selected) return
+                          setFolderDraft((previous) => ({
+                            ...previous,
+                            linked_item_type: section.sourceType,
+                            linked_item_id: selected.value,
+                            linked_item_label: selected.text,
+                          }))
+                        }}
                       />
                       <Label className="text-[12px] text-white">include all {section.includeLabel} items for this folder</Label>
                     </div>
