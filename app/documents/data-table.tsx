@@ -64,6 +64,7 @@ interface DataTableProps {
   onDisplayFieldsChange?: React.Dispatch<React.SetStateAction<string[]>>
   onColumnSizingChange?: React.Dispatch<React.SetStateAction<ColumnSizingState>>
   onPreviewDocument?: (document: { id: number; title?: string }) => void
+  onSelectedIdsChange?: (ids: number[]) => void
 }
 
 const PAGE_SIZES = [10, 25, 50, 100]
@@ -197,6 +198,7 @@ export function DataTable({
   onDisplayFieldsChange,
   onColumnSizingChange,
   onPreviewDocument,
+  onSelectedIdsChange,
 }: DataTableProps) {
   const router = useRouter()
   const navigateToDocument = useOpenDocumentNavigation()
@@ -315,6 +317,10 @@ export function DataTable({
   })
 
   const selectedIds = Object.keys(rowSelection).map(Number)
+
+  React.useEffect(() => {
+    onSelectedIdsChange?.(selectedIds)
+  }, [onSelectedIdsChange, selectedIds])
 
   const handleBulkComplete = () => {
     setRowSelection({})

@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <body className="h-screen w-screen overflow-hidden">
           <SessionProvider>
             <JotaiProvider>
-              <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+              <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
                 <RealtimeProvider>
                   <div className="w-full h-full overflow-hidden">
                     {children}

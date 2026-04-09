@@ -1,11 +1,16 @@
 import { TopBar } from "@/app/documents/topbar"
 import { AppShell } from "@/components/app-shell"
 import { getUiSettings } from "@/lib/api"
+import { invokeLinkIQAction } from "@/lib/link-iq"
 import { DataroomSidebar } from "@/app/dataroom/components/dataroom-sidebar"
 import { DataroomViewerSurface } from "@/app/dataroom/components/dataroom-viewer-surface"
 
 type UiSettingsPayload = {
   settings?: Record<string, unknown>
+}
+
+type PublicDataroomConfig = {
+  title?: string
 }
 
 function resolvePaperlessAssetUrl(value: string | null) {
@@ -25,16 +30,23 @@ export default async function DataroomViewerPage({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
-  const uiSettings = await getUiSettings<UiSettingsPayload>().catch(() => null)
+  const [uiSettings, publicConfig] = await Promise.all([
+    getUiSettings<UiSettingsPayload>().catch(() => null),
+    invokeLinkIQAction<{ dataroom?: PublicDataroomConfig }>({
+      capability: "dataroom.public.get",
+      input: { slug },
+    }).catch(() => null),
+  ])
   const settingsValues = (uiSettings?.settings as Record<string, unknown> | undefined) ?? {}
   const appLogoUrl = resolvePaperlessAssetUrl(
     typeof settingsValues.app_logo === "string" ? settingsValues.app_logo : null,
   )
+  const dataroomTitle = publicConfig?.dataroom?.title?.trim() || "Dataroom"
 
   return (
     <AppShell
-      topbar={<TopBar title="Dataroom" />}
-      sidebar={<DataroomSidebar slug={slug} appLogoUrl={appLogoUrl} />}
+      topbar={<TopBar title={dataroomTitle} />}
+      sidebar={<DataroomSidebar slug={slug} appLogoUrl={appLogoUrl} dataroomTitle={dataroomTitle} />}
       mode="dataroom"
     >
       <DataroomViewerSurface slug={slug} />

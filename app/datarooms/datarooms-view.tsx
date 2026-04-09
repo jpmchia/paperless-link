@@ -63,6 +63,8 @@ import {
 import { DataroomConfigurationCard } from "./components/dataroom-configuration-card"
 import { FolderHierarchyCard } from "@/app/datarooms/components/folder-hierarchy-card"
 import { AuthorisedMembersCard } from "./components/authorised-members-card"
+import { DataTable } from "@/app/documents/data-table"
+import type { Document as DocumentsTableRow, LookupMaps as DocumentsLookupMaps } from "@/app/documents/columns"
 
 const ReactQuill = dynamic(() => import("react-quill"), { ssr: false })
 
@@ -90,14 +92,34 @@ type TaxonomyNodeOption = { taxonomy_node_id?: string; label?: string; path?: st
 type DocumentTypeOption = { id: number; name?: string }
 type CorrespondentOption = { id: number; name?: string }
 type EntityTypeOption = { entity_type_id?: string; label?: string }
-type CustomFieldOption = { id: number; name?: string }
+type TagOption = { id: number; name?: string; color?: string | number }
+type StoragePathOption = { id: number; name?: string }
+type CustomFieldOption = {
+  id: number
+  name?: string
+  data_type?: string
+  extra_data?: {
+    select_options?: Array<string | { id?: string | number; label?: string }>
+  }
+}
 type PaperlessDocument = {
   id: number
   title?: string
   content?: string
   created?: string
+  added?: string
+  modified?: string
+  archive_serial_number?: number | null
   correspondent?: number | null
   document_type?: number | null
+  storage_path?: number | null
+  tags?: number[]
+  custom_fields?: { value: unknown; field: number }[]
+  owner?: number | null
+  notes?: { id: number; note?: string }[]
+  num_notes?: number | null
+  page_count?: number | null
+  is_shared_by_requester?: boolean
   original_md5?: string
   archive_md5?: string
   original_file_size?: number
@@ -430,6 +452,8 @@ export function DataroomsView() {
   const [taxonomyNodes, setTaxonomyNodes] = React.useState<TaxonomyNodeOption[]>([])
   const [documentTypes, setDocumentTypes] = React.useState<DocumentTypeOption[]>([])
   const [correspondents, setCorrespondents] = React.useState<CorrespondentOption[]>([])
+  const [tags, setTags] = React.useState<TagOption[]>([])
+  const [storagePaths, setStoragePaths] = React.useState<StoragePathOption[]>([])
   const [domainEntities, setDomainEntities] = React.useState<EntityTypeOption[]>([])
   const [customFields, setCustomFields] = React.useState<CustomFieldOption[]>([])
   const [selectedTaxonomyNodeID, setSelectedTaxonomyNodeID] = React.useState("")
@@ -693,7 +717,7 @@ export function DataroomsView() {
   }, [])
 
   const loadHierarchySourceOptions = React.useCallback(async () => {
-    const [taxonomyResult, documentTypeResult, correspondentsResult, entityResult, customFieldsResult] =
+    const [taxonomyResult, documentTypeResult, correspondentsResult, tagsResult, storagePathsResult, entityResult, customFieldsResult] =
       await Promise.allSettled([
         getJson<{ nodes?: TaxonomyNodeOption[] }>("/api/link-iq/taxonomy/nodes"),
         getJson<{ results?: DocumentTypeOption[] } | DocumentTypeOption[]>(
@@ -701,6 +725,12 @@ export function DataroomsView() {
         ),
         getJson<{ results?: CorrespondentOption[] } | CorrespondentOption[]>(
           "/api/management/lookups?kind=correspondents",
+        ),
+        getJson<{ results?: TagOption[] } | TagOption[]>(
+          "/api/management/lookups?kind=tags",
+        ),
+        getJson<{ results?: StoragePathOption[] } | StoragePathOption[]>(
+          "/api/proxy/storage_paths/?page_size=100000",
         ),
         getJson<{ entity_types?: EntityTypeOption[] }>("/api/link-iq/entity-types"),
         getJson<{ results?: CustomFieldOption[] } | CustomFieldOption[]>(
@@ -717,6 +747,12 @@ export function DataroomsView() {
     if (correspondentsResult.status === "fulfilled") {
       setCorrespondents(normalizePaginatedArray<CorrespondentOption>(correspondentsResult.value))
     }
+    if (tagsResult.status === "fulfilled") {
+      setTags(normalizePaginatedArray<TagOption>(tagsResult.value))
+    }
+    if (storagePathsResult.status === "fulfilled") {
+      setStoragePaths(normalizePaginatedArray<StoragePathOption>(storagePathsResult.value))
+    }
     if (entityResult.status === "fulfilled") {
       setDomainEntities(normalizePaginatedArray<EntityTypeOption>(entityResult.value))
     }
@@ -728,6 +764,8 @@ export function DataroomsView() {
       taxonomyResult,
       documentTypeResult,
       correspondentsResult,
+      tagsResult,
+      storagePathsResult,
       entityResult,
       customFieldsResult,
     ].filter(
@@ -1162,6 +1200,69 @@ export function DataroomsView() {
     selectedHierarchyFolder,
   ])
 
+  const documentsTableData = React.useMemo<DocumentsTableRow[]>(
+    () =>
+      filteredSourceDocuments.map((doc) => ({
+        id: doc.id,
+        title: doc.title || `Document ${doc.id}`,
+        created: doc.created || "",
+        added: doc.added || "",
+        modified: doc.modified || "",
+        archive_serial_number: doc.archive_serial_number ?? null,
+        correspondent: doc.correspondent ?? null,
+        document_type: doc.document_type ?? null,
+        storage_path: doc.storage_path ?? null,
+        tags: doc.tags ?? [],
+        custom_fields: doc.custom_fields ?? [],
+        owner: doc.owner ?? null,
+        notes: doc.notes ?? [],
+        num_notes: doc.num_notes ?? null,
+        page_count: doc.page_count ?? null,
+        is_shared_by_requester: doc.is_shared_by_requester ?? false,
+      })),
+    [filteredSourceDocuments],
+  )
+
+  const documentsLookup = React.useMemo<DocumentsLookupMaps>(
+    () => ({
+      correspondents: Object.fromEntries(
+        correspondents.map((item) => [item.id, { id: item.id, name: item.name || `Correspondent ${item.id}` }]),
+      ),
+      documentTypes: Object.fromEntries(
+        documentTypes.map((item) => [item.id, { id: item.id, name: item.name || `Type ${item.id}` }]),
+      ),
+      tags: Object.fromEntries(
+        tags.map((item) => [item.id, { id: item.id, name: item.name || `Tag ${item.id}`, color: String(item.color ?? "") }]),
+      ),
+      storagePaths: Object.fromEntries(
+        storagePaths.map((item) => [item.id, { id: item.id, name: item.name || `Storage ${item.id}` }]),
+      ),
+      users: Object.fromEntries(
+        users.map((item) => [
+          item.id,
+          {
+            id: item.id,
+            username: item.username,
+            first_name: item.first_name,
+            last_name: item.last_name,
+          },
+        ]),
+      ),
+      customFields: Object.fromEntries(
+        customFields.map((field) => [
+          field.id,
+          {
+            id: field.id,
+            name: field.name || `Custom field ${field.id}`,
+            data_type: field.data_type || "text",
+            extra_data: field.extra_data,
+          },
+        ]),
+      ),
+    }),
+    [correspondents, customFields, documentTypes, storagePaths, tags, users],
+  )
+
   const sourceDocumentByID = React.useMemo(() => {
     return sourceDocuments.reduce<Record<string, PaperlessDocument>>((accumulator, doc) => {
       accumulator[String(doc.id)] = doc
@@ -1329,11 +1430,6 @@ export function DataroomsView() {
     publishedItemByDocumentID,
     scheduledItemByDocumentID,
   ])
-
-  const toggleDocumentSelection = (documentID: number) => {
-    const key = String(documentID)
-    setSelectedDocumentIDs((previous) => ({ ...previous, [key]: !previous[key] }))
-  }
 
   const publishSelectedDocuments = async (options?: {
     mode?: "immediate" | "scheduled"
@@ -1733,48 +1829,25 @@ export function DataroomsView() {
                           Refresh
                         </Button>
                       </div>
-                      <div className="max-h-44 overflow-auto rounded-md border p-2">
+                      <div className="h-[360px] min-h-0 overflow-hidden rounded-md border p-2">
                         {documentsLoading ? (
                           <p className="text-muted-foreground text-xs">Loading documents...</p>
-                        ) : filteredSourceDocuments.length === 0 ? (
+                        ) : documentsTableData.length === 0 ? (
                           <p className="text-muted-foreground text-xs">No matching documents.</p>
                         ) : (
-                          <div className="space-y-1">
-                            {filteredSourceDocuments.slice(0, 150).map((doc) => (
-                              <label key={doc.id} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-muted/60">
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(selectedDocumentIDs[String(doc.id)])}
-                                  onChange={() => toggleDocumentSelection(doc.id)}
-                                />
-                                <span className="font-mono text-[11px] text-muted-foreground">{doc.id}</span>
-                                <span className="truncate text-xs">{doc.title || `Document ${doc.id}`}</span>
-                                {releaseItemStatusByDocumentID.get(String(doc.id)) ? (
-                                  <Badge variant="outline" className="ml-auto h-5 text-[10px]">
-                                    {releaseItemStatusByDocumentID.get(String(doc.id))}
-                                  </Badge>
-                                ) : null}
-                                {upstreamChangedDocumentIDs.has(String(doc.id)) ? (
-                                  <Badge variant="secondary" className="h-5 text-[10px]">
-                                    changes available
-                                  </Badge>
-                                ) : null}
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-5 px-1 text-[10px]"
-                                  onClick={(event) => {
-                                    event.preventDefault()
-                                    event.stopPropagation()
-                                    setSelectedReleaseDocumentID(String(doc.id))
-                                  }}
-                                >
-                                  history
-                                </Button>
-                              </label>
-                            ))}
-                          </div>
+                          <DataTable
+                            lookup={documentsLookup}
+                            data={documentsTableData}
+                            pageCount={1}
+                            onSelectedIdsChange={(ids) => {
+                              setSelectedDocumentIDs(
+                                Object.fromEntries(ids.map((id) => [String(id), true])),
+                              )
+                            }}
+                            onPreviewDocument={(document) =>
+                              setSelectedReleaseDocumentID(String(document.id))
+                            }
+                          />
                         )}
                       </div>
                     </CardContent>

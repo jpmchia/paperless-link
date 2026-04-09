@@ -8,7 +8,7 @@ import { ChevronDown, ChevronRight, FolderIcon } from "lucide-react"
 import { postJson } from "@/lib/paperless-client"
 import type { DataroomFolder } from "@/lib/link-iq-types"
 import { ModeToggle } from "@/components/theme-toggle"
-import { NavUser } from "@/components/nav-user"
+import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   Sidebar,
@@ -86,6 +86,7 @@ function FolderTree({ nodes, depth = 0 }: { nodes: TreeNode[]; depth?: number })
 export function DataroomSidebar({ slug, appLogoUrl, dataroomTitle }: Props) {
   const router = useRouter()
   const { resolvedTheme } = useTheme()
+  const [hasMounted, setHasMounted] = React.useState(false)
   const [session, setSession] = React.useState<SessionResult>({})
   const [tree, setTree] = React.useState<TreeNode[]>([])
   const [dataroomSectionOpen, setDataroomSectionOpen] = React.useState(true)
@@ -95,6 +96,10 @@ export function DataroomSidebar({ slug, appLogoUrl, dataroomTitle }: Props) {
       ? session.dataroom?.login_logo_dark_url || session.dataroom?.login_logo_url
       : session.dataroom?.login_logo_url)
   const effectiveDataroomTitle = session.dataroom?.title?.trim() || dataroomTitle || "Dataroom"
+
+  React.useEffect(() => {
+    setHasMounted(true)
+  }, [])
 
   React.useEffect(() => {
     const run = async () => {
@@ -129,6 +134,32 @@ export function DataroomSidebar({ slug, appLogoUrl, dataroomTitle }: Props) {
       window.sessionStorage.removeItem("dataroom_session")
     }
     router.replace(`/dataroom/${slug}`)
+  }
+
+  if (!hasMounted) {
+    return (
+      <Sidebar variant="inset">
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" className="min-h-[5rem]" asChild>
+                <Link href={`/dataroom/${slug}/view`} className="flex flex-col items-start gap-0">
+                  <div className="grid max-w-full text-left leading-tight">
+                    <span className="truncate text-sm font-semibold">{dataroomTitle || "Dataroom"}</span>
+                  </div>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+        <SidebarContent />
+        <SidebarFooter>
+          <div className="flex items-center justify-end">
+            <ModeToggle />
+          </div>
+        </SidebarFooter>
+      </Sidebar>
+    )
   }
 
   return (
@@ -194,15 +225,14 @@ export function DataroomSidebar({ slug, appLogoUrl, dataroomTitle }: Props) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <div className="flex items-center justify-between">
-          <NavUser
-            overrideUser={{
-              name: effectiveDataroomTitle,
-              email: session.invitee?.email || "invitee",
-            }}
-            onLogoutOverride={logout}
-            hideProfileLink
-          />
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{effectiveDataroomTitle}</p>
+            <p className="truncate text-xs text-muted-foreground">{session.invitee?.email || "invitee"}</p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={logout}>
+            Logout
+          </Button>
           <ModeToggle />
         </div>
       </SidebarFooter>

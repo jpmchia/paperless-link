@@ -85,7 +85,16 @@ export async function requestLinkIQJson<T>(
     throw new Error(await extractError(response))
   }
 
-  return (await response.json()) as T
+  const rawBody = await response.text()
+  if (!rawBody.trim()) {
+    throw new Error("Empty JSON response from link-iq")
+  }
+
+  try {
+    return JSON.parse(rawBody) as T
+  } catch {
+    throw new Error("Invalid JSON response from link-iq")
+  }
 }
 
 export async function invokeLinkIQAction<T>(
