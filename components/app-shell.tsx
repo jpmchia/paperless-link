@@ -1,11 +1,8 @@
 import type { CSSProperties } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
-import { GlobalSearch } from "@/components/global-search/global-search"
+import { AgentRailLayout } from "@/components/agent-rail-layout"
 import { ConfirmationDialogProvider } from "@/components/confirmation-dialog-provider"
-import { NotificationCenter } from "@/components/notifications/notification-center"
 import { NotificationPreferencesProvider } from "@/components/notifications/preferences-provider"
-import { LinkIQConnectionStatus } from "@/components/link-iq-connection-status"
-import { ShellStatus } from "@/components/shell-status"
 import { PermissionsProvider } from "@/components/permissions/provider"
 import {
   SidebarInset,
@@ -31,6 +28,8 @@ export interface AppShellProps {
   children: React.ReactNode
   initialPermissions?: CurrentUserPermissions
   topbar?: React.ReactNode
+  sidebar?: React.ReactNode
+  mode?: "default" | "dataroom"
 }
 
 export interface TopBarProps {
@@ -75,6 +74,8 @@ export async function AppShell({
   children,
   initialPermissions,
   topbar,
+  sidebar,
+  mode = "default",
 }: AppShellProps) {
   // Fetch saved views server-side so the sidebar can show sidebar-pinned views
   let savedViews: SavedViewEntry[] = []
@@ -134,28 +135,24 @@ export async function AppShell({
             className="h-full"
             style={themeVariables as CSSProperties}
           >
-            <AppSidebar
-              appLogo={appLogo}
-              appTitle={appTitle}
-              initialPermissions={resolvedPermissions}
-              savedViews={savedViews}
-            />
+            {sidebar ?? (
+              <AppSidebar
+                appLogo={appLogo}
+                appTitle={appTitle}
+                initialPermissions={resolvedPermissions}
+                savedViews={savedViews}
+              />
+            )}
             <SidebarInset className="h-full bg-sidebar border-none shadow-none!">
-              <header className="sticky top-0 flex h-15 shrink-0 items-center justify-between gap-2 px-2 z-10 bg-transparent transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12  ">
-                <div className="flex items-center w-full min-w-0">
-                  <SidebarTrigger className="" />
-                  <div className="min-w-0 flex-1 ml-4">{topbar}</div>
-                  <div className="flex items-center gap-10">
-                    <GlobalSearch savedViews={savedViews} />
-                    <LinkIQConnectionStatus />
-                    <ShellStatus />
-                    <NotificationCenter />
-                  </div>
-                </div>
-              </header>
-              <main className="flex flex-1 flex-col min-h-0 overflow-hidden h-[calc(100vh-2rem)] mb-[1.25rem] rounded-xl bg-background inset-shadow-xl border border-muted">
+              <AgentRailLayout
+                savedViews={savedViews}
+                topbar={topbar}
+                sidebarTrigger={<SidebarTrigger />}
+                showGlobalControls={mode === "default"}
+                showAgentRailToggle={mode === "default"}
+              >
                 {children}
-              </main>
+              </AgentRailLayout>
             </SidebarInset>
           </SidebarProvider>
         </ConfirmationDialogProvider>

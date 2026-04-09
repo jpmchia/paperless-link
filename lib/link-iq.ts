@@ -5,6 +5,12 @@ type LinkIQActionRequest = {
   source_id?: string
 }
 
+type LinkIQActor = {
+  id: string
+  type?: string
+  requestId?: string
+}
+
 type LinkIQExecutionResponse<T> = {
   error?: string
   execution?: {
@@ -36,7 +42,8 @@ async function extractError(response: Response) {
 
 export async function requestLinkIQJson<T>(
   path: string,
-  init: RequestInit = {}
+  init: RequestInit = {},
+  actor?: LinkIQActor
 ): Promise<T> {
   const headers = new Headers(init.headers)
   const token = process.env.LINK_IQ_API_TOKEN
@@ -47,6 +54,13 @@ export async function requestLinkIQJson<T>(
   }
   if (token) {
     headers.set("Authorization", `Bearer ${token}`)
+  }
+  if (actor?.id) {
+    headers.set("X-LinkIQ-Actor-Id", actor.id)
+    headers.set("X-LinkIQ-Actor-Type", actor.type || "user")
+  }
+  if (actor?.requestId) {
+    headers.set("X-LinkIQ-Request-Id", actor.requestId)
   }
 
   let response: Response
@@ -75,14 +89,16 @@ export async function requestLinkIQJson<T>(
 }
 
 export async function invokeLinkIQAction<T>(
-  request: LinkIQActionRequest
+  request: LinkIQActionRequest,
+  actor?: LinkIQActor
 ): Promise<T> {
   const payload = await requestLinkIQJson<LinkIQExecutionResponse<T>>(
     "api/v1/mcp/actions",
     {
       method: "POST",
       body: JSON.stringify(request),
-    }
+    },
+    actor
   )
 
   if (payload.error) {

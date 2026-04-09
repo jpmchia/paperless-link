@@ -243,6 +243,17 @@ export function DocumentContextTab({
     return nodes.filter((node) => !selected.has(node.taxonomy_node_id))
   }, [nodes, selectedNodeIDs])
 
+  const taxonomyTreeRows = React.useMemo(() => {
+    return nodes.map((node) => {
+      const depth = Math.max(0, node.path.split("/").filter(Boolean).length - 1)
+      return {
+        node,
+        depth,
+        selected: selectedNodeIDs.includes(node.taxonomy_node_id),
+      }
+    })
+  }, [nodes, selectedNodeIDs])
+
   const isDirty = React.useMemo(() => {
     const baselineNodeIDs = assignmentNodeIDs(context?.assignments)
     const currentNodeIDs = sortedNodeIDs(selectedNodeIDs)
@@ -421,6 +432,49 @@ export function DocumentContextTab({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="rounded-md border bg-muted/20 p-2">
+            <div className="mb-2 text-xs font-medium text-muted-foreground">
+              Taxonomy hierarchy
+            </div>
+            <div className="max-h-52 overflow-auto pr-1">
+              {taxonomyTreeRows.map(({ node, depth, selected }) => (
+                <div
+                  key={node.taxonomy_node_id}
+                  className={cn(
+                    "flex items-center justify-between rounded px-2 py-1.5 text-sm",
+                    selected ? "bg-accent/20" : "hover:bg-muted/50"
+                  )}
+                  style={{ paddingLeft: `${Math.min(depth, 8) * 12 + 8}px` }}
+                >
+                  <span className="truncate">{node.path}</span>
+                  {selected ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2"
+                      disabled={!canChangeDocument}
+                      onClick={() => removeNode(node.taxonomy_node_id)}
+                    >
+                      Remove
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2"
+                      disabled={!canChangeDocument}
+                      onClick={() => addNode(node.taxonomy_node_id)}
+                    >
+                      Add
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-center gap-3">
             <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
               <PopoverTrigger asChild>

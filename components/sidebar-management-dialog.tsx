@@ -51,21 +51,44 @@ const DIALOG_META: Record<
   { endpoint: string; title: string }
 > = {
   correspondents: {
-    endpoint: withQuery("/api/proxy/correspondents/", { page_size: 100000 }),
+    endpoint: withQuery("/api/management/lookups", { kind: "correspondents" }),
     title: "Correspondents",
   },
   customFields: {
-    endpoint: withQuery("/api/proxy/custom_fields/", { page_size: 100000 }),
+    endpoint: withQuery("/api/management/lookups", { kind: "custom-fields" }),
     title: "Custom Fields",
   },
   documentTypes: {
-    endpoint: withQuery("/api/proxy/document_types/", { page_size: 100000 }),
+    endpoint: withQuery("/api/management/lookups", { kind: "document-types" }),
     title: "Document Types",
   },
   tags: {
-    endpoint: withQuery("/api/proxy/tags/", { page_size: 100000 }),
+    endpoint: withQuery("/api/management/lookups", { kind: "tags" }),
     title: "Tags",
   },
+}
+
+function normalizeDialogItems<T>(payload: unknown, kind: SidebarManagementDialogKind): T[] {
+  if (Array.isArray(payload)) return payload as T[]
+  if (!payload || typeof payload !== "object") return []
+
+  const record = payload as Record<string, unknown>
+
+  if (Array.isArray(record.results)) return record.results as T[]
+  if (Array.isArray(record.all)) return record.all as T[]
+
+  // Be tolerant of shape differences across endpoints/proxy variants.
+  const kindKeys: Record<SidebarManagementDialogKind, string[]> = {
+    tags: ["tags"],
+    correspondents: ["correspondents"],
+    documentTypes: ["document_types", "documentTypes"],
+    customFields: ["custom_fields", "customFields"],
+  }
+  for (const key of kindKeys[kind]) {
+    if (Array.isArray(record[key])) return record[key] as T[]
+  }
+
+  return []
 }
 
 export function SidebarManagementDialog({
@@ -86,14 +109,19 @@ export function SidebarManagementDialog({
 
     async function load() {
       try {
+        const endpoint = `${DIALOG_META[currentKind].endpoint}${
+          DIALOG_META[currentKind].endpoint.includes("?") ? "&" : "?"
+        }_t=${Date.now()}`
         const response = await getJson<
           PaginatedResults<
             TagItem | CorrespondentItem | DocumentTypeItem | CustomFieldItem
           >
-        >(DIALOG_META[currentKind].endpoint)
+        >(endpoint, { cache: "no-store" })
         if (cancelled) return
 
-        const items = Array.isArray(response?.results) ? response.results : []
+        const items = normalizeDialogItems<
+          TagItem | CorrespondentItem | DocumentTypeItem | CustomFieldItem
+        >(response, currentKind)
         setData((current) => ({
           ...current,
           [currentKind]: items,

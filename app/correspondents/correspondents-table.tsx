@@ -109,6 +109,10 @@ export function CorrespondentsTable({
   const [selectedIds, setSelectedIds] = React.useState<number[]>([])
   const [page, setPage] = React.useState(1)
 
+  React.useEffect(() => {
+    setItems(initialCorrespondents)
+  }, [initialCorrespondents])
+
   const filtered = items.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase())
   )

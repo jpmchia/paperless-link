@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache"
 import { invokeLinkIQAction } from "@/lib/link-iq"
 
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
+const configuredToken = process.env.PAPERLESS_API_TOKEN?.trim()
 
 async function syncGeneratedBusinessContext() {
   try {
@@ -20,7 +21,7 @@ async function syncGeneratedBusinessContext() {
 
 async function getToken() {
   const session = await getServerSession(authOptions)
-  const token = session?.accessToken
+  const token = session?.accessToken || configuredToken
   if (!token) throw new Error("Unauthorized")
   return token
 }

@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { deleteJson, getJson, postJson, withQuery } from "@/lib/paperless-client"
 import type {
   AttributeType,
@@ -361,6 +362,7 @@ export function DomainModelsWorkbench({
   const [exampleDocumentSearch, setExampleDocumentSearch] = React.useState("")
   const [loadingExampleDocuments, setLoadingExampleDocuments] = React.useState(false)
   const [selectedExampleDocument, setSelectedExampleDocument] = React.useState<ExampleDocument | null>(null)
+  const [applyingSuggestions, setApplyingSuggestions] = React.useState(false)
 
   const taxonomyNodesByID = React.useMemo(
     () => Object.fromEntries(initialTaxonomyNodes.map((node) => [node.taxonomy_node_id, node])),
@@ -463,6 +465,39 @@ export function DomainModelsWorkbench({
     () => taxonomyNodesByID[draft.taxonomy_node_id]?.path ?? "",
     [draft.taxonomy_node_id, taxonomyNodesByID]
   )
+
+  const suggestedEntityTypes = React.useMemo(() => {
+    const existingEntityTypeIDs = new Set(
+      draft.entity_usages.map((usage) => usage.entity_type_id)
+    )
+    const contextTokens = [
+      draft.document_type,
+      taxonomyPath,
+      draft.label,
+      selectedProfile?.label,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((token) => token.length > 2)
+
+    if (contextTokens.length === 0) return []
+
+    return entityTypes
+      .filter((entityType) => !existingEntityTypeIDs.has(entityType.entity_type_id))
+      .map((entityType) => {
+        const searchable = `${entityType.label} ${entityType.description || ""}`.toLowerCase()
+        const score = contextTokens.reduce((sum, token) => {
+          return sum + (searchable.includes(token) ? 1 : 0)
+        }, 0)
+        return { entityType, score }
+      })
+      .filter((entry) => entry.score > 0)
+      .sort((left, right) => right.score - left.score || left.entityType.label.localeCompare(right.entityType.label))
+      .slice(0, 5)
+      .map((entry) => entry.entityType)
+  }, [draft.document_type, draft.entity_usages, draft.label, entityTypes, selectedProfile?.label, taxonomyPath])
 
   const totalEntityUsageCount = React.useMemo(
     () => contextProfiles.reduce((count, profile) => count + (profile.entity_usages?.length ?? 0), 0),
@@ -859,6 +894,21 @@ export function DomainModelsWorkbench({
     setComposerMode("contextual")
   }
 
+  async function applySuggestedEntityTypes() {
+    if (suggestedEntityTypes.length === 0) return
+    setApplyingSuggestions(true)
+    try {
+      const existing = new Set(draft.entity_usages.map((usage) => usage.entity_type_id))
+      for (const entityType of suggestedEntityTypes) {
+        if (existing.has(entityType.entity_type_id)) continue
+        addEntityUsage(entityType.entity_type_id)
+      }
+      toast.success("Applied domain model suggestions")
+    } finally {
+      setApplyingSuggestions(false)
+    }
+  }
+
   function deleteEntityUsage(usageID: string) {
     if (!selectedProfile?.profile_id) {
       setDraft((current) => ({
@@ -1114,6 +1164,41 @@ export function DomainModelsWorkbench({
         activeSection={activeSection}
         onSectionChange={handleSectionChange}
       />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Suggestions</CardTitle>
+          <CardDescription>
+            Suggested entity usages based on taxonomy path, profile label, and document type.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-2">
+          {suggestedEntityTypes.length > 0 ? (
+            <>
+              {suggestedEntityTypes.map((entityType) => (
+                <span
+                  key={entityType.entity_type_id}
+                  className="rounded-md border bg-muted/30 px-2 py-1 text-xs"
+                >
+                  {entityType.label}
+                </span>
+              ))}
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={applyingSuggestions}
+                onClick={() => void applySuggestedEntityTypes()}
+              >
+                Apply suggestions
+              </Button>
+            </>
+          ) : (
+            <span className="text-sm text-muted-foreground">
+              No suggestions currently available for this profile context.
+            </span>
+          )}
+        </CardContent>
+      </Card>
 
       {activeSection === "explorer" ? (
         <DomainExplorerScreen

@@ -277,3 +277,139 @@ export type ContextFieldHistoryEntry = {
   changed_by_user_id?: string
   changed_by_username?: string
 }
+
+export type DataroomEmailTemplate = {
+  subject?: string
+  body_html?: string
+  body_text?: string
+}
+
+export type DataroomDocumentUIField = {
+  field_key: string
+  label_override?: string
+  visible?: boolean
+}
+
+export type DataroomDocumentUITab = {
+  tab_key: string
+  label: string
+  sort_order?: number
+  fields?: DataroomDocumentUIField[]
+}
+
+export type Dataroom = {
+  dataroom_id: string
+  slug: string
+  title: string
+  description?: string
+  commencement_date?: string
+  closure_date?: string
+  auto_publish_immediately?: boolean
+  auto_publish_scheduled_time?: string
+  default_token_lifetime_minutes?: number
+  login_logo_url?: string
+  login_logo_dark_url?: string
+  current_release_id?: string
+  email_templates?: Record<string, DataroomEmailTemplate>
+  document_ui_config?: DataroomDocumentUITab[]
+  created_by_subject_id?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type DataroomOwner = {
+  dataroom_id: string
+  subject_id: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type DataroomFolder = {
+  folder_id: string
+  dataroom_id: string
+  parent_folder_id?: string
+  label: string
+  linked_item_type?: "taxonomy" | "document_type" | "correspondent" | "domain_entity"
+  linked_item_id?: string
+  linked_item_label?: string
+  rules?: string
+  description?: string
+  auto_publish_immediately?: boolean
+  auto_publish_scheduled_time?: string
+  publishing_on_hold?: boolean
+  published_metadata_fields?: string[]
+  published_custom_field_ids?: string[]
+  sort_order?: number
+  created_at?: string
+  updated_at?: string
+}
+
+export type DataroomInvitee = {
+  invitee_id?: string
+  dataroom_id?: string
+  email: string
+  disabled?: boolean
+  access_start?: string
+  access_end?: string
+  access_preset?: string
+  magic_link_mode?: "one_time" | "ttl_minutes"
+  magic_link_ttl_minutes?: number
+  activated_at?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type DataroomDocumentPlacement = {
+  placement_id?: string
+  dataroom_id?: string
+  folder_id: string
+  source_id?: string
+  document_id: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type DataroomReleaseItem = {
+  document_id: string
+  folder_id: string
+  source_id?: string
+  metadata_snapshot?: Record<string, unknown>
+  custom_field_snapshot?: Record<string, unknown>
+  published_metadata_fields?: string[]
+  published_custom_field_ids?: string[]
+  status?: "scheduled" | "published" | "cancelled"
+  scheduled_at?: string
+  published_at?: string
+  last_upstream_metadata_hash?: string
+}
+
+export type DataroomRelease = {
+  release_id: string
+  dataroom_id: string
+  version: number
+  status: "scheduled" | "published" | "cancelled"
+  scheduled_at?: string
+  published_at?: string
+  published_by_subject_id?: string
+  manifest?: DataroomReleaseItem[]
+  pdf_bundle_status?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type DataroomSummaryCount = {
+  event_type: string
+  count: number
+}
+
+export type DataroomInviteeStats = {
+  invitee_id: string
+  email: string
+  invited_at: string
+  activated_at?: string
+  links_issued: number
+  last_link_issued?: string
+  last_access_at?: string
+  access_count: number
+  documents_viewed: number
+}

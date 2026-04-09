@@ -9,7 +9,8 @@ export default withAuth(
       authorized: ({ req, token }) => {
         // Only require auth if not on login page
         const isOnLoginPage = req.nextUrl.pathname.startsWith("/login")
-        if (isOnLoginPage) {
+        const isOnPublicDataroomPath = req.nextUrl.pathname.startsWith("/dataroom/")
+        if (isOnLoginPage || isOnPublicDataroomPath) {
           return true
         }
         return !!token

@@ -46,6 +46,10 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
   const setPdfPassword = useSetAtom(pdfViewerPasswordAtom)
   const setPdfRequiresPassword = useSetAtom(pdfViewerRequiresPasswordAtom)
   const setPdfViewerRegistry = useSetAtom(pdfViewerRegistryAtom)
+  const isEdgeBrowser = React.useMemo(() => {
+    if (typeof navigator === "undefined") return false
+    return /Edg\//.test(navigator.userAgent)
+  }, [])
 
   const sourceUrl = React.useMemo(() => {
     const params = new URLSearchParams()
@@ -170,6 +174,73 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
     },
   }), [])
 
+  const viewerThemeForBrowser = React.useMemo(() => {
+    if (!isEdgeBrowser) return viewerTheme
+    // Edge occasionally fails PDF viewer init with advanced color-mix values.
+    // Use conservative CSS variables only on Edge to keep initialization stable.
+    return {
+      preference: "system" as const,
+      light: {
+        background: {
+          app: "var(--background)",
+          surface: "var(--card)",
+          surfaceAlt: "var(--secondary)",
+          elevated: "var(--popover)",
+          overlay: "rgba(0,0,0,0.12)",
+          input: "var(--input)",
+        },
+        foreground: {
+          primary: "var(--foreground)",
+          secondary: "var(--muted-foreground)",
+          muted: "var(--muted-foreground)",
+          disabled: "var(--muted-foreground)",
+          onAccent: "var(--accent-foreground)",
+        },
+        border: {
+          default: "var(--border)",
+          subtle: "var(--border)",
+          strong: "var(--border)",
+        },
+        accent: {
+          primary: "var(--accent)",
+          primaryHover: "var(--accent)",
+          primaryActive: "var(--accent)",
+          primaryLight: "var(--accent)",
+          primaryForeground: "var(--accent-foreground)",
+        },
+      },
+      dark: {
+        background: {
+          app: "var(--background)",
+          surface: "var(--card)",
+          surfaceAlt: "var(--secondary)",
+          elevated: "var(--popover)",
+          overlay: "rgba(0,0,0,0.35)",
+          input: "var(--input)",
+        },
+        foreground: {
+          primary: "var(--foreground)",
+          secondary: "var(--muted-foreground)",
+          muted: "var(--muted-foreground)",
+          disabled: "var(--muted-foreground)",
+          onAccent: "var(--accent-foreground)",
+        },
+        border: {
+          default: "var(--border)",
+          subtle: "var(--border)",
+          strong: "var(--border)",
+        },
+        accent: {
+          primary: "var(--accent)",
+          primaryHover: "var(--accent)",
+          primaryActive: "var(--accent)",
+          primaryLight: "var(--accent)",
+          primaryForeground: "var(--accent-foreground)",
+        },
+      },
+    }
+  }, [isEdgeBrowser, viewerTheme])
+
   const applyCompactViewerChrome = React.useCallback((viewer: EmbedPdfContainer | null) => {
     const shadowRoot = viewer?.shadowRoot
     if (!shadowRoot) return
@@ -287,7 +358,7 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
         config={{
           src: sourceUrl,
           tabBar: "never",
-          theme: viewerTheme,
+          theme: viewerThemeForBrowser,
           permissions: {
             enforceDocumentPermissions: false,
           },

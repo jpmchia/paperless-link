@@ -126,6 +126,7 @@ const navMain: NavItem[] = [
 
 const navManagement: NavItem[] = [
   { title: "Taxonomy", url: "/taxonomy", icon: GitBranch, adminOnly: true },
+  { title: "Datarooms", url: "/datarooms", icon: FolderOpen, adminOnly: true },
   { title: "Domain Models", url: "/domain-models", icon: FileCode2, adminOnly: true },
   { title: "Business Context", url: "/business-context", icon: Building2, adminOnly: true },
   { title: "Tags", url: "/tags", icon: Tags, managementDialogKind: "tags", permissionType: "tag" },
@@ -153,6 +154,7 @@ const APPLICATION_SECTION_CONTENT_ID = "sidebar-section-application-content"
 const VIEWS_SECTION_CONTENT_ID = "sidebar-section-views-content"
 const MANAGEMENT_SECTION_CONTENT_ID = "sidebar-section-management-content"
 const SYSTEM_SECTION_CONTENT_ID = "sidebar-section-system-content"
+const SYSTEM_SECTION_OPEN_STORAGE_KEY = "paperless.sidebar.system.open"
 
 async function persistViewOrder(orderedIds: number[]) {
   try {
@@ -244,6 +246,21 @@ export function AppSidebar({
   React.useEffect(() => {
     setHasMounted(true)
   }, [])
+
+  React.useEffect(() => {
+    if (!hasMounted) return
+    const stored = window.localStorage.getItem(SYSTEM_SECTION_OPEN_STORAGE_KEY)
+    if (stored == null) return
+    setSystemOpen(stored === "true")
+  }, [hasMounted])
+
+  React.useEffect(() => {
+    if (!hasMounted) return
+    window.localStorage.setItem(
+      SYSTEM_SECTION_OPEN_STORAGE_KEY,
+      systemOpen ? "true" : "false"
+    )
+  }, [hasMounted, systemOpen])
 
   React.useEffect(() => {
     void syncPendingTasks()

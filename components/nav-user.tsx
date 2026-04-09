@@ -30,12 +30,28 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
-export function NavUser() {
+type NavUserOverride = {
+  name?: string
+  email?: string
+  image?: string
+}
+
+type NavUserProps = {
+  overrideUser?: NavUserOverride
+  onLogoutOverride?: () => void | Promise<void>
+  hideProfileLink?: boolean
+}
+
+export function NavUser({
+  overrideUser,
+  onLogoutOverride,
+  hideProfileLink = false,
+}: NavUserProps = {}) {
   const { isMobile } = useSidebar()
   const { data: session, status } = useSession()
   const [hasMounted, setHasMounted] = React.useState(false)
 
-  const user = session?.user
+  const user = overrideUser ?? session?.user
 
   React.useEffect(() => {
     setHasMounted(true)
@@ -101,16 +117,26 @@ export function NavUser() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem asChild>
-                <Link href="/profile">
-                  <UserRound />
-                  My Profile
-                </Link>
-              </DropdownMenuItem>
+              {hideProfileLink ? null : (
+                <DropdownMenuItem asChild>
+                  <Link href="/profile">
+                    <UserRound />
+                    My Profile
+                  </Link>
+                </DropdownMenuItem>
+              )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => signOut()}>
+              <DropdownMenuItem
+                onClick={() => {
+                  if (onLogoutOverride) {
+                    void onLogoutOverride()
+                    return
+                  }
+                  void signOut()
+                }}
+              >
                 <LogOut />
                 Log out
               </DropdownMenuItem>
