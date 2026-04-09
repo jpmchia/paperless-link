@@ -37,6 +37,10 @@ async function proxyRequest(req: Request, params: Promise<{ path: string[] }>) {
   const url = new URL(req.url)
   const queryString = url.search
   const proxiedPath = path.endsWith("/") ? path : `${path}/`
+  const headers: Record<string, string> = {
+    Authorization: `Token ${token}`,
+    Accept: req.headers.get("accept")?.trim() || "application/json; version=2",
+  }
 
   let body: BodyInit | undefined
   if (req.method !== "GET" && req.method !== "HEAD") {
@@ -47,14 +51,6 @@ async function proxyRequest(req: Request, params: Promise<{ path: string[] }>) {
     } else if (contentType?.includes("multipart/form-data")) {
       body = await req.formData()
     }
-  }
-
-  const headers: Record<string, string> = {
-    Authorization: `Token ${token}`,
-    Accept: req.headers.get("accept")?.trim() || "application/json; version=2",
-  }
-  if (req.method !== "GET" && req.method !== "HEAD" && req.headers.get("content-type")?.includes("application/json")) {
-    headers["Content-Type"] = "application/json"
   }
   const res = await fetch(`${baseUrl}api/${proxiedPath}${queryString}`, {
     method: req.method,

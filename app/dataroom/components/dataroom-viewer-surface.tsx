@@ -12,7 +12,8 @@ type Props = {
 }
 
 type LookupItem = { id: number; name: string }
-type TagOption = { id: number; name: string; color?: string | number }
+type WorkspaceTagOption = React.ComponentProps<typeof DocumentsWorkspace>["tags"][number]
+type RawTagOption = { id: number; name: string; color?: string | number }
 type UserOption = { id: number; username?: string; first_name?: string; last_name?: string }
 type CustomFieldOption = {
   id: number
@@ -40,7 +41,7 @@ export function DataroomViewerSurface({ slug }: Props) {
   const [correspondents, setCorrespondents] = React.useState<LookupItem[]>([])
   const [documentTypes, setDocumentTypes] = React.useState<LookupItem[]>([])
   const [storagePaths, setStoragePaths] = React.useState<LookupItem[]>([])
-  const [tags, setTags] = React.useState<TagOption[]>([])
+  const [tags, setTags] = React.useState<WorkspaceTagOption[]>([])
   const [users, setUsers] = React.useState<UserOption[]>([])
   const [customFields, setCustomFields] = React.useState<CustomFieldOption[]>([])
 
@@ -122,7 +123,7 @@ export function DataroomViewerSurface({ slug }: Props) {
       correspondents: idx(correspondents),
       documentTypes: idx(documentTypes),
       storagePaths: idx(storagePaths),
-      tags: idx(tags.map((tag) => ({ ...tag, color: String(tag.color ?? "gray") }))),
+      tags: idx(tags.map((tag) => ({ ...tag, color: String(tag.color) }))),
       users: idx(users),
       customFields: idx(customFields),
     }),
@@ -154,7 +155,7 @@ export function DataroomViewerSurface({ slug }: Props) {
           ),
           getJson<Paginated<LookupItem>>("/api/management/lookups?kind=correspondents"),
           getJson<Paginated<LookupItem>>("/api/management/lookups?kind=document-types"),
-          getJson<Paginated<TagOption>>("/api/management/lookups?kind=tags"),
+          getJson<Paginated<RawTagOption>>("/api/management/lookups?kind=tags"),
           getJson<Paginated<LookupItem>>("/api/proxy/storage_paths/?page_size=100000"),
           getJson<Paginated<UserOption>>("/api/proxy/users/?page_size=100000"),
           getJson<Paginated<CustomFieldOption>>("/api/management/lookups?kind=custom-fields"),
@@ -163,7 +164,12 @@ export function DataroomViewerSurface({ slug }: Props) {
         setDocuments((documentsResult.documents ?? []) as Document[])
         setCorrespondents(normalizePaginatedArray(correspondentsResult))
         setDocumentTypes(normalizePaginatedArray(documentTypesResult))
-        setTags(normalizePaginatedArray(tagsResult))
+        setTags(
+          normalizePaginatedArray(tagsResult).map((tag) => ({
+            ...tag,
+            color: tag.color ?? "gray",
+          })),
+        )
         setStoragePaths(normalizePaginatedArray(storagePathsResult))
         setUsers(normalizePaginatedArray(usersResult))
         setCustomFields(normalizePaginatedArray(customFieldsResult))

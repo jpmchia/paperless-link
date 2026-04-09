@@ -417,7 +417,7 @@ export function DocumentsWorkspace({
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4">
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4">
       <RealtimeDocumentListSync />
       <DataTableHeaderBar
         currentPage={currentPage}
@@ -470,29 +470,31 @@ export function DocumentsWorkspace({
         currentDisplayFields={displayFields}
         currentPageSize={currentPageSize}
       />
-      {displayMode === "table" ? (
-        <DataTable
-          lookup={lookup}
-          data={data}
-          pageCount={pageCount}
-          displayFields={displayFields}
-          columnSizing={columnSizing}
-          currentFilters={currentFilters}
-          usersList={users}
-          groupsList={groupsList}
-          onColumnSizingChange={setColumnSizing}
-          onPreviewDocument={setPreviewDocument}
-        />
-      ) : (
-        <CardGrid
-          data={data}
-          lookup={lookup}
-          displayMode={displayMode}
-          displayFields={displayFields}
-          cardSize={cardSize}
-          onPreviewDocument={setPreviewDocument}
-        />
-      )}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {displayMode === "table" ? (
+          <DataTable
+            lookup={lookup}
+            data={data}
+            pageCount={pageCount}
+            displayFields={displayFields}
+            columnSizing={columnSizing}
+            currentFilters={currentFilters}
+            usersList={users}
+            groupsList={groupsList}
+            onColumnSizingChange={setColumnSizing}
+            onPreviewDocument={setPreviewDocument}
+          />
+        ) : (
+          <CardGrid
+            data={data}
+            lookup={lookup}
+            displayMode={displayMode}
+            displayFields={displayFields}
+            cardSize={cardSize}
+            onPreviewDocument={setPreviewDocument}
+          />
+        )}
+      </div>
       <DocumentPreviewDialog
         documentId={previewDocument?.id ?? null}
         documentTitle={previewDocument?.title}
