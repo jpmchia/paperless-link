@@ -18,6 +18,8 @@ type Props = {
 export function DataroomPdfViewer({ slug, sessionToken, documentId }: Props) {
   const viewerRef = React.useRef<PDFViewerRef>(null)
   const densityObserverRef = React.useRef<MutationObserver | null>(null)
+  const initTimeoutRef = React.useRef<number | null>(null)
+  const [useNativeFallback, setUseNativeFallback] = React.useState(false)
   const isEdgeBrowser = React.useMemo(() => {
     if (typeof navigator === "undefined") return false
     return /Edg\//.test(navigator.userAgent)
@@ -99,11 +101,21 @@ export function DataroomPdfViewer({ slug, sessionToken, documentId }: Props) {
   }, [])
 
   React.useEffect(() => {
+    setUseNativeFallback(false)
+    if (typeof window !== "undefined") {
+      initTimeoutRef.current = window.setTimeout(() => {
+        setUseNativeFallback(true)
+      }, 8000)
+    }
     return () => {
+      if (initTimeoutRef.current != null) {
+        window.clearTimeout(initTimeoutRef.current)
+        initTimeoutRef.current = null
+      }
       densityObserverRef.current?.disconnect()
       densityObserverRef.current = null
     }
-  }, [])
+  }, [documentId, slug, sourceUrl])
 
   if (!documentId) {
     return (
@@ -115,40 +127,54 @@ export function DataroomPdfViewer({ slug, sessionToken, documentId }: Props) {
 
   return (
     <div className="h-full w-full overflow-hidden bg-background">
-      <PDFViewer
-        ref={viewerRef}
-        className="h-full w-full"
-        config={{
-          src: sourceUrl,
-          tabBar: "never",
-          theme: viewerThemeForBrowser,
-          permissions: {
-            enforceDocumentPermissions: false,
-          },
-          render: {
-            withForms: true,
-            withAnnotations: true,
-          },
-          zoom: {
-            defaultZoomLevel: ZoomMode.FitWidth,
-          },
-          spread: {
-            defaultSpreadMode: SpreadMode.None,
-          },
-        }}
-        onInit={(viewer) => {
-          densityObserverRef.current?.disconnect()
-          applyCompactViewerChrome(viewer)
+      {useNativeFallback ? (
+        <iframe
+          src={sourceUrl}
+          title={`Dataroom document preview ${documentId}`}
+          className="h-full w-full border-0"
+        />
+      ) : (
+        <PDFViewer
+          ref={viewerRef}
+          className="h-full w-full"
+          config={{
+            src: sourceUrl,
+            tabBar: "never",
+            theme: viewerThemeForBrowser,
+            permissions: {
+              enforceDocumentPermissions: false,
+            },
+            render: {
+              withForms: true,
+              withAnnotations: true,
+            },
+            zoom: {
+              defaultZoomLevel: ZoomMode.FitWidth,
+            },
+            spread: {
+              defaultSpreadMode: SpreadMode.None,
+            },
+          }}
+          onInit={(viewer) => {
+            densityObserverRef.current?.disconnect()
+            applyCompactViewerChrome(viewer)
 
-          if (viewer.shadowRoot) {
-            const observer = new MutationObserver(() => {
-              applyCompactViewerChrome(viewer)
-            })
-            observer.observe(viewer.shadowRoot, { childList: true, subtree: true })
-            densityObserverRef.current = observer
-          }
-        }}
-      />
+            if (viewer.shadowRoot) {
+              const observer = new MutationObserver(() => {
+                applyCompactViewerChrome(viewer)
+              })
+              observer.observe(viewer.shadowRoot, { childList: true, subtree: true })
+              densityObserverRef.current = observer
+            }
+          }}
+          onReady={() => {
+            if (initTimeoutRef.current != null) {
+              window.clearTimeout(initTimeoutRef.current)
+              initTimeoutRef.current = null
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

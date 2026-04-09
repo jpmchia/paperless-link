@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useTheme } from "next-themes"
 import { ChevronDown, ChevronRight, FolderIcon } from "lucide-react"
 import { postJson } from "@/lib/paperless-client"
@@ -61,22 +61,49 @@ function buildTree(folders: DataroomFolder[]) {
   return build("__root__")
 }
 
-function FolderTree({ nodes, depth = 0 }: { nodes: TreeNode[]; depth?: number }) {
+function FolderTree({
+  nodes,
+  depth = 0,
+  selectedFolderID,
+  onSelectFolder,
+}: {
+  nodes: TreeNode[]
+  depth?: number
+  selectedFolderID?: string
+  onSelectFolder: (folderID: string) => void
+}) {
   return (
     <>
       {nodes.map((node) => (
         <React.Fragment key={node.folder.folder_id}>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
-              <button type="button" className="justify-start">
+              <button
+                type="button"
+                className="justify-start"
+                onClick={() => onSelectFolder(node.folder.folder_id)}
+              >
                 <span style={{ marginLeft: depth * 12 }} className="inline-flex items-center gap-2">
                   <FolderIcon className="size-3.5" />
-                  <span className="truncate">{node.folder.label || "Untitled folder"}</span>
+                  <span
+                    className={`truncate ${
+                      selectedFolderID === node.folder.folder_id ? "font-semibold text-foreground" : ""
+                    }`}
+                  >
+                    {node.folder.label || "Untitled folder"}
+                  </span>
                 </span>
               </button>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          {node.children.length > 0 ? <FolderTree nodes={node.children} depth={depth + 1} /> : null}
+          {node.children.length > 0 ? (
+            <FolderTree
+              nodes={node.children}
+              depth={depth + 1}
+              selectedFolderID={selectedFolderID}
+              onSelectFolder={onSelectFolder}
+            />
+          ) : null}
         </React.Fragment>
       ))}
     </>
@@ -85,11 +112,13 @@ function FolderTree({ nodes, depth = 0 }: { nodes: TreeNode[]; depth?: number })
 
 export function DataroomSidebar({ slug, appLogoUrl, dataroomTitle }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { resolvedTheme } = useTheme()
   const [hasMounted, setHasMounted] = React.useState(false)
   const [session, setSession] = React.useState<SessionResult>({})
   const [tree, setTree] = React.useState<TreeNode[]>([])
   const [dataroomSectionOpen, setDataroomSectionOpen] = React.useState(true)
+  const selectedFolderID = searchParams?.get("folder_id")?.trim() || ""
   const effectiveLogoURL =
     appLogoUrl ||
     (resolvedTheme === "dark"
@@ -135,6 +164,21 @@ export function DataroomSidebar({ slug, appLogoUrl, dataroomTitle }: Props) {
     }
     router.replace(`/dataroom/${slug}`)
   }
+
+  const navigateToFolder = React.useCallback(
+    (folderID: string) => {
+      const next = new URLSearchParams(searchParams?.toString() || "")
+      if (folderID) {
+        next.set("folder_id", folderID)
+      } else {
+        next.delete("folder_id")
+      }
+      next.delete("page")
+      const query = next.toString()
+      router.push(`/dataroom/${slug}/view${query ? `?${query}` : ""}`)
+    },
+    [router, searchParams, slug],
+  )
 
   if (!hasMounted) {
     return (
@@ -207,7 +251,11 @@ export function DataroomSidebar({ slug, appLogoUrl, dataroomTitle }: Props) {
               <SidebarGroupContent className="pl-2">
                 <SidebarMenu>
                   {tree.length > 0 ? (
-                    <FolderTree nodes={tree} />
+                    <FolderTree
+                      nodes={tree}
+                      selectedFolderID={selectedFolderID}
+                      onSelectFolder={navigateToFolder}
+                    />
                   ) : (
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>

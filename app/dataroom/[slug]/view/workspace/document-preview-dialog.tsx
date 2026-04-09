@@ -119,7 +119,7 @@ export function DocumentPreviewDialog({
             )}
             <iframe
               key={documentId}
-              src={`/api/proxy/documents/${documentId}/preview/?toolbar=0`}
+              src={`/api/proxy/documents/${documentId}/preview?toolbar=0`}
               className="w-full h-full"
               title="Document preview"
               onLoad={() => setLoaded(true)}

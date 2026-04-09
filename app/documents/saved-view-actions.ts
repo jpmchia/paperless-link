@@ -10,8 +10,13 @@ const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
 type AccessTokenSession = { accessToken?: string } | null
 
 async function getToken() {
+  const configuredToken = process.env.PAPERLESS_API_TOKEN?.trim()
+  if (configuredToken) {
+    return configuredToken
+  }
+
   const session = (await getServerSession(authOptions as never)) as AccessTokenSession
-  const token = session?.accessToken
+  const token = session?.accessToken?.trim()
   if (!token) throw new Error("Unauthorized")
   return token
 }

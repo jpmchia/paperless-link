@@ -203,6 +203,7 @@ export function FilterPanel({
   const [editorIsNew, setEditorIsNew] = React.useState(false)
   const [editorValue, setEditorValue] = React.useState<SavedViewEditorValue | null>(null)
   const [saving, setSaving] = React.useState(false)
+  const saveActionInFlightRef = React.useRef(false)
   const [savedViewBaseline, setSavedViewBaseline] = React.useState(() =>
     getComparableSavedViewStateFromView(activeView)
   )
@@ -539,9 +540,18 @@ export function FilterPanel({
     return current.includes(id)
   }
 
+  const runExtrasWithoutBlocking = React.useCallback((task: Promise<void>, context: string) => {
+    void task.catch((error) => {
+      toast.error(`${context} could not be persisted`, {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+    })
+  }, [])
+
   // Save active view
   const handleSaveView = async () => {
-    if (!activeViewId || !activeViewIsDirty) return
+    if (!activeViewId || !activeViewIsDirty || saveActionInFlightRef.current) return
+    saveActionInFlightRef.current = true
     setSaving(true)
     try {
       const sortParts = orderingToSavedViewSort(filters.ordering)
@@ -554,7 +564,7 @@ export function FilterPanel({
         page_size: currentSavedViewState.pageSize,
       })
       if (onSaveExtras) {
-        await onSaveExtras()
+        runExtrasWithoutBlocking(onSaveExtras(), "Layout")
       }
       setSavedViewBaseline(currentSavedViewState)
       toast.success(`View "${activeViewName}" saved`)
@@ -564,11 +574,13 @@ export function FilterPanel({
       })
     } finally {
       setSaving(false)
+      saveActionInFlightRef.current = false
     }
   }
 
   const handleEditorSave = async () => {
-    if (!editorValue?.name.trim()) return
+    if (!editorValue?.name.trim() || saveActionInFlightRef.current) return
+    saveActionInFlightRef.current = true
     setSaving(true)
     try {
       if (editorIsNew) {
@@ -584,7 +596,7 @@ export function FilterPanel({
           show_in_sidebar: editorValue.show_in_sidebar,
         })
         if (onCreateViewExtras) {
-          await onCreateViewExtras(created.id)
+          runExtrasWithoutBlocking(onCreateViewExtras(created.id), "Layout")
         }
         toast.success(`View "${editorValue.name}" created`)
         setEditorOpen(false)
@@ -609,7 +621,7 @@ export function FilterPanel({
         show_in_sidebar: editorValue.show_in_sidebar,
       })
       if (onSaveExtras) {
-        await onSaveExtras()
+        runExtrasWithoutBlocking(onSaveExtras(), "Layout")
       }
       setSavedViewBaseline({
         filterRules: editorValue.filter_rules,
@@ -629,6 +641,7 @@ export function FilterPanel({
       })
     } finally {
       setSaving(false)
+      saveActionInFlightRef.current = false
     }
   }
 

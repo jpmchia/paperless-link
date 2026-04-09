@@ -1,32 +1,42 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/auth"
 import { NextResponse } from "next/server"
+import { readFile } from "node:fs/promises"
+import { join } from "node:path"
 
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
-const configuredToken = process.env.PAPERLESS_API_TOKEN?.trim()
 
-async function getToken() {
-  const session = (await getServerSession(authOptions)) as { accessToken?: string } | null
-  const token = session?.accessToken || configuredToken
-  if (!token) return null
-  return token
+async function getPaperlessToken() {
+  const configuredToken = process.env.PAPERLESS_API_TOKEN?.trim()
+  if (configuredToken) return configuredToken
+
+  let fileToken: string | null = null
+  const candidates = [join(process.cwd(), ".env.local"), join(process.cwd(), ".env")]
+  for (const filePath of candidates) {
+    try {
+      const content = await readFile(filePath, "utf8")
+      const match = content.match(/^PAPERLESS_API_TOKEN=(.+)$/m)
+      if (!match?.[1]) continue
+      const raw = match[1].trim()
+      const value = raw.split("#")[0]?.trim()
+      if (value) {
+        fileToken = value
+        break
+      }
+    } catch {
+      // ignore missing env files
+    }
+  }
+  return fileToken
 }
 
 async function proxyRequest(req: Request, params: Promise<{ path: string[] }>) {
-  const token = await getToken()
+  const token = await getPaperlessToken()
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const resolvedParams = await params
   const path = resolvedParams.path.join("/")
   const url = new URL(req.url)
   const queryString = url.search
-  const hasTrailingSlash = url.pathname.endsWith("/")
-  const proxiedPath = `${path}${hasTrailingSlash ? "/" : ""}`
-
-  const headers: Record<string, string> = {
-    Authorization: `Token ${token}`,
-    Accept: "application/json; version=2",
-  }
+  const proxiedPath = path.endsWith("/") ? path : `${path}/`
 
   let body: BodyInit | undefined
   if (req.method !== "GET" && req.method !== "HEAD") {
@@ -39,6 +49,13 @@ async function proxyRequest(req: Request, params: Promise<{ path: string[] }>) {
     }
   }
 
+  const headers: Record<string, string> = {
+    Authorization: `Token ${token}`,
+    Accept: req.headers.get("accept")?.trim() || "application/json; version=2",
+  }
+  if (req.method !== "GET" && req.method !== "HEAD" && req.headers.get("content-type")?.includes("application/json")) {
+    headers["Content-Type"] = "application/json"
+  }
   const res = await fetch(`${baseUrl}api/${proxiedPath}${queryString}`, {
     method: req.method,
     headers,

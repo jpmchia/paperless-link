@@ -26,6 +26,10 @@ function normalizeLinkIQBaseUrl(rawValue: string | undefined) {
 }
 
 const linkIQBaseUrl = normalizeLinkIQBaseUrl(process.env.LINK_IQ_API_URL)
+const linkIQTimeoutMs = Number.parseInt(
+  process.env.LINK_IQ_REQUEST_TIMEOUT_MS || "30000",
+  10
+)
 
 export const LINK_IQ_SOURCE_ID = process.env.LINK_IQ_SOURCE_ID || "example-ngx"
 
@@ -69,7 +73,7 @@ export async function requestLinkIQJson<T>(
       ...init,
       headers,
       cache: "no-store",
-      signal: init.signal ?? AbortSignal.timeout(5000),
+      signal: init.signal ?? AbortSignal.timeout(Number.isFinite(linkIQTimeoutMs) ? linkIQTimeoutMs : 30000),
     })
   } catch (error) {
     if (

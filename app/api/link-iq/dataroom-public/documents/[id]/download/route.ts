@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { invokeLinkIQAction } from "@/lib/link-iq"
 import type { DataroomReleaseItem } from "@/lib/link-iq-types"
-import { getPaperlessBaseUrl, resolvePaperlessToken, validateDataroomSession } from "../_shared"
+import { getPaperlessBaseUrl, resolvePaperlessToken, validateDataroomSession } from "../../_shared"
 
 type RouteParams = { params: Promise<{ id: string }> }
 

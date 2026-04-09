@@ -1,18 +1,11 @@
-# Project Guidance
+## Learned User Preferences
 
-## UI Stack
+- Prefer local-first validation: prove dataroom functionality works before deployment.
+- Avoid leaving local server processes running unexpectedly; stop them promptly when requested.
+- For operational maintenance tasks, provide concise structured outcomes with explicit status.
 
-- This project uses `shadcn/ui` primitives, Radix-based components, and Tailwind CSS.
-- Extend the existing components in `components/ui` and the established app patterns before introducing new UI abstractions.
-- Use the existing custom dialog, sidebar, table, and workspace patterns where appropriate.
+## Learned Workspace Facts
 
-## Do Not Use Subframe Here
-
-- Do not use Subframe for design generation or implementation in this repository.
-- Do not treat Subframe as the default workflow for frontend work in this project.
-- Prefer direct implementation with the existing `shadcn/ui`-based component system.
-
-## Frontend Direction
-
-- Align new screens to the intended workflow and information architecture, not just CRUD forms.
-- Keep canonical editing, review, evidence, and context exploration visually distinct when designing authoring workspaces.
+- This workspace commonly runs `paperless-link` locally on port `3333`.
+- This workspace commonly runs `link-iq` locally on port `9090`.
+- Dataroom validation and troubleshooting are performed against live local data in this workspace.

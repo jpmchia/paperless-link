@@ -21,7 +21,7 @@ async function syncGeneratedBusinessContext() {
 
 async function getToken() {
   const session = await getServerSession(authOptions)
-  const token = session?.accessToken || configuredToken
+  const token = configuredToken || session?.accessToken
   if (!token) throw new Error("Unauthorized")
   return token
 }

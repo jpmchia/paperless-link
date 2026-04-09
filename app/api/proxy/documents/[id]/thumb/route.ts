@@ -7,7 +7,8 @@ export async function GET(
 ) {
   const params = await props.params
   const session = await getServerSession(authOptions)
-  const token = session?.accessToken
+  const configuredToken = process.env.PAPERLESS_API_TOKEN?.trim()
+  const token = configuredToken || session?.accessToken?.trim()
 
   if (!token) {
     return new Response("Unauthorized", { status: 401 })
@@ -26,6 +27,7 @@ export async function GET(
     const response = await fetch(targetUrl.toString(), {
       headers: {
         Authorization: `Token ${token}`,
+        Accept: request.headers.get("accept")?.trim() || "image/webp,image/*,*/*;q=0.8",
       },
     })
 

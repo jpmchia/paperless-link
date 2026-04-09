@@ -9,7 +9,7 @@ import { JotaiProvider } from "@/components/jotai-provider"
 import { RealtimeProvider } from "@/components/realtime-provider"
 import { Toaster } from "@/components/ui/sonner"
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" })
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

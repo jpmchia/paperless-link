@@ -16,7 +16,7 @@ export async function getPaperlessApi<T = unknown>(
   options: RequestInit = {}
 ): Promise<T> {
   const session = await getServerSession(authOptions)
-  const token = session?.accessToken || configuredToken
+  const token = configuredToken || session?.accessToken
 
   if (!token) {
     throw new Error(

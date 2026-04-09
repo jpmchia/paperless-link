@@ -1,4 +1,4 @@
-import { TopBar } from "@/app/documents/topbar"
+import { TopBar } from "@/app/dataroom/[slug]/view/workspace/topbar"
 import { AppShell } from "@/components/app-shell"
 import { getUiSettings } from "@/lib/api"
 import { invokeLinkIQAction } from "@/lib/link-iq"

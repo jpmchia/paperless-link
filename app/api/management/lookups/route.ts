@@ -24,7 +24,7 @@ function resolveEndpoint(kind: LookupKind) {
 
 export async function GET(request: Request) {
   const session = (await getServerSession(authOptions)) as { accessToken?: string } | null
-  const token = session?.accessToken || configuredToken
+  const token = configuredToken || session?.accessToken
   if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }

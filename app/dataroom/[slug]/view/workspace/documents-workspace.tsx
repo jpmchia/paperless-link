@@ -124,9 +124,14 @@ export function DocumentsWorkspace({
 }: DocumentsWorkspaceProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [hasMounted, setHasMounted] = React.useState(false)
   const [tableLayouts, setTableLayouts] = React.useState<DocumentTableLayoutSettings>(
     initialTableLayouts ?? {}
   )
+
+  React.useEffect(() => {
+    setHasMounted(true)
+  }, [])
 
   React.useEffect(() => {
     setTableLayouts(initialTableLayouts ?? {})
@@ -232,7 +237,7 @@ export function DocumentsWorkspace({
     }, 250)
 
     return () => window.clearTimeout(timeout)
-  }, [activeView?.id, displayMode, displayFields, columnSizing, smallCardSize, largeCardSize, tableLayouts])
+  }, [activeView?.id, displayMode, displayFields, columnSizing, smallCardSize, largeCardSize])
 
   const cardSize = displayMode === "largeCards" ? largeCardSize : smallCardSize
   const currentActiveViewLayout = React.useMemo<DocumentTableLayout>(
@@ -408,6 +413,10 @@ export function DocumentsWorkspace({
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [currentPage, pageCount, previewDocument, previewDocuments, router, searchParams])
+
+  if (!hasMounted) {
+    return <div className="flex h-full flex-col gap-4 p-4" />
+  }
 
   return (
     <div className="flex h-full flex-col gap-4 p-4">

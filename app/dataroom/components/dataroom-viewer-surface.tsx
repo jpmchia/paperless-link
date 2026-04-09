@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { postJson } from "@/lib/paperless-client"
+import { getJson, postJson } from "@/lib/paperless-client"
 import { DocumentsWorkspace } from "@/app/dataroom/[slug]/view/workspace/documents-workspace"
 import type { Document, LookupMaps } from "@/app/dataroom/[slug]/view/workspace/columns"
 import type { FilterParams } from "@/lib/api"
@@ -11,11 +11,38 @@ type Props = {
   slug: string
 }
 
+type LookupItem = { id: number; name: string }
+type TagOption = { id: number; name: string; color?: string | number }
+type UserOption = { id: number; username?: string; first_name?: string; last_name?: string }
+type CustomFieldOption = {
+  id: number
+  name: string
+  data_type: string
+  extra_data?: { select_options?: Array<string | { id?: string | number; label?: string }> }
+}
+
+type Paginated<T> = { results?: T[] } | T[]
+
+function normalizePaginatedArray<T>(payload: Paginated<T>): T[] {
+  if (Array.isArray(payload)) return payload
+  return Array.isArray(payload.results) ? payload.results : []
+}
+
+function idx<T extends { id: number }>(arr: T[]): Record<number, T> {
+  return Object.fromEntries(arr.map((x) => [x.id, x])) as Record<number, T>
+}
+
 export function DataroomViewerSurface({ slug }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [status, setStatus] = React.useState("Loading dataroom...")
   const [documents, setDocuments] = React.useState<Document[]>([])
+  const [correspondents, setCorrespondents] = React.useState<LookupItem[]>([])
+  const [documentTypes, setDocumentTypes] = React.useState<LookupItem[]>([])
+  const [storagePaths, setStoragePaths] = React.useState<LookupItem[]>([])
+  const [tags, setTags] = React.useState<TagOption[]>([])
+  const [users, setUsers] = React.useState<UserOption[]>([])
+  const [customFields, setCustomFields] = React.useState<CustomFieldOption[]>([])
 
   const currentFilters = React.useMemo<FilterParams>(() => {
     const next: FilterParams = {}
@@ -37,6 +64,7 @@ export function DataroomViewerSurface({ slug }: Props) {
 
     return next
   }, [searchParams])
+  const selectedFolderID = searchParams?.get("folder_id")?.trim() || ""
 
   const filteredDocuments = React.useMemo(() => {
     const query = currentFilters.query?.trim().toLowerCase()
@@ -91,14 +119,14 @@ export function DataroomViewerSurface({ slug }: Props) {
 
   const lookup = React.useMemo<LookupMaps>(
     () => ({
-      correspondents: {},
-      documentTypes: {},
-      storagePaths: {},
-      tags: {},
-      users: {},
-      customFields: {},
+      correspondents: idx(correspondents),
+      documentTypes: idx(documentTypes),
+      storagePaths: idx(storagePaths),
+      tags: idx(tags.map((tag) => ({ ...tag, color: String(tag.color ?? "gray") }))),
+      users: idx(users),
+      customFields: idx(customFields),
     }),
-    []
+    [correspondents, customFields, documentTypes, storagePaths, tags, users],
   )
 
   React.useEffect(() => {
@@ -110,12 +138,35 @@ export function DataroomViewerSurface({ slug }: Props) {
       }
       try {
         await postJson("/api/link-iq/dataroom-public/validate-session", { token, slug })
-        const documentsResult = await postJson<{ documents?: Document[] }>(
-          // Dataroom-public list includes only released documents.
-          "/api/link-iq/dataroom-public/documents",
-          { token, slug },
-        )
+        const [
+          documentsResult,
+          correspondentsResult,
+          documentTypesResult,
+          tagsResult,
+          storagePathsResult,
+          usersResult,
+          customFieldsResult,
+        ] = await Promise.all([
+          postJson<{ documents?: Document[] }>(
+            // Dataroom-public list includes only released/rule-matched documents.
+            "/api/link-iq/dataroom-public/documents",
+            { token, slug, folder_id: selectedFolderID || undefined },
+          ),
+          getJson<Paginated<LookupItem>>("/api/management/lookups?kind=correspondents"),
+          getJson<Paginated<LookupItem>>("/api/management/lookups?kind=document-types"),
+          getJson<Paginated<TagOption>>("/api/management/lookups?kind=tags"),
+          getJson<Paginated<LookupItem>>("/api/proxy/storage_paths/?page_size=100000"),
+          getJson<Paginated<UserOption>>("/api/proxy/users/?page_size=100000"),
+          getJson<Paginated<CustomFieldOption>>("/api/management/lookups?kind=custom-fields"),
+        ])
+
         setDocuments((documentsResult.documents ?? []) as Document[])
+        setCorrespondents(normalizePaginatedArray(correspondentsResult))
+        setDocumentTypes(normalizePaginatedArray(documentTypesResult))
+        setTags(normalizePaginatedArray(tagsResult))
+        setStoragePaths(normalizePaginatedArray(storagePathsResult))
+        setUsers(normalizePaginatedArray(usersResult))
+        setCustomFields(normalizePaginatedArray(customFieldsResult))
         setStatus("")
       } catch {
         window.sessionStorage.removeItem("dataroom_session")
@@ -123,7 +174,7 @@ export function DataroomViewerSurface({ slug }: Props) {
       }
     }
     void run()
-  }, [router, slug])
+  }, [router, selectedFolderID, slug])
 
   return (
     <section className="flex min-w-0 flex-1">
@@ -131,21 +182,21 @@ export function DataroomViewerSurface({ slug }: Props) {
         <div className="p-4 text-sm text-muted-foreground">{status}</div>
       ) : (
         <DocumentsWorkspace
-          correspondents={[]}
+          correspondents={correspondents}
           currentFilters={currentFilters}
           currentPage={Math.min(currentPage, pageCount)}
           currentPageSize={currentPageSize}
-          customFields={[]}
+          customFields={customFields}
           data={pageData}
-          documentTypes={[]}
+          documentTypes={documentTypes}
           groupsList={[]}
           lookup={lookup}
           pageCount={pageCount}
           savedViews={[]}
-          storagePaths={[]}
-          tags={[]}
+          storagePaths={storagePaths}
+          tags={tags}
           totalCount={totalCount}
-          users={[]}
+          users={users}
           currentUserId={null}
           initialDisplayMode={null}
           initialTableLayouts={null}

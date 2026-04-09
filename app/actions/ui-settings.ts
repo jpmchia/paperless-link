@@ -6,15 +6,16 @@ import { getServerSession } from "next-auth"
 import type { UiSettingsRecord } from "@/lib/ui-settings"
 
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
+const configuredToken = process.env.PAPERLESS_API_TOKEN?.trim()
 
 async function writeUiSettings(settings: Record<string, unknown>) {
   const session = (await getServerSession(authOptions)) as {
     accessToken?: string
   } | null
-  const token = session?.accessToken
+  const token = configuredToken || session?.accessToken
 
   if (!token) {
-    throw new Error("Unauthorized: No access token available")
+    throw new Error("Unauthorized: No access token available in session or config")
   }
 
   const url = `${baseUrl}api/ui_settings/`

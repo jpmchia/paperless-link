@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useAtomValue, useSetAtom } from "jotai"
 import { usePathname } from "next/navigation"
-import { useSession } from "next-auth/react"
+import { SessionContext } from "next-auth/react"
 import { toast } from "sonner"
 import { getRealtimeNotificationDispatch } from "@/lib/notifications"
 import { getRealtimeClient } from "@/lib/realtime/client"
@@ -24,7 +24,8 @@ export function RealtimeProvider({
 }: {
   children: React.ReactNode
 }) {
-  const { status } = useSession()
+  const sessionContext = React.useContext(SessionContext)
+  const status = sessionContext?.status ?? "unauthenticated"
   const pathname = usePathname()
   const notificationPreferences = useAtomValue(notificationPreferencesAtom)
   const suppressNotificationToasts = useAtomValue(suppressNotificationToastsAtom)

@@ -46,6 +46,8 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
   const setPdfPassword = useSetAtom(pdfViewerPasswordAtom)
   const setPdfRequiresPassword = useSetAtom(pdfViewerRequiresPasswordAtom)
   const setPdfViewerRegistry = useSetAtom(pdfViewerRegistryAtom)
+  const initTimeoutRef = React.useRef<number | null>(null)
+  const [useNativeFallback, setUseNativeFallback] = React.useState(false)
   const isEdgeBrowser = React.useMemo(() => {
     if (typeof navigator === "undefined") return false
     return /Edg\//.test(navigator.userAgent)
@@ -57,7 +59,7 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
       params.set("version", String(activeVersionId))
     }
     const query = params.toString()
-    return `/api/proxy/documents/${documentId}/preview/${query ? `?${query}` : ""}`
+    return `/api/proxy/documents/${documentId}/preview${query ? `?${query}` : ""}`
   }, [activeVersionId, documentId])
 
   const viewerTheme = React.useMemo(() => ({
@@ -296,12 +298,25 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
   }, [documentId, setActiveVersionId])
 
   React.useEffect(() => {
+    setUseNativeFallback(false)
     setPdfPageCount(totalPages)
     setPdfPassword("")
     setPdfRequiresPassword(false)
     setPdfViewerRegistry(null)
 
+    if (typeof window !== "undefined") {
+      initTimeoutRef.current = window.setTimeout(() => {
+        // Fallback path for environments where EmbedPDF worker init stalls.
+        setUseNativeFallback(true)
+        setPdfViewerRegistry(null)
+      }, 8000)
+    }
+
     return () => {
+      if (initTimeoutRef.current != null) {
+        window.clearTimeout(initTimeoutRef.current)
+        initTimeoutRef.current = null
+      }
       densityObserverRef.current?.disconnect()
       densityObserverRef.current = null
       setPdfPassword("")
@@ -352,44 +367,56 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
 
   return (
     <div className="h-full w-full overflow-hidden bg-background">
-      <PDFViewer
-        ref={viewerRef}
-        className="h-full w-full"
-        config={{
-          src: sourceUrl,
-          tabBar: "never",
-          theme: viewerThemeForBrowser,
-          permissions: {
-            enforceDocumentPermissions: false,
-          },
-          render: {
-            withForms: true,
-            withAnnotations: true,
-          },
-          zoom: {
-            defaultZoomLevel: ZoomMode.FitWidth,
-          },
-          spread: {
-            defaultSpreadMode: totalPages > 1 ? SpreadMode.Odd : SpreadMode.None,
-          },
-        }}
-        onInit={(viewer) => {
-          densityObserverRef.current?.disconnect()
-          applyCompactViewerChrome(viewer)
+      {useNativeFallback ? (
+        <iframe
+          src={sourceUrl}
+          title={`Document preview ${documentId}`}
+          className="h-full w-full border-0"
+        />
+      ) : (
+        <PDFViewer
+          ref={viewerRef}
+          className="h-full w-full"
+          config={{
+            src: sourceUrl,
+            tabBar: "never",
+            theme: viewerThemeForBrowser,
+            permissions: {
+              enforceDocumentPermissions: false,
+            },
+            render: {
+              withForms: true,
+              withAnnotations: true,
+            },
+            zoom: {
+              defaultZoomLevel: ZoomMode.FitWidth,
+            },
+            spread: {
+              defaultSpreadMode: totalPages > 1 ? SpreadMode.Odd : SpreadMode.None,
+            },
+          }}
+          onInit={(viewer) => {
+            densityObserverRef.current?.disconnect()
+            applyCompactViewerChrome(viewer)
 
-          if (viewer.shadowRoot) {
-            const observer = new MutationObserver(() => {
-              applyCompactViewerChrome(viewer)
-            })
-            observer.observe(viewer.shadowRoot, { childList: true, subtree: true })
-            densityObserverRef.current = observer
-          }
-        }}
-        onReady={(registry) => {
-          setPdfViewerRegistry(registry)
-          syncPageCount(registry)
-        }}
-      />
+            if (viewer.shadowRoot) {
+              const observer = new MutationObserver(() => {
+                applyCompactViewerChrome(viewer)
+              })
+              observer.observe(viewer.shadowRoot, { childList: true, subtree: true })
+              densityObserverRef.current = observer
+            }
+          }}
+          onReady={(registry) => {
+            if (initTimeoutRef.current != null) {
+              window.clearTimeout(initTimeoutRef.current)
+              initTimeoutRef.current = null
+            }
+            setPdfViewerRegistry(registry)
+            syncPageCount(registry)
+          }}
+        />
+      )}
     </div>
   )
 }

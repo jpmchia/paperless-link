@@ -264,7 +264,7 @@ export function CardGrid({
                 }
               >
                 <img
-                  src={`/api/proxy/documents/${doc.id}/thumb/`}
+                  src={`/api/proxy/documents/${doc.id}/thumb`}
                   alt={doc.title}
                   className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
                   loading="lazy"

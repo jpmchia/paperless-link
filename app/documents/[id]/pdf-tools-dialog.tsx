@@ -401,7 +401,7 @@ export function PdfToolsDialog({
 
   const sourceUrl = React.useMemo(() => {
     const versionSuffix = activeVersionId != null ? `?version=${activeVersionId}` : ""
-    return `/api/proxy/documents/${documentId}/preview/${versionSuffix}`
+    return `/api/proxy/documents/${documentId}/preview${versionSuffix}`
   }, [activeVersionId, documentId])
 
   React.useEffect(() => {

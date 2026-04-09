@@ -80,6 +80,12 @@ type PlacementsResponse = { placements?: DataroomDocumentPlacement[] }
 type ReleasesResponse = { releases?: DataroomRelease[] }
 type ReleaseItemsResponse = { items?: DataroomReleaseItem[] }
 type Paginated<T> = { results?: T[] } | T[]
+type PaginatedWithCount<T> = {
+  count?: number
+  next?: string | null
+  previous?: string | null
+  results?: T[]
+}
 type PaperlessUser = {
   id: number
   username?: string
@@ -433,6 +439,7 @@ function FolderTreeItem({
 }
 
 export function DataroomsView() {
+  const [hasMounted, setHasMounted] = React.useState(false)
   const [rooms, setRooms] = React.useState<Dataroom[]>([])
   const [selectedId, setSelectedId] = React.useState<string>("")
   const [roomDraft, setRoomDraft] = React.useState<Partial<Dataroom>>({})
@@ -826,8 +833,34 @@ export function DataroomsView() {
   const loadSourceDocuments = React.useCallback(async () => {
     setDocumentsLoading(true)
     try {
-      const payload = await getJson<Paginated<PaperlessDocument>>("/api/proxy/documents/?page_size=200")
-      setSourceDocuments(normalizePaginatedArray<PaperlessDocument>(payload))
+      const pageSize = 500
+      const maxPages = 60
+      const allDocuments: PaperlessDocument[] = []
+      let page = 1
+      let totalCount = Number.POSITIVE_INFINITY
+
+      while (page <= maxPages && allDocuments.length < totalCount) {
+        const payload = await getJson<PaginatedWithCount<PaperlessDocument>>(
+          `/api/proxy/documents/?page_size=${pageSize}&page=${page}`,
+        )
+        const pageResults = normalizePaginatedArray<PaperlessDocument>(payload)
+        if (pageResults.length === 0) {
+          break
+        }
+
+        allDocuments.push(...pageResults)
+        totalCount =
+          typeof payload.count === "number" && Number.isFinite(payload.count)
+            ? payload.count
+            : allDocuments.length
+
+        if (!payload.next || allDocuments.length >= totalCount) {
+          break
+        }
+        page += 1
+      }
+
+      setSourceDocuments(allDocuments)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load source documents")
       setSourceDocuments([])
@@ -844,6 +877,10 @@ export function DataroomsView() {
     }),
     [],
   )
+
+  React.useEffect(() => {
+    setHasMounted(true)
+  }, [])
 
   React.useEffect(() => {
     void loadRooms().catch(() => {})
@@ -1619,6 +1656,10 @@ export function DataroomsView() {
     if (!selectedHierarchyFolder) return
     hydrateFolderDraftFromSelection(selectedHierarchyFolder)
   }, [selectedHierarchyFolder, hydrateFolderDraftFromSelection])
+
+  if (!hasMounted) {
+    return <div className="relative flex h-full min-h-0 flex-1 overflow-hidden px-4 py-4" />
+  }
 
   const folderTreeContent = (
     <div className="min-h-0 flex-1 overflow-auto px-0 py-2">

@@ -1,0 +1,84 @@
+/** 
+* Paste one or more documents here
+*/
+{
+  "folder_id": "folder-1775728173018149959",
+  "auto_publish_immediately": null,
+  "auto_publish_scheduled_time": "",
+  "created_at": {
+    "$date": "2026-04-09T09:49:33.018Z"
+  },
+  "dataroom_id": "dataroom-1775726278244904666",
+  "description": "Aegis refundable accommodation deposit",
+  "label": "Aegis Aged Care RAD",
+  "linked_item_id": "7",
+  "linked_item_label": "Aegis Aged Care Group",
+  "linked_item_type": "correspondent",
+  "parent_folder_id": "",
+  "published_custom_field_ids": [
+    "8",
+    "6",
+    "4",
+    "2",
+    "3",
+    "5"
+  ],
+  "published_metadata_fields": [
+    "title",
+    "content",
+    "created",
+    "correspondent",
+    "document_type",
+    "archive_serial_number",
+    "original_md5",
+    "tags",
+    "original_file_size"
+  ],
+  "publishing_on_hold": false,
+  "rules": "Include documents manually assigned to folder \"Aegis Aged Care RAD\". Publishing occurs immediately after matching or assignment.",
+  "sort_order": 0,
+  "updated_at": {
+    "$date": "2026-04-09T09:49:33.018Z"
+  }
+}
+
+This is the JSON for a folder in the dataroom. It is used to define the folder and the documents that should be published to the dataroom.
+
+The folder_id is the ID of the folder in the dataroom.
+The auto_publish_immediately is a boolean that indicates if the documents should be published immediately.
+The auto_publish_scheduled_time is a string that indicates the time at which the documents should be published.
+The created_at is the date and time the folder was created.
+The dataroom_id is the ID of the dataroom.
+The description is a string that describes the folder.
+The label is a string that is the name of the folder.
+The linked_item_id is the ID of the item that the folder is linked to.
+The linked_item_label is a string that is the name of the item that the folder is linked to.
+
+So this becomes a query:
+
+Return all documents that have the [ correspondent ] equal to [ Aegis Aged Care Group ]
+
+"linked_item_id": "7",
+"linked_item_label": "Aegis Aged Care Group",
+"linked_item_type": "correspondent",
+
+And as the publish rule is set to "immediately", any documents that match this query should be returned in the dataroom query.
+
+
+The published metadata fields published_metadata_fields specify which metadata fields should be published to the dataroom.
+
+So in this example, the published metadata fields are:
+
+"title",
+"content",
+"created",
+"correspondent",
+"document_type",
+"archive_serial_number",
+"original_md5",
+"tags",
+"original_file_size"
+
+And the published custom field ids published_custom_field_ids specify which custom fields should be published to the dataroom.
+
+That's

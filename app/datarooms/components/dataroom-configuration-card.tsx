@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -98,6 +97,11 @@ export function DataroomConfigurationCard({
   emailTemplateDefinitions,
   onOpenTemplateEditor,
 }: Props) {
+  const selectedAutoPublishTime = React.useMemo(() => {
+    const value = roomDraft.auto_publish_scheduled_time ?? "00:00"
+    return autoPublishTimes.includes(value) ? value : "00:00"
+  }, [autoPublishTimes, roomDraft.auto_publish_scheduled_time])
+
   const dataroomUrl = React.useMemo(() => {
     if (!roomDraft.slug?.trim()) return ""
     if (typeof window === "undefined") return `/dataroom/${roomDraft.slug.trim()}`
@@ -125,18 +129,21 @@ export function DataroomConfigurationCard({
           <div className="grid gap-2 md:grid-cols-2">
             <div className="flex items-center gap-2">
               <Label className="min-w-[90px] justify-start">Dataroom</Label>
-              <Select value={selectedId} onValueChange={setSelectedId}>
-                <SelectTrigger className="h-12 w-full text-sm">
-                  <SelectValue placeholder="Select dataroom" />
-                </SelectTrigger>
-                <SelectContent>
-                  {rooms.map((room) => (
-                    <SelectItem key={room.dataroom_id} value={room.dataroom_id}>
-                      {room.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select
+                className="h-12 w-full rounded-md border border-input bg-input/20 px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                value={selectedId}
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (value !== selectedId) setSelectedId(value)
+                }}
+              >
+                <option value="">Select dataroom</option>
+                {rooms.map((room) => (
+                  <option key={room.dataroom_id} value={room.dataroom_id}>
+                    {room.title}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="flex items-center gap-2">
               <Label className="min-w-[60px] justify-end pr-4">Slug</Label>
@@ -211,26 +218,22 @@ export function DataroomConfigurationCard({
               {roomDraft.auto_publish_immediately === false ? (
                 <div className="flex items-center gap-2">
                   <Label className="min-w-[120px]">Scheduled time</Label>
-                  <Select
-                    value={roomDraft.auto_publish_scheduled_time ?? "00:00"}
-                    onValueChange={(value) =>
+                  <select
+                    className="h-9 w-[180px] rounded-md border border-input bg-input/20 px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                    value={selectedAutoPublishTime}
+                    onChange={(event) =>
                       setRoomDraft((previous) => ({
                         ...previous,
-                        auto_publish_scheduled_time: value,
+                        auto_publish_scheduled_time: event.target.value,
                       }))
                     }
                   >
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {autoPublishTimes.map((time) => (
-                        <SelectItem key={time} value={time}>
-                          {time}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    {autoPublishTimes.map((time) => (
+                      <option key={time} value={time}>
+                        {time}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               ) : null}
             </div>
@@ -365,24 +368,21 @@ export function DataroomConfigurationCard({
             />
             <div className="flex items-center gap-2">
               <Label className="min-w-[56px] text-xs">User</Label>
-              <Select value={ownerToAdd} onValueChange={setOwnerToAdd}>
-                <SelectTrigger className="h-12 w-full text-sm">
-                  <SelectValue placeholder="Select user" />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredUsers.length === 0 ? (
-                    <SelectItem value="__none__" disabled>
-                      No matching users
-                    </SelectItem>
-                  ) : (
-                    filteredUsers.map((user) => (
-                      <SelectItem key={user.id} value={String(user.id)}>
-                        {formatUserLabel(user)}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <select
+                className="h-12 w-full rounded-md border border-input bg-input/20 px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+                value={ownerToAdd}
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (value !== ownerToAdd) setOwnerToAdd(value)
+                }}
+              >
+                <option value="">Select user</option>
+                {filteredUsers.map((user) => (
+                  <option key={user.id} value={String(user.id)}>
+                    {formatUserLabel(user)}
+                  </option>
+                ))}
+              </select>
             </div>
             <Button onClick={addOwner} disabled={!selectedId || !ownerToAdd}>
               Add owner

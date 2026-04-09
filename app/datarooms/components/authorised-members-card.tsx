@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -61,6 +60,16 @@ export function AuthorisedMembersCard({
   removeInvitee,
   setMemberDetailKey,
 }: Props) {
+  const selectedAccessPreset = React.useMemo(() => {
+    const value = inviteeDraft.access_preset ?? "24 hours"
+    return accessPresets.includes(value) ? value : "24 hours"
+  }, [accessPresets, inviteeDraft.access_preset])
+
+  const selectedMagicLinkMode = React.useMemo(() => {
+    const value = inviteeDraft.magic_link_mode
+    return value === "ttl_minutes" ? "ttl_minutes" : "one_time"
+  }, [inviteeDraft.magic_link_mode])
+
   return (
     <Card>
       <CardHeader>
@@ -79,41 +88,35 @@ export function AuthorisedMembersCard({
           />
           <div className="flex items-center gap-2">
             <Label className="min-w-[56px] text-xs pl-5">Access</Label>
-            <Select
-              value={inviteeDraft.access_preset ?? "24 hours"}
-              onValueChange={(value) => setInviteeDraft((previous) => ({ ...previous, access_preset: value }))}
+            <select
+              className="h-8 w-[10rem] rounded-md border border-input bg-input/20 px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+              value={selectedAccessPreset}
+              onChange={(event) =>
+                setInviteeDraft((previous) => ({ ...previous, access_preset: event.target.value }))
+              }
             >
-              <SelectTrigger className="h-8 text-xs w-[10rem]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {accessPresets.map((preset) => (
-                  <SelectItem key={preset} value={preset}>
-                    {preset}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              {accessPresets.map((preset) => (
+                <option key={preset} value={preset}>
+                  {preset}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="flex items-center gap-2">
             <Label className="min-w-[56px] text-xs">Mode</Label>
-            <Select
-              value={inviteeDraft.magic_link_mode ?? "one_time"}
-              onValueChange={(value) =>
+            <select
+              className="h-8 w-[10rem] rounded-md border border-input bg-input/20 px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+              value={selectedMagicLinkMode}
+              onChange={(event) =>
                 setInviteeDraft((previous) => ({
                   ...previous,
-                  magic_link_mode: value as "one_time" | "ttl_minutes",
+                  magic_link_mode: event.target.value as "one_time" | "ttl_minutes",
                 }))
               }
             >
-              <SelectTrigger className="h-8 text-xs w-[10rem]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="one_time">One-time</SelectItem>
-                <SelectItem value="ttl_minutes">TTL minutes</SelectItem>
-              </SelectContent>
-            </Select>
+              <option value="one_time">One-time</option>
+              <option value="ttl_minutes">TTL minutes</option>
+            </select>
           </div>
           <Button className="h-8 text-xs w-[15rem]" onClick={saveInvitee} disabled={!selectedId}>
             Add invitee and sent invite

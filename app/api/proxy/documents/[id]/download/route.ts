@@ -9,7 +9,8 @@ export async function GET(
   const session = (await getServerSession(authOptions)) as
     | { accessToken?: string }
     | null
-  const token = session?.accessToken
+  const configuredToken = process.env.PAPERLESS_API_TOKEN?.trim()
+  const token = configuredToken || session?.accessToken?.trim()
 
   if (!token) {
     return new Response("Unauthorized", { status: 401 })

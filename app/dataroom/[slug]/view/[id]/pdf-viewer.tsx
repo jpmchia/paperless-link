@@ -1,14 +1,6 @@
 "use client"
 
 import * as React from "react"
-import {
-  type EmbedPdfContainer,
-  PDFViewer,
-  type PDFViewerRef,
-  SpreadMode,
-  ZoomMode,
-  type PluginRegistry,
-} from "@embedpdf/react-pdf-viewer"
 import { useAtomValue, useSetAtom } from "jotai"
 import {
   activeVersionIdAtom,
@@ -23,33 +15,13 @@ interface PdfViewerProps {
   totalPages?: number
 }
 
-type RegistryStoreState = {
-  core?: {
-    activeDocumentId?: string | null
-    documents?: Record<
-      string,
-      {
-        document?: {
-          pageCount?: number
-        } | null
-      }
-    >
-  }
-}
-
 export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
   const activeVersionId = useAtomValue(activeVersionIdAtom)
   const setActiveVersionId = useSetAtom(activeVersionIdAtom)
-  const viewerRef = React.useRef<PDFViewerRef>(null)
-  const densityObserverRef = React.useRef<MutationObserver | null>(null)
   const setPdfPageCount = useSetAtom(pdfViewerPageCountAtom)
   const setPdfPassword = useSetAtom(pdfViewerPasswordAtom)
   const setPdfRequiresPassword = useSetAtom(pdfViewerRequiresPasswordAtom)
   const setPdfViewerRegistry = useSetAtom(pdfViewerRegistryAtom)
-  const isEdgeBrowser = React.useMemo(() => {
-    if (typeof navigator === "undefined") return false
-    return /Edg\//.test(navigator.userAgent)
-  }, [])
 
   const sourceUrl = React.useMemo(() => {
     const params = new URLSearchParams()
@@ -57,7 +29,7 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
       params.set("version", String(activeVersionId))
     }
     const query = params.toString()
-    return `/api/proxy/documents/${documentId}/preview/${query ? `?${query}` : ""}`
+    return `/api/proxy/documents/${documentId}/preview${query ? `?${query}` : ""}`
   }, [activeVersionId, documentId])
 
   const viewerTheme = React.useMemo(() => ({
@@ -302,8 +274,6 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
     setPdfViewerRegistry(null)
 
     return () => {
-      densityObserverRef.current?.disconnect()
-      densityObserverRef.current = null
       setPdfPassword("")
       setPdfRequiresPassword(false)
       setPdfViewerRegistry(null)
@@ -316,79 +286,12 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
     totalPages,
   ])
 
-  const syncPageCount = React.useCallback(
-    (registry: PluginRegistry) => {
-      const store = registry.getStore()
-
-      const applyPageCount = (state: RegistryStoreState) => {
-        const activeDocumentId = state.core?.activeDocumentId
-        if (!activeDocumentId) return
-
-        const loadedPageCount = state.core?.documents?.[activeDocumentId]?.document?.pageCount
-        if (typeof loadedPageCount === "number" && loadedPageCount > 0) {
-          setPdfPageCount(loadedPageCount)
-        }
-      }
-
-      applyPageCount(store.getState() as RegistryStoreState)
-      return store.subscribe((_action, nextState) => {
-        applyPageCount(nextState as RegistryStoreState)
-      })
-    },
-    [setPdfPageCount]
-  )
-
-  React.useEffect(() => {
-    let unsubscribe: (() => void) | undefined
-
-    void viewerRef.current?.registry?.then((registry) => {
-      unsubscribe = syncPageCount(registry)
-    })
-
-    return () => {
-      unsubscribe?.()
-    }
-  }, [sourceUrl, syncPageCount])
-
   return (
     <div className="h-full w-full overflow-hidden bg-background">
-      <PDFViewer
-        ref={viewerRef}
-        className="h-full w-full"
-        config={{
-          src: sourceUrl,
-          tabBar: "never",
-          theme: viewerThemeForBrowser,
-          permissions: {
-            enforceDocumentPermissions: false,
-          },
-          render: {
-            withForms: true,
-            withAnnotations: true,
-          },
-          zoom: {
-            defaultZoomLevel: ZoomMode.FitWidth,
-          },
-          spread: {
-            defaultSpreadMode: totalPages > 1 ? SpreadMode.Odd : SpreadMode.None,
-          },
-        }}
-        onInit={(viewer) => {
-          densityObserverRef.current?.disconnect()
-          applyCompactViewerChrome(viewer)
-
-          if (viewer.shadowRoot) {
-            const observer = new MutationObserver(() => {
-              applyCompactViewerChrome(viewer)
-            })
-            observer.observe(viewer.shadowRoot, { childList: true, subtree: true })
-            densityObserverRef.current = observer
-          }
-        }}
-        onReady={(registry) => {
-          setPdfViewerRegistry(registry)
-          syncPageCount(registry)
-        }}
+      <iframe
+        src={sourceUrl}
+        title={`Document preview ${documentId}`}
+        className="h-full w-full border-0"
       />
     </div>
   )

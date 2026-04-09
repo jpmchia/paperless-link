@@ -7,7 +7,8 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   const params = await props.params
   const requestUrl = new URL(request.url)
   const session = (await getServerSession(authOptions as never)) as AccessTokenSession
-  const token = session?.accessToken
+  const configuredToken = process.env.PAPERLESS_API_TOKEN?.trim()
+  const token = configuredToken || session?.accessToken?.trim()
 
   if (!token) {
     return new Response("Unauthorized", { status: 401 })

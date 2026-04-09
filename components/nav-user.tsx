@@ -7,7 +7,7 @@ import {
   UserRound,
 } from "lucide-react"
 import Link from "next/link"
-import { useSession, signOut } from "next-auth/react"
+import { SessionContext, signOut } from "next-auth/react"
 
 import {
   Avatar,
@@ -48,7 +48,9 @@ export function NavUser({
   hideProfileLink = false,
 }: NavUserProps = {}) {
   const { isMobile } = useSidebar()
-  const { data: session, status } = useSession()
+  const sessionContext = React.useContext(SessionContext)
+  const session = sessionContext?.data
+  const status = sessionContext?.status ?? "unauthenticated"
   const [hasMounted, setHasMounted] = React.useState(false)
 
   const user = overrideUser ?? session?.user

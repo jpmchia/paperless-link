@@ -13,6 +13,8 @@ export default function DataroomLoginPage() {
   const slug = params?.slug || ""
   const [email, setEmail] = React.useState("")
   const [status, setStatus] = React.useState<string>("")
+  const [roomResolved, setRoomResolved] = React.useState(false)
+  const [roomFound, setRoomFound] = React.useState(true)
   const [roomTitle, setRoomTitle] = React.useState("Dataroom access")
   const [loginLogoURL, setLoginLogoURL] = React.useState("")
   const [loginLogoDarkURL, setLoginLogoDarkURL] = React.useState("")
@@ -28,16 +30,29 @@ export default function DataroomLoginPage() {
           `/api/link-iq/dataroom-public/config?slug=${encodeURIComponent(slug)}`,
           { cache: "no-store" },
         )
-        if (!response.ok) return
+        if (!response.ok) {
+          setRoomFound(false)
+          setRoomTitle("Dataroom not found")
+          return
+        }
         const payload = (await response.json()) as {
           dataroom?: { title?: string; login_logo_url?: string; login_logo_dark_url?: string }
         }
+        if (!payload.dataroom) {
+          setRoomFound(false)
+          setRoomTitle("Dataroom not found")
+          return
+        }
+        setRoomFound(true)
         setRoomTitle(payload.dataroom?.title?.trim() || "Dataroom access")
         setLoginLogoURL(payload.dataroom?.login_logo_url?.trim() || "")
         setLoginLogoDarkURL(payload.dataroom?.login_logo_dark_url?.trim() || "")
         setLogoLoadFailed(false)
       } catch {
-        // Keep default title/logo when metadata fetch fails.
+        setRoomFound(false)
+        setRoomTitle("Dataroom not found")
+      } finally {
+        setRoomResolved(true)
       }
     }
     void loadPublicConfig()
@@ -48,6 +63,10 @@ export default function DataroomLoginPage() {
   }, [effectiveLogoURL])
 
   const requestLink = async () => {
+    if (!roomFound) {
+      setStatus("This dataroom does not exist on this instance.")
+      return
+    }
     setStatus("")
     try {
       const payload = await postJson<{ issued?: boolean; magic_link?: string }>(
@@ -89,20 +108,28 @@ export default function DataroomLoginPage() {
         ) : null}
         <div className="relative flex-1 p-6 pb-14">
           <h1 className="text-xl font-semibold">{roomTitle}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Please enter your email address</p>
-          <div className="mt-4 flex gap-2">
-            <Input
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              type="email"
-              placeholder="you@example.com"
-            />
-            <Button onClick={() => void requestLink()}>Go</Button>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Ensure to use the registered email address that invitation was sent to. <br />
-            You will require access to that inbox to receive and use the login link to access the dataroom.
-          </p>
+          {roomResolved && !roomFound ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              This dataroom slug is not available in this environment.
+            </p>
+          ) : (
+            <>
+              <p className="mt-2 text-sm text-muted-foreground">Please enter your email address</p>
+              <div className="mt-4 flex gap-2">
+                <Input
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  type="email"
+                  placeholder="you@example.com"
+                />
+                <Button onClick={() => void requestLink()}>Go</Button>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Ensure to use the registered email address that invitation was sent to. <br />
+                You will require access to that inbox to receive and use the login link to access the dataroom.
+              </p>
+            </>
+          )}
           {status ? <p className="mt-3 text-sm">{status}</p> : null}
           <div className="absolute right-4 bottom-4">
             <ModeToggle />
