@@ -1012,14 +1012,16 @@ export function DataroomsView() {
   const saveFolder = async () => {
     if (!selectedId || !folderDraft.label?.trim()) return
     try {
-      const isUpdate = Boolean(folderDraft.folder_id)
-      const existingFolder = folderDraft.folder_id
-        ? folders.find((entry) => entry.folder_id === folderDraft.folder_id)
+      const folderIDForSave = folderDraft.folder_id || selectedHierarchyFolderID || ""
+      const isUpdate = Boolean(folderIDForSave)
+      const existingFolder = folderIDForSave
+        ? (folders.find((entry) => entry.folder_id === folderIDForSave) ?? selectedHierarchyFolder ?? undefined)
         : undefined
+      const draftDescription = folderDraft.description ?? existingFolder?.description ?? ""
       const nextDescription =
-        folderDraft.description != null
-          ? folderDraft.description
-          : existingFolder?.description || ""
+        isUpdate && draftDescription.trim() === "" && (existingFolder?.description ?? "").trim() !== ""
+          ? existingFolder?.description || ""
+          : draftDescription
       const nextRules =
         folderDraft.rules?.trim()
           ? folderDraft.rules
@@ -1057,6 +1059,7 @@ export function DataroomsView() {
       const savedFolder = await postJson<DataroomFolder>(`/api/link-iq/datarooms/${selectedId}/folders`, {
         ...existingFolder,
         ...folderDraft,
+        folder_id: folderIDForSave || undefined,
         ...nextLinkedItem,
         description: nextDescription,
         rules: nextRules,
@@ -1065,7 +1068,6 @@ export function DataroomsView() {
       if (isUpdate && savedFolder?.folder_id) {
         setSelectedHierarchyFolderID(savedFolder.folder_id)
         setPublishTargetFolderID(savedFolder.folder_id)
-        hydrateFolderDraftFromSelection(savedFolder)
       } else {
         setFolderDraft({})
         setPublishTargetFolderID("")
