@@ -249,17 +249,27 @@ export function AppSidebar({
 
   React.useEffect(() => {
     if (!hasMounted) return
-    const stored = window.localStorage.getItem(SYSTEM_SECTION_OPEN_STORAGE_KEY)
+    let stored: string | null = null
+    try {
+      stored = window.localStorage.getItem(SYSTEM_SECTION_OPEN_STORAGE_KEY)
+    } catch {
+      // Some browser/privacy contexts block storage access.
+      return
+    }
     if (stored == null) return
     setSystemOpen(stored === "true")
   }, [hasMounted])
 
   React.useEffect(() => {
     if (!hasMounted) return
-    window.localStorage.setItem(
-      SYSTEM_SECTION_OPEN_STORAGE_KEY,
-      systemOpen ? "true" : "false"
-    )
+    try {
+      window.localStorage.setItem(
+        SYSTEM_SECTION_OPEN_STORAGE_KEY,
+        systemOpen ? "true" : "false"
+      )
+    } catch {
+      // Some browser/privacy contexts block storage access.
+    }
   }, [hasMounted, systemOpen])
 
   React.useEffect(() => {

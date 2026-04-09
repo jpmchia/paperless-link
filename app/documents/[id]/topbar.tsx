@@ -196,7 +196,11 @@ export function TopBar({
     const setSaveAction = (action: string) => {
         // Will be picked up by the details form
         if (typeof window !== "undefined") {
-            window.sessionStorage.setItem("documentSaveAction", action)
+            try {
+                window.sessionStorage.setItem("documentSaveAction", action)
+            } catch {
+                // Ignore storage errors in restricted contexts.
+            }
         }
     }
 

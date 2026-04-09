@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/c
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Building2, FileType, GitBranch, Users } from "lucide-react"
 
@@ -162,27 +161,23 @@ export function FolderHierarchyCard({
             <div className="grid gap-2 md:grid-cols-2">
               <div className="flex items-center gap-2">
                 <Label className="min-w-[88px] text-[13px]">Parent</Label>
-                <Select
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-input/20 px-2 text-[13px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
                   value={folderDraft.parent_folder_id ?? "__root__"}
-                  onValueChange={(value) =>
+                  onChange={(event) =>
                     setFolderDraft((previous) => ({
                       ...previous,
-                      parent_folder_id: value === "__root__" ? "" : value,
+                      parent_folder_id: event.target.value === "__root__" ? "" : event.target.value,
                     }))
                   }
                 >
-                  <SelectTrigger className="text-[13px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__root__">Root folder</SelectItem>
-                    {folders.map((folder) => (
-                      <SelectItem key={folder.folder_id} value={folder.folder_id}>
-                        {folder.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <option value="__root__">Root folder</option>
+                  {folders.map((folder) => (
+                    <option key={folder.folder_id} value={folder.folder_id}>
+                      {folder.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex items-center gap-2">
                 <Label className="min-w-[88px] text-[13px]">Folder name</Label>
@@ -197,7 +192,8 @@ export function FolderHierarchyCard({
               </div>
               <div className="flex items-center gap-2">
                 <Label className="min-w-[88px] text-[13px]">Publish</Label>
-                <Select
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-input/20 px-2 text-[13px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
                   value={
                     folderDraft.auto_publish_immediately == null
                       ? "default"
@@ -205,51 +201,42 @@ export function FolderHierarchyCard({
                         ? "immediate"
                         : "scheduled"
                   }
-                  onValueChange={(value) =>
+                  onChange={(event) =>
                     setFolderDraft((previous) => ({
                       ...previous,
                       auto_publish_immediately:
-                        value === "default" ? undefined : value === "immediate",
+                        event.target.value === "default" ? undefined : event.target.value === "immediate",
                       auto_publish_scheduled_time:
-                        value === "scheduled"
+                        event.target.value === "scheduled"
                           ? previous.auto_publish_scheduled_time || "00:00"
                           : previous.auto_publish_scheduled_time || "",
                     }))
                   }
                 >
-                  <SelectTrigger className="text-[13px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">Default (inherit dataroom)</SelectItem>
-                    <SelectItem value="immediate">Immediate</SelectItem>
-                    <SelectItem value="scheduled">Scheduled</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <option value="default">Default (inherit dataroom)</option>
+                  <option value="immediate">Immediate</option>
+                  <option value="scheduled">Scheduled</option>
+                </select>
               </div>
               <div className="flex items-center gap-2">
                 <Label className="min-w-[88px] text-[13px]">Time</Label>
-                <Select
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-input/20 px-2 text-[13px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
                   value={folderDraft.auto_publish_scheduled_time || "00:00"}
-                  onValueChange={(value) =>
+                  onChange={(event) =>
                     setFolderDraft((previous) => ({
                       ...previous,
-                      auto_publish_scheduled_time: value,
+                      auto_publish_scheduled_time: event.target.value,
                     }))
                   }
                   disabled={folderDraft.auto_publish_immediately !== false}
                 >
-                  <SelectTrigger className="text-[13px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {autoPublishTimes.map((time) => (
-                      <SelectItem key={time} value={time}>
-                        {time}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  {autoPublishTimes.map((time) => (
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="md:col-span-2 space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
@@ -390,10 +377,11 @@ export function FolderHierarchyCard({
                   </Label>
                   <div className="space-y-2">
                     <div className="grid items-center gap-2 md:grid-cols-[320px_auto]">
-                      <Select
+                      <select
+                        className="h-9 w-[320px] max-w-full rounded-md border border-input bg-input/20 px-2 text-[13px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
                         value={section.value || "__none__"}
-                        onValueChange={(value) => {
-                          const nextValue = value === "__none__" ? "" : value
+                        onChange={(event) => {
+                          const nextValue = event.target.value === "__none__" ? "" : event.target.value
                           section.setValue(nextValue)
                           const selected = section.options.find((option) => option.value === nextValue)
                           setFolderDraft((previous) => ({
@@ -404,18 +392,13 @@ export function FolderHierarchyCard({
                           }))
                         }}
                       >
-                        <SelectTrigger className="w-[320px] max-w-full text-[13px]">
-                          <SelectValue placeholder={`Select ${section.label.toLowerCase()}`} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">-</SelectItem>
-                          {section.options.map((option) => (
-                            <SelectItem key={option.key} value={option.value}>
-                              {option.text}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <option value="__none__">{`Select ${section.label.toLowerCase()}`}</option>
+                        {section.options.map((option) => (
+                          <option key={option.key} value={option.value}>
+                            {option.text}
+                          </option>
+                        ))}
+                      </select>
                       <Button
                         variant="outline"
                         onClick={() => {

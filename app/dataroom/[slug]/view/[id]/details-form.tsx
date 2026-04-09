@@ -742,8 +742,13 @@ export function DetailsForm({
       toast.success("Document updated successfully")
 
       // Handle custom top bar button navigation
-      const saveAction = sessionStorage.getItem("documentSaveAction")
-      sessionStorage.removeItem("documentSaveAction")
+      let saveAction: string | null = null
+      try {
+        saveAction = sessionStorage.getItem("documentSaveAction")
+        sessionStorage.removeItem("documentSaveAction")
+      } catch {
+        saveAction = null
+      }
       
       if (saveAction === "close") {
           router.push(slug ? `/dataroom/${slug}/view` : "/documents")

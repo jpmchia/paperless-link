@@ -38,11 +38,15 @@ function readExecutionEntries() {
 function writeExecutionEntries(entries: LLMExecutionEntry[]) {
   if (typeof window === "undefined") return
 
-  window.localStorage.setItem(
-    LLM_ACTIVITY_STORAGE_KEY,
-    JSON.stringify(entries.slice(0, MAX_EXECUTION_ENTRIES))
-  )
-  window.dispatchEvent(new Event(LLM_ACTIVITY_EVENT))
+  try {
+    window.localStorage.setItem(
+      LLM_ACTIVITY_STORAGE_KEY,
+      JSON.stringify(entries.slice(0, MAX_EXECUTION_ENTRIES))
+    )
+    window.dispatchEvent(new Event(LLM_ACTIVITY_EVENT))
+  } catch {
+    // Ignore storage errors when storage is blocked.
+  }
 }
 
 function buildExecutionID() {

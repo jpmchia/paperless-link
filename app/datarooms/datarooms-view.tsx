@@ -21,7 +21,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -1836,20 +1835,16 @@ export function DataroomsView() {
                               : "Select a folder in the tree to apply context, then choose source documents."}
                           </CardDescription>
                         </div>
-                        <Select
+                        <select
+                          className="h-9 w-[190px] rounded-md border border-input bg-input/20 px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
                           value={effectivePublishWorkspaceView}
-                          onValueChange={(value) => setPublishWorkspaceView(value as PublishWorkspaceView)}
+                          onChange={(event) => setPublishWorkspaceView(event.target.value as PublishWorkspaceView)}
                           disabled={isManualSelectedFolder}
                         >
-                          <SelectTrigger className="w-[190px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="immediate">Immediate view</SelectItem>
-                            <SelectItem value="scheduled">Scheduled view</SelectItem>
-                            <SelectItem value="manual">Manual schedule view</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          <option value="immediate">Immediate view</option>
+                          <option value="scheduled">Scheduled view</option>
+                          <option value="manual">Manual schedule view</option>
+                        </select>
                         <Button
                           onClick={() => void scheduleSelectedDocuments()}
                           disabled={!selectedId || selectedDocumentCount === 0 || publishingDocuments}
@@ -1966,20 +1961,16 @@ export function DataroomsView() {
                             : `One list showing already published documents and new documents queued for ${scheduledDefaultTime}.`}
                         </CardDescription>
                       </div>
-                      <Select
+                      <select
+                        className="h-9 w-[190px] rounded-md border border-input bg-input/20 px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
                         value={effectivePublishWorkspaceView}
-                        onValueChange={(value) => setPublishWorkspaceView(value as PublishWorkspaceView)}
+                        onChange={(event) => setPublishWorkspaceView(event.target.value as PublishWorkspaceView)}
                         disabled={isManualSelectedFolder}
                       >
-                        <SelectTrigger className="w-[190px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="immediate">Immediate view</SelectItem>
-                          <SelectItem value="scheduled">Scheduled view</SelectItem>
-                          <SelectItem value="manual">Manual schedule view</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <option value="immediate">Immediate view</option>
+                        <option value="scheduled">Scheduled view</option>
+                        <option value="manual">Manual schedule view</option>
+                      </select>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm">
@@ -2059,40 +2050,34 @@ export function DataroomsView() {
                 <CardContent className="space-y-3 text-sm">
                   <div className="flex items-center gap-2">
                     <Label className="min-w-[96px]">Target folder</Label>
-                    <Select
+                    <select
+                      className="h-9 w-full rounded-md border border-input bg-input/20 px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
                       value={publishTargetFolderID || "__auto__"}
-                      onValueChange={(value) => setPublishTargetFolderID(value === "__auto__" ? "" : value)}
+                      onChange={(event) =>
+                        setPublishTargetFolderID(event.target.value === "__auto__" ? "" : event.target.value)
+                      }
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select target folder" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__auto__">Auto (selected parent / first folder)</SelectItem>
-                        {folders.map((folder) => (
-                          <SelectItem key={folder.folder_id} value={folder.folder_id}>
-                            {folder.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <option value="__auto__">Auto (selected parent / first folder)</option>
+                      {folders.map((folder) => (
+                        <option key={folder.folder_id} value={folder.folder_id}>
+                          {folder.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <p className="text-muted-foreground text-xs">
                     Selected documents: {selectedDocumentCount}
                   </p>
                   <div className="flex items-center gap-2">
                     <Label className="min-w-[96px]">Method</Label>
-                    <Select
+                    <select
+                      className="h-9 w-full rounded-md border border-input bg-input/20 px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
                       value={publishMode}
-                      onValueChange={(value) => setPublishMode(value as "immediate" | "scheduled")}
+                      onChange={(event) => setPublishMode(event.target.value as "immediate" | "scheduled")}
                     >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="immediate">Immediate</SelectItem>
-                        <SelectItem value="scheduled">Scheduled date/time</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      <option value="immediate">Immediate</option>
+                      <option value="scheduled">Scheduled date/time</option>
+                    </select>
                   </div>
                   {publishMode === "scheduled" ? (
                     <div className="flex items-center gap-2">

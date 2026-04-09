@@ -27,7 +27,12 @@ function resolveStorage(): SyncStringStorage {
     return createMemoryStorage()
   }
 
-  const candidate = window.localStorage
+  let candidate: Storage | null = null
+  try {
+    candidate = window.localStorage
+  } catch {
+    return createMemoryStorage()
+  }
   if (
     candidate &&
     typeof candidate.getItem === "function" &&
@@ -35,9 +40,27 @@ function resolveStorage(): SyncStringStorage {
     typeof candidate.removeItem === "function"
   ) {
     return {
-      getItem: candidate.getItem.bind(candidate),
-      removeItem: candidate.removeItem.bind(candidate),
-      setItem: candidate.setItem.bind(candidate),
+      getItem: (key: string) => {
+        try {
+          return candidate.getItem(key)
+        } catch {
+          return null
+        }
+      },
+      removeItem: (key: string) => {
+        try {
+          candidate.removeItem(key)
+        } catch {
+          // Ignore storage failures in restricted contexts.
+        }
+      },
+      setItem: (key: string, value: string) => {
+        try {
+          candidate.setItem(key, value)
+        } catch {
+          // Ignore storage failures in restricted contexts.
+        }
+      },
     }
   }
 

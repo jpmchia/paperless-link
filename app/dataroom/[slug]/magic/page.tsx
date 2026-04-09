@@ -25,7 +25,12 @@ export default function DataroomMagicPage() {
           setStatus("Unable to establish dataroom session")
           return
         }
-        window.sessionStorage.setItem("dataroom_session", result.session)
+        try {
+          window.sessionStorage.setItem("dataroom_session", result.session)
+        } catch {
+          setStatus("This browser context blocks storage; open link in a normal tab.")
+          return
+        }
         const slug = result.dataroom?.slug || ""
         router.replace(`/dataroom/${slug}/view`)
       } catch (error) {

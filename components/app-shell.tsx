@@ -48,12 +48,21 @@ type UiSettingsPayload = {
 
 function resolvePaperlessAssetUrl(value: string | null) {
   if (!value) return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (trimmed.startsWith("/")) return `/api/proxy${trimmed}`
 
   try {
-    return new URL(value).toString()
+    const parsed = new URL(trimmed)
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      // Serve via current origin to avoid mixed-content on HTTPS frontends.
+      return `/api/proxy${parsed.pathname}${parsed.search}${parsed.hash}`
+    }
+    return parsed.toString()
   } catch {
     const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
-    return new URL(value, baseUrl).toString()
+    const parsed = new URL(trimmed, baseUrl)
+    return `/api/proxy${parsed.pathname}${parsed.search}${parsed.hash}`
   }
 }
 

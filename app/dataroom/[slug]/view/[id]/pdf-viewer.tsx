@@ -1,7 +1,9 @@
 "use client"
 
+
 import * as React from "react"
 import { useAtomValue, useSetAtom } from "jotai"
+
 import {
   activeVersionIdAtom,
   pdfViewerPageCountAtom,
@@ -57,11 +59,18 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
 
   return (
     <div className="h-full w-full overflow-hidden bg-background">
+      {/* import { PDFViewer } from '@embedpdf/react-pdf-viewer'; */}
+    
       <iframe
         src={sourceUrl}
         title={`Document preview ${documentId}`}
         className="h-full w-full border-0"
-      />
+    />
+      {/* <iframe
+        src={sourceUrl}
+        title={`Document preview ${documentId}`}
+        className="h-full w-full border-0"
+    /> */}
     </div>
   )
 }

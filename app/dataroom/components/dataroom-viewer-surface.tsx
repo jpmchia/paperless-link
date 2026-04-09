@@ -132,7 +132,13 @@ export function DataroomViewerSurface({ slug }: Props) {
 
   React.useEffect(() => {
     const run = async () => {
-      const token = window.sessionStorage.getItem("dataroom_session")
+      let token = ""
+      try {
+        token = window.sessionStorage.getItem("dataroom_session") || ""
+      } catch {
+        router.replace(`/dataroom/${slug}`)
+        return
+      }
       if (!token) {
         router.replace(`/dataroom/${slug}`)
         return
@@ -175,7 +181,11 @@ export function DataroomViewerSurface({ slug }: Props) {
         setCustomFields(normalizePaginatedArray(customFieldsResult))
         setStatus("")
       } catch {
-        window.sessionStorage.removeItem("dataroom_session")
+        try {
+          window.sessionStorage.removeItem("dataroom_session")
+        } catch {
+          // Ignore storage errors in restricted contexts.
+        }
         router.replace(`/dataroom/${slug}`)
       }
     }
