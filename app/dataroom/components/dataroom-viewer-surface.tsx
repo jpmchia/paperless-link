@@ -1,27 +1,105 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { postJson } from "@/lib/paperless-client"
-import { Button } from "@/components/ui/button"
-import { DataroomPdfViewer } from "./dataroom-pdf-viewer"
+import { DocumentsWorkspace } from "@/app/dataroom/[slug]/view/workspace/documents-workspace"
+import type { Document, LookupMaps } from "@/app/dataroom/[slug]/view/workspace/columns"
+import type { FilterParams } from "@/lib/api"
 
 type Props = {
   slug: string
 }
 
-type DataroomPublicDocument = {
-  id: number
-  title?: string
-  created?: string
-}
-
 export function DataroomViewerSurface({ slug }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [status, setStatus] = React.useState("Loading dataroom...")
-  const [sessionToken, setSessionToken] = React.useState("")
-  const [documents, setDocuments] = React.useState<DataroomPublicDocument[]>([])
-  const [selectedDocumentID, setSelectedDocumentID] = React.useState<number | null>(null)
+  const [documents, setDocuments] = React.useState<Document[]>([])
+
+  const currentFilters = React.useMemo<FilterParams>(() => {
+    const next: FilterParams = {}
+    const query = searchParams?.get("query")
+    const correspondent = searchParams?.get("correspondent")
+    const documentType = searchParams?.get("document_type")
+    const storagePath = searchParams?.get("storage_path")
+    const tags = searchParams?.get("tags")
+    const tagsExclude = searchParams?.get("tags_exclude")
+
+    if (query) next.query = query
+    if (correspondent) next.correspondent = Number(correspondent)
+    if (documentType) next.documentType = Number(documentType)
+    if (storagePath) next.storagePath = Number(storagePath)
+    if (tags) next.tags = tags.split(",").map(Number).filter(Number.isFinite)
+    if (tagsExclude) {
+      next.tagsExclude = tagsExclude.split(",").map(Number).filter(Number.isFinite)
+    }
+
+    return next
+  }, [searchParams])
+
+  const filteredDocuments = React.useMemo(() => {
+    const query = currentFilters.query?.trim().toLowerCase()
+
+    return documents.filter((document) => {
+      if (
+        currentFilters.correspondent != null &&
+        (document.correspondent ?? null) !== currentFilters.correspondent
+      ) {
+        return false
+      }
+      if (
+        currentFilters.documentType != null &&
+        (document.document_type ?? null) !== currentFilters.documentType
+      ) {
+        return false
+      }
+      if (
+        currentFilters.storagePath != null &&
+        (document.storage_path ?? null) !== currentFilters.storagePath
+      ) {
+        return false
+      }
+      if (currentFilters.tags?.length) {
+        const docTags = document.tags ?? []
+        const hasAllTags = currentFilters.tags.every((tagID) => docTags.includes(tagID))
+        if (!hasAllTags) return false
+      }
+      if (currentFilters.tagsExclude?.length) {
+        const docTags = document.tags ?? []
+        const hasExcludedTag = currentFilters.tagsExclude.some((tagID) => docTags.includes(tagID))
+        if (hasExcludedTag) return false
+      }
+      if (query) {
+        const inTitle = document.title?.toLowerCase().includes(query)
+        const inAsn =
+          typeof document.archive_serial_number === "number" &&
+          String(document.archive_serial_number).includes(query)
+        if (!inTitle && !inAsn) return false
+      }
+
+      return true
+    })
+  }, [currentFilters, documents])
+
+  const currentPage = Math.max(1, Number(searchParams?.get("page") || "1"))
+  const currentPageSize = Math.max(1, Number(searchParams?.get("page_size") || "25"))
+  const totalCount = filteredDocuments.length
+  const pageCount = Math.max(1, Math.ceil(totalCount / currentPageSize))
+  const pageStart = (currentPage - 1) * currentPageSize
+  const pageData = filteredDocuments.slice(pageStart, pageStart + currentPageSize)
+
+  const lookup = React.useMemo<LookupMaps>(
+    () => ({
+      correspondents: {},
+      documentTypes: {},
+      storagePaths: {},
+      tags: {},
+      users: {},
+      customFields: {},
+    }),
+    []
+  )
 
   React.useEffect(() => {
     const run = async () => {
@@ -32,14 +110,12 @@ export function DataroomViewerSurface({ slug }: Props) {
       }
       try {
         await postJson("/api/link-iq/dataroom-public/validate-session", { token, slug })
-        const documentsResult = await postJson<{ documents?: DataroomPublicDocument[] }>(
+        const documentsResult = await postJson<{ documents?: Document[] }>(
+          // Dataroom-public list includes only released documents.
           "/api/link-iq/dataroom-public/documents",
           { token, slug },
         )
-        const items = documentsResult.documents ?? []
-        setDocuments(items)
-        setSelectedDocumentID(items[0]?.id ?? null)
-        setSessionToken(token)
+        setDocuments((documentsResult.documents ?? []) as Document[])
         setStatus("")
       } catch {
         window.sessionStorage.removeItem("dataroom_session")
@@ -51,62 +127,31 @@ export function DataroomViewerSurface({ slug }: Props) {
 
   return (
     <section className="flex min-w-0 flex-1">
-      <div className="w-96 shrink-0 border-r p-4">
-        <h2 className="font-medium">Documents</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Select a published document to preview and download.
-        </p>
-        <div className="mt-4 max-h-[calc(100vh-220px)] space-y-2 overflow-auto">
-          {documents.map((document) => (
-            <button
-              key={document.id}
-              type="button"
-              onClick={() => setSelectedDocumentID(document.id)}
-              className={`w-full rounded-md border px-3 py-2 text-left text-sm ${
-                selectedDocumentID === document.id ? "border-primary bg-accent/30" : "hover:bg-muted/40"
-              }`}
-            >
-              <p className="truncate font-medium">{document.title || `Document ${document.id}`}</p>
-              <p className="text-xs text-muted-foreground">
-                #{document.id} {document.created ? `• ${document.created.slice(0, 10)}` : ""}
-              </p>
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="min-w-0 flex-1 p-4">
-        {status ? (
-          <p className="text-sm text-muted-foreground">{status}</p>
-        ) : (
-          <div className="flex h-full min-h-0 flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                {selectedDocumentID ? `Previewing document #${selectedDocumentID}` : "No document selected"}
-              </p>
-              {selectedDocumentID ? (
-                <Button asChild variant="outline" size="sm">
-                  <a
-                    href={`/api/link-iq/dataroom-public/documents/${selectedDocumentID}/download?token=${encodeURIComponent(
-                      sessionToken,
-                    )}&slug=${encodeURIComponent(slug)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Download
-                  </a>
-                </Button>
-              ) : null}
-            </div>
-            <div className="min-h-0 flex-1 overflow-hidden rounded-md border">
-              <DataroomPdfViewer
-                slug={slug}
-                sessionToken={sessionToken}
-                documentId={selectedDocumentID}
-              />
-            </div>
-          </div>
-        )}
-      </div>
+      {status ? (
+        <div className="p-4 text-sm text-muted-foreground">{status}</div>
+      ) : (
+        <DocumentsWorkspace
+          correspondents={[]}
+          currentFilters={currentFilters}
+          currentPage={Math.min(currentPage, pageCount)}
+          currentPageSize={currentPageSize}
+          customFields={[]}
+          data={pageData}
+          documentTypes={[]}
+          groupsList={[]}
+          lookup={lookup}
+          pageCount={pageCount}
+          savedViews={[]}
+          storagePaths={[]}
+          tags={[]}
+          totalCount={totalCount}
+          users={[]}
+          currentUserId={null}
+          initialDisplayMode={null}
+          initialTableLayouts={null}
+          basePath={`/dataroom/${slug}/view`}
+        />
+      )}
     </section>
   )
 }
