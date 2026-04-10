@@ -23,6 +23,7 @@ import {
   type LookupMaps,
 } from "./columns"
 import type { DocumentDisplayMode } from "./display-mode"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   CalendarDays,
   ScanEye,
@@ -62,6 +63,12 @@ interface CardGridProps {
   cardSize?: number
   onPreviewDocument?: (document: { id: number; title?: string }) => void
   documentHrefBasePath?: string
+  /** Multi-select (e.g. dataroom card mode). */
+  enableSelection?: boolean
+  selectedIds?: number[]
+  onSelectedIdsChange?: (ids: number[]) => void
+  /** When set, card body opens the in-app viewer instead of navigating to a detail URL. */
+  onDocumentActivate?: (document: Document) => void
 }
 
 function formatDocumentDate(value?: string | null) {
@@ -204,6 +211,10 @@ export function CardGrid({
   cardSize = 220,
   onPreviewDocument,
   documentHrefBasePath = "/documents",
+  enableSelection = false,
+  selectedIds = [],
+  onSelectedIdsChange,
+  onDocumentActivate,
 }: CardGridProps) {
   if (data.length === 0) {
     return (
@@ -224,16 +235,120 @@ export function CardGrid({
     >
       {data.map((doc) => {
         const overlayFields = buildOverlayFields(doc, lookup, displayFields)
+        const isSelected = selectedIds.includes(doc.id)
+
+        const toggleSelect = (next: boolean) => {
+          if (!onSelectedIdsChange) return
+          if (next) {
+            onSelectedIdsChange([...new Set([...selectedIds, doc.id])])
+          } else {
+            onSelectedIdsChange(selectedIds.filter((id) => id !== doc.id))
+          }
+        }
+
+        const cardMedia = (
+          <div
+            className={
+              "relative w-full overflow-hidden bg-muted " +
+              (isLarge ? "aspect-[4/3]" : "aspect-[3/4]")
+            }
+          >
+            <img
+              src={`/api/proxy/documents/${doc.id}/thumb`}
+              alt={doc.title}
+              className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+              loading="lazy"
+            />
+
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
+
+            <div className="absolute inset-x-0 bottom-0 p-3">
+              <div className="flex flex-wrap items-start gap-1.5">
+                {overlayFields.map((field) => {
+                  if (field.kind === "title") {
+                    return (
+                      <p
+                        key={field.key}
+                        className={
+                          "basis-full font-medium leading-snug text-white drop-shadow-sm " +
+                          (isLarge ? "line-clamp-3 text-base" : "line-clamp-2 text-sm")
+                        }
+                        title={field.value}
+                      >
+                        {field.value}
+                      </p>
+                    )
+                  }
+
+                  if (field.kind === "tags") {
+                    return (
+                      <div key={field.key} className="basis-full flex flex-wrap gap-1">
+                        {field.tags.map((tag) => (
+                          <span
+                            key={tag.id}
+                            className={
+                              "inline-flex rounded-full border border-white/25 bg-black/55 px-1.5 py-0.5 text-white/95 backdrop-blur-sm " +
+                              (isLarge ? "text-[10px]" : "text-[9px]")
+                            }
+                            style={tagPillStyle(tag.color)}
+                          >
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
+                    )
+                  }
+
+                  const Icon = field.icon
+                  return (
+                    <div
+                      key={field.key}
+                      className={
+                        "inline-flex max-w-full flex-none self-start items-center gap-1 rounded-md border border-white/15 bg-black/50 px-2 py-1 text-white/90 backdrop-blur-sm " +
+                        (isLarge ? "text-xs" : "text-[10px]")
+                      }
+                    >
+                      <Icon className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{field.value}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )
+
+        const openCard = () => {
+          if (onDocumentActivate) {
+            onDocumentActivate(doc)
+            return
+          }
+        }
 
         return (
           <div
             key={doc.id}
             className={
               "group relative overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm transition-all hover:border-primary/50 hover:shadow-md " +
-              (isLarge ? "min-h-[22rem]" : "min-h-[18rem]")
+              (isLarge ? "min-h-[22rem]" : "min-h-[18rem]") +
+              (isSelected ? " ring-2 ring-primary/60" : "")
             }
           >
-            {onPreviewDocument && (
+            {enableSelection && onSelectedIdsChange ? (
+              <div
+                className="absolute left-2 top-2 z-30 rounded-md border border-white/20 bg-black/50 p-0.5 backdrop-blur-sm"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={(value) => toggleSelect(!!value)}
+                  aria-label={`Select ${doc.title ?? "document"}`}
+                  className="border-white/80 data-[state=checked]:border-primary"
+                />
+              </div>
+            ) : null}
+
+            {onPreviewDocument ? (
               <button
                 type="button"
                 className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-black/45 text-white/90 opacity-0 backdrop-blur-sm transition-all hover:bg-black/65 group-hover:opacity-100"
@@ -249,84 +364,26 @@ export function CardGrid({
               >
                 <ScanEye className="h-4 w-4" />
               </button>
-            )}
+            ) : null}
 
-            <OpenDocumentLink
-              documentId={doc.id}
-              href={`${documentHrefBasePath}/${doc.id}`}
-              title={doc.title}
-              className="block h-full"
-            >
-              <div
-                className={
-                  "relative w-full overflow-hidden bg-muted " +
-                  (isLarge ? "aspect-[4/3]" : "aspect-[3/4]")
-                }
+            {onDocumentActivate ? (
+              <button
+                type="button"
+                className="block h-full w-full cursor-pointer text-left"
+                onClick={openCard}
               >
-                <img
-                  src={`/api/proxy/documents/${doc.id}/thumb`}
-                  alt={doc.title}
-                  className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
-                  loading="lazy"
-                />
-
-                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
-
-                <div className="absolute inset-x-0 bottom-0 p-3">
-                  <div className="flex flex-wrap items-start gap-1.5">
-                    {overlayFields.map((field) => {
-                      if (field.kind === "title") {
-                        return (
-                          <p
-                            key={field.key}
-                            className={
-                              "basis-full font-medium leading-snug text-white drop-shadow-sm " +
-                              (isLarge ? "line-clamp-3 text-base" : "line-clamp-2 text-sm")
-                            }
-                            title={field.value}
-                          >
-                            {field.value}
-                          </p>
-                        )
-                      }
-
-                      if (field.kind === "tags") {
-                        return (
-                          <div key={field.key} className="basis-full flex flex-wrap gap-1">
-                            {field.tags.map((tag) => (
-                              <span
-                                key={tag.id}
-                                className={
-                                  "inline-flex rounded-full border border-white/25 bg-black/55 px-1.5 py-0.5 text-white/95 backdrop-blur-sm " +
-                                  (isLarge ? "text-[10px]" : "text-[9px]")
-                                }
-                                style={tagPillStyle(tag.color)}
-                              >
-                                {tag.name}
-                              </span>
-                            ))}
-                          </div>
-                        )
-                      }
-
-                      const Icon = field.icon
-                      return (
-                        <div
-                          key={field.key}
-                          className={
-                            "inline-flex max-w-full flex-none self-start items-center gap-1 rounded-md border border-white/15 bg-black/50 px-2 py-1 text-white/90 backdrop-blur-sm " +
-                            (isLarge ? "text-xs" : "text-[10px]")
-                          }
-                        >
-                          <Icon className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{field.value}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            </OpenDocumentLink>
+                {cardMedia}
+              </button>
+            ) : (
+              <OpenDocumentLink
+                documentId={doc.id}
+                href={`${documentHrefBasePath}/${doc.id}`}
+                title={doc.title ?? ""}
+                className="block h-full"
+              >
+                {cardMedia}
+              </OpenDocumentLink>
+            )}
           </div>
         )
       })}

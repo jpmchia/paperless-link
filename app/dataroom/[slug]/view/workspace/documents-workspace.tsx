@@ -2,6 +2,9 @@
 
 import * as React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
+import { DataroomPdfViewer } from "@/app/dataroom/components/dataroom-pdf-viewer"
+import { getDataroomSessionToken } from "@/lib/dataroom-public-client"
 import type { ColumnSizingState } from "@tanstack/react-table"
 import { updateUiSettings } from "@/app/actions/ui-settings"
 import type { FilterParams } from "@/lib/api"
@@ -14,6 +17,7 @@ import { ColumnsPicker } from "./columns-picker"
 import { CardGrid } from "./card-grid"
 import { DisplayModePicker } from "./display-mode-picker"
 import { DocumentPreviewDialog } from "./document-preview-dialog"
+import { BulkActionBar } from "./bulk-action-bar"
 import {
   DEFAULT_DOCUMENT_DISPLAY_MODE,
   type DocumentDisplayMode,
@@ -124,6 +128,29 @@ export function DocumentsWorkspace({
 }: DocumentsWorkspaceProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const isDataroomViewer = basePath.startsWith("/dataroom/") && basePath.includes("/view")
+  const dataroomSlug = isDataroomViewer ? (basePath.split("/")[2] ?? "") : ""
+  const panelDocumentId = React.useMemo(() => {
+    const raw = searchParams?.get("doc")
+    const n = raw ? Number(raw) : NaN
+    return Number.isFinite(n) ? n : null
+  }, [searchParams])
+  const [sessionToken, setSessionToken] = React.useState("")
+  const [cardSelectedIds, setCardSelectedIds] = React.useState<number[]>([])
+
+  const activateDocument = React.useCallback(
+    (id: number) => {
+      const params = new URLSearchParams(searchParams?.toString() ?? "")
+      params.set("doc", String(id))
+      router.replace(`?${params.toString()}`)
+    },
+    [router, searchParams],
+  )
+
+  React.useEffect(() => {
+    setSessionToken(getDataroomSessionToken())
+  }, [])
+
   const [hasMounted, setHasMounted] = React.useState(false)
   const [tableLayouts, setTableLayouts] = React.useState<DocumentTableLayoutSettings>(
     initialTableLayouts ?? {}
@@ -186,6 +213,21 @@ export function DocumentsWorkspace({
     id: number
     title?: string
   } | null>(null)
+
+  const handlePreviewDocument = React.useCallback(
+    (document: { id: number; title?: string }) => {
+      if (isDataroomViewer) {
+        activateDocument(document.id)
+        return
+      }
+      setPreviewDocument(document)
+    },
+    [activateDocument, isDataroomViewer],
+  )
+
+  React.useEffect(() => {
+    setCardSelectedIds([])
+  }, [data, displayMode])
 
   React.useEffect(() => {
     if (activeViewDisplayFields?.length) {
@@ -418,8 +460,8 @@ export function DocumentsWorkspace({
     return <div className="flex h-full flex-col gap-4 p-4" />
   }
 
-  return (
-    <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4">
+  const listChrome = (
+    <>
       <RealtimeDocumentListSync />
       <DataTableHeaderBar
         currentPage={currentPage}
@@ -473,6 +515,31 @@ export function DocumentsWorkspace({
         currentPageSize={currentPageSize}
         basePath={basePath}
       />
+      {isDataroomViewer && displayMode !== "table" && cardSelectedIds.length > 0 && dataroomSlug ? (
+        <BulkActionBar
+          selectedIds={cardSelectedIds}
+          onClearSelection={() => setCardSelectedIds([])}
+          onComplete={() => {
+            setCardSelectedIds([])
+            router.refresh()
+          }}
+          tags={tags.map((t) => ({ id: t.id, name: t.name, color: t.color }))}
+          correspondents={correspondents}
+          documentTypes={documentTypes}
+          storagePaths={storagePaths}
+          customFields={customFields.map((cf) => ({
+            id: cf.id,
+            name: cf.name,
+            data_type: "string",
+          }))}
+          usersList={users
+            .filter((u): u is UserOption & { username: string } => typeof u.username === "string")
+            .map((u) => ({ id: u.id, username: u.username }))}
+          groupsList={groupsList}
+          readOnly
+          dataroomSlug={dataroomSlug}
+        />
+      ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {displayMode === "table" ? (
           <DataTable
@@ -485,8 +552,11 @@ export function DocumentsWorkspace({
             usersList={users}
             groupsList={groupsList}
             onColumnSizingChange={setColumnSizing}
-            onPreviewDocument={setPreviewDocument}
+            onPreviewDocument={handlePreviewDocument}
             documentHrefBasePath={basePath}
+            onDocumentActivate={isDataroomViewer ? (doc) => activateDocument(doc.id) : undefined}
+            readOnly={isDataroomViewer}
+            dataroomSlug={dataroomSlug}
           />
         ) : (
           <CardGrid
@@ -495,18 +565,52 @@ export function DocumentsWorkspace({
             displayMode={displayMode}
             displayFields={displayFields}
             cardSize={cardSize}
-            onPreviewDocument={setPreviewDocument}
+            onPreviewDocument={handlePreviewDocument}
             documentHrefBasePath={basePath}
+            enableSelection={isDataroomViewer}
+            selectedIds={cardSelectedIds}
+            onSelectedIdsChange={setCardSelectedIds}
+            onDocumentActivate={isDataroomViewer ? (doc) => activateDocument(doc.id) : undefined}
           />
         )}
       </div>
-      <DocumentPreviewDialog
-        documentId={previewDocument?.id ?? null}
-        documentTitle={previewDocument?.title}
-        documents={previewDocuments}
-        onClose={() => setPreviewDocument(null)}
-        onDocumentChange={setPreviewDocument}
-      />
+    </>
+  )
+
+  return (
+    <div
+      className={
+        isDataroomViewer
+          ? "flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+          : "flex h-full min-h-0 flex-col gap-4 overflow-hidden p-4"
+      }
+    >
+      {isDataroomViewer && dataroomSlug ? (
+        <ResizablePanelGroup
+          // @ts-expect-error ResizablePrimitive type conflict in react-resizable-panels
+          direction="horizontal"
+          className="min-h-0 flex-1"
+        >
+          <ResizablePanel defaultSize={58} minSize={32} className="min-h-0 flex flex-col">
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4">{listChrome}</div>
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel defaultSize={42} minSize={28} className="min-h-0">
+            <DataroomPdfViewer slug={dataroomSlug} sessionToken={sessionToken} documentId={panelDocumentId} />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        listChrome
+      )}
+      {!isDataroomViewer ? (
+        <DocumentPreviewDialog
+          documentId={previewDocument?.id ?? null}
+          documentTitle={previewDocument?.title}
+          documents={previewDocuments}
+          onClose={() => setPreviewDocument(null)}
+          onDocumentChange={setPreviewDocument}
+        />
+      ) : null}
     </div>
   )
 }

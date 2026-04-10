@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import dynamic from "next/dynamic"
 import { toast } from "sonner"
 import { deleteJson, getJson, postJson, putJson } from "@/lib/paperless-client"
 import type {
@@ -49,10 +48,9 @@ import {
   ACCESS_PRESETS,
   AUTO_PUBLISH_TIMES,
   EMAIL_TEMPLATE_DEFINITIONS,
-  QUILL_FORMATS,
-  QUILL_MODULES,
   STANDARD_METADATA_FIELDS,
 } from "./datarooms-constants"
+import { getDefaultEmailTemplateBundle } from "./email-template-defaults/verbatim-templates"
 import { asNumber, asString, normalizePaginatedArray, normalizeUsersResponse } from "./datarooms-normalize"
 import type {
   AnalyticsResponse,
@@ -76,8 +74,6 @@ import type {
   TaxonomyNodeOption,
 } from "./datarooms-types"
 import { buildFolderTree, FolderTreeItem } from "./components/folder-tree"
-
-const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false })
 
 /**
  * Bisect carousel issues (e.g. “Maximum update depth”): set to an object with the slides you
@@ -1573,18 +1569,32 @@ export function DataroomsView() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Body HTML</Label>
-                  <div className="overflow-hidden rounded-md border bg-background">
-                    <ReactQuill
-                      theme="snow"
-                      value={activeTemplateValue.body_html ?? ""}
-                      onChange={(value) =>
-                        updateEmailTemplate(activeTemplate.key, { body_html: value })
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Label className="text-xs text-muted-foreground">Body HTML</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() =>
+                        updateEmailTemplate(activeTemplate.key, getDefaultEmailTemplateBundle(activeTemplate.key))
                       }
-                      modules={QUILL_MODULES}
-                      formats={QUILL_FORMATS}
-                    />
+                    >
+                      Load default template
+                    </Button>
                   </div>
+                  <p className="text-muted-foreground text-xs">
+                    Full HTML is stored as-is. Use the placeholders shown below; the header image uses{" "}
+                    <span className="font-mono">{"{{BrandingLogoURL}}"}</span> (configure branding on this dataroom).
+                  </p>
+                  <Textarea
+                    spellCheck={false}
+                    className="min-h-[320px] resize-y font-mono text-xs leading-relaxed"
+                    value={activeTemplateValue.body_html ?? ""}
+                    onChange={(event) =>
+                      updateEmailTemplate(activeTemplate.key, { body_html: event.target.value })
+                    }
+                  />
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {activeTemplate.variables.map((variable) => (

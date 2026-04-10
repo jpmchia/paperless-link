@@ -55,29 +55,6 @@ export const EMAIL_TEMPLATE_DEFINITIONS = [
   },
 ] as const
 
-export const QUILL_MODULES = {
-  toolbar: [
-    [{ header: [1, 2, 3, false] }],
-    ["bold", "italic", "underline", "strike"],
-    [{ list: "ordered" }, { list: "bullet" }],
-    [{ align: [] }],
-    ["link"],
-    ["clean"],
-  ],
-}
-
-export const QUILL_FORMATS = [
-  "header",
-  "bold",
-  "italic",
-  "underline",
-  "strike",
-  "list",
-  "bullet",
-  "align",
-  "link",
-]
-
 export const AUTO_PUBLISH_TIMES = Array.from({ length: 48 }, (_, index) => {
   const hour = String(Math.floor(index / 2)).padStart(2, "0")
   const minute = index % 2 === 0 ? "00" : "30"

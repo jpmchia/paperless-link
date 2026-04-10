@@ -36,7 +36,7 @@ export function DataroomPdfViewer({ slug, sessionToken, documentId }: Props) {
 
   const viewerTheme = React.useMemo(
     () => ({
-      preference: "system" as const,
+      preference: "dark" as const,
       light: {
         background: { app: "var(--background)", surface: "var(--card)" },
         foreground: { primary: "var(--foreground)" },

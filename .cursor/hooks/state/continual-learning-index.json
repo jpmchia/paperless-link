@@ -1,11 +1,13 @@
 {
-  "version": 1,
   "transcripts": {
     "/home/jpmchia/.cursor/projects/home-jpmchia-src-Paperless-paperless-link/agent-transcripts/2d5dd109-be42-419f-8be6-f8000606a5ef/2d5dd109-be42-419f-8be6-f8000606a5ef.jsonl": {
-      "mtimeMs": 1775765764187
+      "mtimeMs": 1775778704818
     },
     "/home/jpmchia/.cursor/projects/home-jpmchia-src-Paperless-paperless-link/agent-transcripts/2d5dd109-be42-419f-8be6-f8000606a5ef/subagents/0d1d8a7d-5684-440b-9024-7844cf9ee8a3.jsonl": {
       "mtimeMs": 1775659070106
+    },
+    "/home/jpmchia/.cursor/projects/home-jpmchia-src-Paperless-paperless-link/agent-transcripts/2d5dd109-be42-419f-8be6-f8000606a5ef/subagents/1503a0a4-f37d-4ea6-85af-20702d22c4cf.jsonl": {
+      "mtimeMs": 1775778758848
     },
     "/home/jpmchia/.cursor/projects/home-jpmchia-src-Paperless-paperless-link/agent-transcripts/2d5dd109-be42-419f-8be6-f8000606a5ef/subagents/2c08553a-eb07-4893-b033-62a8a2290359.jsonl": {
       "mtimeMs": 1775690692049
@@ -14,7 +16,7 @@
       "mtimeMs": 1775711744701
     },
     "/home/jpmchia/.cursor/projects/home-jpmchia-src-Paperless-paperless-link/agent-transcripts/2d5dd109-be42-419f-8be6-f8000606a5ef/subagents/34ddd316-90ae-4c2f-bcaf-975a4253229b.jsonl": {
-      "mtimeMs": 1775765809206
+      "mtimeMs": 1775765881208
     },
     "/home/jpmchia/.cursor/projects/home-jpmchia-src-Paperless-paperless-link/agent-transcripts/2d5dd109-be42-419f-8be6-f8000606a5ef/subagents/3a5e5549-c77d-4ff2-9a6d-4b8e539fae93.jsonl": {
       "mtimeMs": 1775706620011
@@ -46,5 +48,6 @@
     "/home/jpmchia/.cursor/projects/home-jpmchia-src-Paperless-paperless-link/agent-transcripts/2d5dd109-be42-419f-8be6-f8000606a5ef/subagents/fad4827d-f16c-408a-8f42-f56617db64e3.jsonl": {
       "mtimeMs": 1775705988235
     }
-  }
+  },
+  "version": 1
 }

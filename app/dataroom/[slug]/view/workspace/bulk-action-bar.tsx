@@ -36,11 +36,12 @@ import {
 } from "@/components/ui/select"
 import {
   Trash2, Download, Tags, User, FileType, FolderOpen, X, RotateCcw, Check,
-  ShieldCheck, FormInput, Merge, RotateCw,
+  ShieldCheck, FormInput, Merge, RotateCw, Printer,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { tagPillStyle } from "@/lib/tag-colors"
+import { downloadDataroomDocuments, printDataroomDocuments } from "@/lib/dataroom-public-client"
 
 interface BulkActionBarProps {
   selectedIds: number[]
@@ -53,6 +54,9 @@ interface BulkActionBarProps {
   customFields?: { id: number; name: string; data_type: string }[]
   usersList?: { id: number; username: string }[]
   groupsList?: { id: number; name: string }[]
+  /** Dataroom viewer: only download + print (no edits). */
+  readOnly?: boolean
+  dataroomSlug?: string
 }
 
 type BulkEditParameters = Record<string, unknown>
@@ -85,6 +89,65 @@ async function bulkDownload(documentIds: number[]) {
   a.download = `documents-${Date.now()}.zip`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+function DataroomReadOnlyBulkBar({
+  selectedIds,
+  dataroomSlug,
+  onClearSelection,
+  onComplete,
+}: {
+  selectedIds: number[]
+  dataroomSlug: string
+  onClearSelection: () => void
+  onComplete: () => void
+}) {
+  const [busy, setBusy] = React.useState(false)
+  const count = selectedIds.length
+
+  const handleDownload = async () => {
+    setBusy(true)
+    try {
+      await downloadDataroomDocuments(dataroomSlug, selectedIds)
+      toast.success(count === 1 ? "Download started" : "Downloads started")
+      onComplete()
+    } catch (error) {
+      toast.error("Download failed", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handlePrint = () => {
+    printDataroomDocuments(dataroomSlug, selectedIds)
+    toast.message("Print", {
+      description:
+        selectedIds.length > 1
+          ? "Opening each document in a new tab — use your browser’s print dialog on each."
+          : "Opening the document — use your browser’s print dialog.",
+    })
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 shadow-lg">
+      <Badge variant="secondary" className="font-mono text-xs">
+        {count} selected
+      </Badge>
+      <Button variant="outline" size="sm" className="h-7 text-xs" disabled={busy} onClick={() => void handleDownload()}>
+        <Download className="mr-1 h-3 w-3" />
+        Download
+      </Button>
+      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handlePrint}>
+        <Printer className="mr-1 h-3 w-3" />
+        Print
+      </Button>
+      <Button variant="ghost" size="icon" className="h-7 w-7 ml-auto" onClick={onClearSelection}>
+        <X className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  )
 }
 
 async function proxyPost(path: string, body: Record<string, unknown>) {
@@ -166,6 +229,8 @@ export function BulkActionBar({
   customFields = [],
   usersList = [],
   groupsList = [],
+  readOnly = false,
+  dataroomSlug = "",
 }: BulkActionBarProps) {
   const [showDelete, setShowDelete] = React.useState(false)
   const [showMerge, setShowMerge] = React.useState(false)
@@ -194,6 +259,17 @@ export function BulkActionBar({
 
   const count = selectedIds.length
   if (count === 0) return null
+
+  if (readOnly && dataroomSlug) {
+    return (
+      <DataroomReadOnlyBulkBar
+        selectedIds={selectedIds}
+        dataroomSlug={dataroomSlug}
+        onClearSelection={onClearSelection}
+        onComplete={onComplete}
+      />
+    )
+  }
 
   const run = async (method: string, parameters: BulkEditParameters, message: string) => {
     setBusy(true)

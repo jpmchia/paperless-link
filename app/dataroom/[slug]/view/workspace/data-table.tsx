@@ -66,6 +66,10 @@ interface DataTableProps {
   onPreviewDocument?: (document: { id: number; title?: string }) => void
   onSelectedIdsChange?: (ids: number[]) => void
   documentHrefBasePath?: string
+  /** When set (e.g. dataroom viewer), row click opens this instead of navigating away. */
+  onDocumentActivate?: (document: Document) => void
+  readOnly?: boolean
+  dataroomSlug?: string
 }
 
 const PAGE_SIZES = [10, 25, 50, 100]
@@ -201,6 +205,9 @@ export function DataTable({
   onPreviewDocument,
   onSelectedIdsChange,
   documentHrefBasePath = "/documents",
+  onDocumentActivate,
+  readOnly = false,
+  dataroomSlug = "",
 }: DataTableProps) {
   const router = useRouter()
   const navigateToDocument = useOpenDocumentNavigation()
@@ -348,6 +355,8 @@ export function DataTable({
           groupsList={groupsList
             .filter((group): group is { id: number; name: string } => typeof group.name === "string")
             .map((group) => ({ id: group.id, name: group.name }))}
+          readOnly={readOnly}
+          dataroomSlug={dataroomSlug}
         />
       )}
       {/* Table */}
@@ -388,13 +397,17 @@ export function DataTable({
                 <TableRow
                   key={row.id}
                   className="cursor-pointer hover:bg-muted/50 group/row"
-                  onClick={() =>
+                  onClick={() => {
+                    if (onDocumentActivate) {
+                      onDocumentActivate(row.original)
+                      return
+                    }
                     navigateToDocument({
                       documentId: row.original.id,
                       href: `${documentHrefBasePath}/${row.original.id}`,
                       title: row.original.title || `Document ${row.original.id}`,
                     })
-                  }
+                  }}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell

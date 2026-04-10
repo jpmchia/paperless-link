@@ -1,7 +1,6 @@
 import { Inter } from "next/font/google"
 
 import "./globals.css"
-import "react-quill-new/dist/quill.snow.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils";
 import { SessionProvider } from "@/components/session-provider"
