@@ -2,7 +2,11 @@
  * pdf.js / EmbedPDF issue many HTTP Range requests per document. Running full
  * dataroom session validation + document allowlist checks on every chunk makes
  * the viewer appear hung. Cache a successful (token, slug, folder, doc) → dataroom
- * mapping for a short window so Range requests only proxy to Paperless.
+ * mapping for a short window so follow-up Range requests only proxy to Paperless.
+ *
+ * Only consult this cache when the incoming request has a `Range` header: the first
+ * full GET (no Range) must always validate so the viewer cannot start from a stale
+ * or mismatched cache entry.
  */
 
 const TTL_MS = 5 * 60 * 1000

@@ -26,8 +26,9 @@ export async function GET(request: Request, { params }: RouteParams) {
     const folderId = url.searchParams.get("folder_id")?.trim() || undefined
 
     let session: ValidatedSession
+    const hasRange = Boolean(request.headers.get("Range")?.trim())
     const cachedDataroomID =
-      token && slug ? getCachedPreviewAuth(token, slug, folderId, documentID) : null
+      hasRange && token && slug ? getCachedPreviewAuth(token, slug, folderId, documentID) : null
 
     if (cachedDataroomID) {
       session = { token, slug, dataroomID: cachedDataroomID }
@@ -72,7 +73,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       upstream.headers.get("Content-Disposition") || `attachment; filename="document-${documentID}.pdf"`
     headers.set("Content-Disposition", cd)
 
-    return new NextResponse(upstream.body, {
+    return new Response(upstream.body, {
       status: upstream.status,
       headers,
     })

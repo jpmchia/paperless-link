@@ -8,6 +8,14 @@ import {
   SpreadMode,
   ZoomMode,
 } from "@embedpdf/react-pdf-viewer"
+import { GlobalWorkerOptions } from "pdfjs-dist/legacy/build/pdf.mjs"
+
+if (typeof window !== "undefined" && !GlobalWorkerOptions.workerSrc) {
+  GlobalWorkerOptions.workerSrc = new URL(
+    "pdfjs-dist/build/pdf.worker.min.mjs",
+    import.meta.url,
+  ).toString()
+}
 
 type Props = {
   slug: string

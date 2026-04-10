@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server"
 import { isDocumentAccessibleInDataroomViewer } from "../../document-access"
-import {
-  buildPaperlessPreviewRequestHeaders,
-  passthroughStreamingHeaders,
-} from "../../pdf-upstream"
+import { buildPaperlessPreviewRequestHeaders, passthroughPreviewBodyHeaders } from "../../pdf-upstream"
 import { getCachedPreviewAuth, setCachedPreviewAuth } from "../../preview-auth-cache"
 import { getPaperlessBaseUrl, resolvePaperlessToken, validateDataroomSession } from "../../_shared"
 import type { ValidatedSession } from "../../_shared"
@@ -26,8 +23,9 @@ export async function GET(request: Request, { params }: RouteParams) {
     const folderId = url.searchParams.get("folder_id")?.trim() || undefined
 
     let session: ValidatedSession
+    const hasRange = Boolean(request.headers.get("Range")?.trim())
     const cachedDataroomID =
-      token && slug ? getCachedPreviewAuth(token, slug, folderId, documentID) : null
+      hasRange && token && slug ? getCachedPreviewAuth(token, slug, folderId, documentID) : null
 
     if (cachedDataroomID) {
       session = { token, slug, dataroomID: cachedDataroomID }
@@ -54,7 +52,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     const upstream = await fetch(`${getPaperlessBaseUrl()}api/documents/${documentID}/preview/`, {
-      headers: buildPaperlessPreviewRequestHeaders(paperlessToken, request),
+      headers: buildPaperlessPreviewRequestHeaders(paperlessToken),
       cache: "no-store",
     })
     if (!upstream.ok) {
@@ -65,12 +63,9 @@ export async function GET(request: Request, { params }: RouteParams) {
       )
     }
 
-    const headers = passthroughStreamingHeaders(upstream)
-    if (!headers.has("content-type")) {
-      headers.set("Content-Type", upstream.headers.get("Content-Type") || "application/pdf")
-    }
+    const headers = passthroughPreviewBodyHeaders(upstream)
 
-    return new NextResponse(upstream.body, {
+    return new Response(upstream.body, {
       status: upstream.status,
       headers,
     })
