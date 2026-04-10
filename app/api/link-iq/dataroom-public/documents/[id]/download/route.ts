@@ -4,7 +4,9 @@ import {
   buildPaperlessDownloadRequestHeaders,
   passthroughStreamingHeaders,
 } from "../../pdf-upstream"
+import { getCachedPreviewAuth, setCachedPreviewAuth } from "../../preview-auth-cache"
 import { getPaperlessBaseUrl, resolvePaperlessToken, validateDataroomSession } from "../../_shared"
+import type { ValidatedSession } from "../../_shared"
 
 type RouteParams = { params: Promise<{ id: string }> }
 
@@ -18,19 +20,29 @@ export async function GET(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Invalid document id" }, { status: 400 })
     }
 
-    const session = await validateDataroomSession(request)
-    const { dataroomID } = session
     const url = new URL(request.url)
+    const token = (url.searchParams.get("token") || "").trim()
+    const slug = (url.searchParams.get("slug") || "").trim()
     const folderId = url.searchParams.get("folder_id")?.trim() || undefined
 
-    const allowed = await isDocumentAccessibleInDataroomViewer({
-      dataroomID,
-      documentID,
-      folderId,
-      session,
-    })
-    if (!allowed) {
-      return NextResponse.json({ error: "Document not available in this dataroom" }, { status: 403 })
+    let session: ValidatedSession
+    const cachedDataroomID =
+      token && slug ? getCachedPreviewAuth(token, slug, folderId, documentID) : null
+
+    if (cachedDataroomID) {
+      session = { token, slug, dataroomID: cachedDataroomID }
+    } else {
+      session = await validateDataroomSession(request)
+      const allowed = await isDocumentAccessibleInDataroomViewer({
+        dataroomID: session.dataroomID,
+        documentID,
+        folderId,
+        session,
+      })
+      if (!allowed) {
+        return NextResponse.json({ error: "Document not available in this dataroom" }, { status: 403 })
+      }
+      setCachedPreviewAuth(token, slug, folderId, documentID, session.dataroomID)
     }
 
     const paperlessToken = resolvePaperlessToken(session)
