@@ -9,7 +9,9 @@ export function buildPaperlessPreviewRequestHeaders(
 ): Record<string, string> {
   const headers: Record<string, string> = {
     Authorization: `Token ${paperlessToken}`,
-    Accept: "application/pdf",
+    // Paperless `/preview/` serves the effective file (PDF archive, original image, etc.).
+    // `Accept: application/pdf` alone causes DRF 406 for non-PDF originals.
+    Accept: "*/*",
   }
   const range = incoming.headers.get("Range")
   if (range) headers.Range = range
