@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server"
 import { isDocumentAccessibleInDataroomViewer } from "../../document-access"
+import {
+  buildPaperlessPreviewRequestHeaders,
+  passthroughStreamingHeaders,
+} from "../../pdf-upstream"
 import { getPaperlessBaseUrl, resolvePaperlessToken, validateDataroomSession } from "../../_shared"
 
 type RouteParams = { params: Promise<{ id: string }> }
+
+export const dynamic = "force-dynamic"
 
 export async function GET(request: Request, { params }: RouteParams) {
   try {
@@ -36,10 +42,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     const upstream = await fetch(`${getPaperlessBaseUrl()}api/documents/${documentID}/preview/`, {
-      headers: {
-        Authorization: `Token ${paperlessToken}`,
-        Accept: "application/pdf",
-      },
+      headers: buildPaperlessPreviewRequestHeaders(paperlessToken, request),
       cache: "no-store",
     })
     if (!upstream.ok) {
@@ -50,12 +53,14 @@ export async function GET(request: Request, { params }: RouteParams) {
       )
     }
 
+    const headers = passthroughStreamingHeaders(upstream)
+    if (!headers.has("content-type")) {
+      headers.set("Content-Type", upstream.headers.get("Content-Type") || "application/pdf")
+    }
+
     return new NextResponse(upstream.body, {
       status: upstream.status,
-      headers: {
-        "Content-Type": upstream.headers.get("Content-Type") || "application/pdf",
-        "Cache-Control": "no-store",
-      },
+      headers,
     })
   } catch (error) {
     return NextResponse.json(

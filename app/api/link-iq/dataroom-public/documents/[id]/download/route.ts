@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server"
 import { isDocumentAccessibleInDataroomViewer } from "../../document-access"
+import {
+  buildPaperlessDownloadRequestHeaders,
+  passthroughStreamingHeaders,
+} from "../../pdf-upstream"
 import { getPaperlessBaseUrl, resolvePaperlessToken, validateDataroomSession } from "../../_shared"
 
 type RouteParams = { params: Promise<{ id: string }> }
+
+export const dynamic = "force-dynamic"
 
 export async function GET(request: Request, { params }: RouteParams) {
   try {
@@ -36,10 +42,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     const upstream = await fetch(`${getPaperlessBaseUrl()}api/documents/${documentID}/download/`, {
-      headers: {
-        Authorization: `Token ${paperlessToken}`,
-        Accept: "*/*",
-      },
+      headers: buildPaperlessDownloadRequestHeaders(paperlessToken, request),
       cache: "no-store",
     })
     if (!upstream.ok) {
@@ -50,14 +53,16 @@ export async function GET(request: Request, { params }: RouteParams) {
       )
     }
 
+    const headers = passthroughStreamingHeaders(upstream)
+    const ct = upstream.headers.get("Content-Type") || "application/octet-stream"
+    headers.set("Content-Type", ct)
+    const cd =
+      upstream.headers.get("Content-Disposition") || `attachment; filename="document-${documentID}.pdf"`
+    headers.set("Content-Disposition", cd)
+
     return new NextResponse(upstream.body, {
       status: upstream.status,
-      headers: {
-        "Content-Type": upstream.headers.get("Content-Type") || "application/octet-stream",
-        "Content-Disposition":
-          upstream.headers.get("Content-Disposition") || `attachment; filename="document-${documentID}.pdf"`,
-        "Cache-Control": "no-store",
-      },
+      headers,
     })
   } catch (error) {
     return NextResponse.json(

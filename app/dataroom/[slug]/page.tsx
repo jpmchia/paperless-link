@@ -77,9 +77,10 @@ export default function DataroomLoginPage() {
           purpose: "login",
         }
       )
+      //${payload.magic_link}`
       setStatus(
         payload.magic_link
-          ? `Magic link issued. ${payload.magic_link}`
+          ? `Magic link issued. Please check your inbox for the link.`
           : "If this email is eligible, a magic link has been sent."
       )
     } catch (error) {
