@@ -13,19 +13,27 @@ export function dataroomPublicDocumentApiUrl(
   slug: string,
   documentId: number,
   segment: "preview" | "download",
+  folderId?: string | null,
 ): string {
   const token = getDataroomSessionToken()
   const params = new URLSearchParams({ token, slug })
+  if (folderId?.trim()) {
+    params.set("folder_id", folderId.trim())
+  }
   return `/api/link-iq/dataroom-public/documents/${documentId}/${segment}?${params.toString()}`
 }
 
-export async function downloadDataroomDocuments(slug: string, documentIds: number[]): Promise<void> {
+export async function downloadDataroomDocuments(
+  slug: string,
+  documentIds: number[],
+  folderId?: string | null,
+): Promise<void> {
   if (documentIds.length === 0) return
   const token = getDataroomSessionToken()
   if (!token) throw new Error("No dataroom session")
 
   for (const id of documentIds) {
-    const url = dataroomPublicDocumentApiUrl(slug, id, "download")
+    const url = dataroomPublicDocumentApiUrl(slug, id, "download", folderId)
     const res = await fetch(url, { credentials: "same-origin" })
     if (!res.ok) {
       const err = await res.text().catch(() => res.statusText)
@@ -47,13 +55,17 @@ export async function downloadDataroomDocuments(slug: string, documentIds: numbe
   }
 }
 
-export function printDataroomDocuments(slug: string, documentIds: number[]): void {
+export function printDataroomDocuments(
+  slug: string,
+  documentIds: number[],
+  folderId?: string | null,
+): void {
   if (documentIds.length === 0) return
   const token = getDataroomSessionToken()
   if (!token) return
 
   documentIds.forEach((id, index) => {
-    const previewUrl = dataroomPublicDocumentApiUrl(slug, id, "preview")
+    const previewUrl = dataroomPublicDocumentApiUrl(slug, id, "preview", folderId)
     window.setTimeout(() => {
       window.open(previewUrl, "_blank", "noopener,noreferrer")
     }, index * 400)

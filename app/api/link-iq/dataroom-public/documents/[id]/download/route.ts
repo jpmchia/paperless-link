@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
-import { invokeLinkIQAction } from "@/lib/link-iq"
-import type { DataroomReleaseItem } from "@/lib/link-iq-types"
+import { isDocumentAccessibleInDataroomViewer } from "../../document-access"
 import { getPaperlessBaseUrl, resolvePaperlessToken, validateDataroomSession } from "../../_shared"
 
 type RouteParams = { params: Promise<{ id: string }> }
@@ -15,13 +14,15 @@ export async function GET(request: Request, { params }: RouteParams) {
 
     const session = await validateDataroomSession(request)
     const { dataroomID } = session
+    const url = new URL(request.url)
+    const folderId = url.searchParams.get("folder_id")?.trim() || undefined
 
-    const releaseItems = await invokeLinkIQAction<{ items?: DataroomReleaseItem[] }>({
-      capability: "dataroom.release.items",
-      resource_id: dataroomID,
-      input: { dataroom_id: dataroomID, status: "published" },
+    const allowed = await isDocumentAccessibleInDataroomViewer({
+      dataroomID,
+      documentID,
+      folderId,
+      session,
     })
-    const allowed = (releaseItems.items ?? []).some((item) => Number(item.document_id) === documentID)
     if (!allowed) {
       return NextResponse.json({ error: "Document not available in this dataroom" }, { status: 403 })
     }

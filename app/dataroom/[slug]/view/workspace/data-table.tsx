@@ -70,6 +70,7 @@ interface DataTableProps {
   onDocumentActivate?: (document: Document) => void
   readOnly?: boolean
   dataroomSlug?: string
+  dataroomFolderId?: string | null
 }
 
 const PAGE_SIZES = [10, 25, 50, 100]
@@ -208,6 +209,7 @@ export function DataTable({
   onDocumentActivate,
   readOnly = false,
   dataroomSlug = "",
+  dataroomFolderId,
 }: DataTableProps) {
   const router = useRouter()
   const navigateToDocument = useOpenDocumentNavigation()
@@ -357,6 +359,7 @@ export function DataTable({
             .map((group) => ({ id: group.id, name: group.name }))}
           readOnly={readOnly}
           dataroomSlug={dataroomSlug}
+          dataroomFolderId={dataroomFolderId}
         />
       )}
       {/* Table */}

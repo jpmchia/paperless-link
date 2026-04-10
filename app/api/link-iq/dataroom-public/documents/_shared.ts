@@ -1,6 +1,6 @@
 import { invokeLinkIQAction } from "@/lib/link-iq"
 
-type ValidatedSession = {
+export type ValidatedSession = {
   dataroomID: string
   slug: string
   token: string

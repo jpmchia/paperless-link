@@ -13,9 +13,11 @@ type Props = {
   slug: string
   sessionToken: string
   documentId?: number | null
+  /** Matches list view `folder_id` so preview uses the same document allowlist. */
+  folderId?: string | null
 }
 
-export function DataroomPdfViewer({ slug, sessionToken, documentId }: Props) {
+export function DataroomPdfViewer({ slug, sessionToken, documentId, folderId }: Props) {
   const viewerRef = React.useRef<PDFViewerRef>(null)
   const densityObserverRef = React.useRef<MutationObserver | null>(null)
   const initTimeoutRef = React.useRef<number | null>(null)
@@ -31,8 +33,11 @@ export function DataroomPdfViewer({ slug, sessionToken, documentId }: Props) {
       token: sessionToken,
       slug,
     })
+    if (folderId?.trim()) {
+      params.set("folder_id", folderId.trim())
+    }
     return `/api/link-iq/dataroom-public/documents/${documentId}/preview?${params.toString()}`
-  }, [documentId, sessionToken, slug])
+  }, [documentId, sessionToken, slug, folderId])
 
   const viewerTheme = React.useMemo(
     () => ({

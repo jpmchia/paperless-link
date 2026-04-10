@@ -135,6 +135,7 @@ export function DocumentsWorkspace({
     const n = raw ? Number(raw) : NaN
     return Number.isFinite(n) ? n : null
   }, [searchParams])
+  const dataroomFolderId = searchParams?.get("folder_id")?.trim() || null
   const [sessionToken, setSessionToken] = React.useState("")
   const [cardSelectedIds, setCardSelectedIds] = React.useState<number[]>([])
 
@@ -538,6 +539,7 @@ export function DocumentsWorkspace({
           groupsList={groupsList}
           readOnly
           dataroomSlug={dataroomSlug}
+          dataroomFolderId={dataroomFolderId}
         />
       ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -557,6 +559,7 @@ export function DocumentsWorkspace({
             onDocumentActivate={isDataroomViewer ? (doc) => activateDocument(doc.id) : undefined}
             readOnly={isDataroomViewer}
             dataroomSlug={dataroomSlug}
+            dataroomFolderId={dataroomFolderId}
           />
         ) : (
           <CardGrid
@@ -596,7 +599,12 @@ export function DocumentsWorkspace({
           </ResizablePanel>
           <ResizableHandle withHandle />
           <ResizablePanel defaultSize={42} minSize={28} className="min-h-0">
-            <DataroomPdfViewer slug={dataroomSlug} sessionToken={sessionToken} documentId={panelDocumentId} />
+            <DataroomPdfViewer
+              slug={dataroomSlug}
+              sessionToken={sessionToken}
+              documentId={panelDocumentId}
+              folderId={dataroomFolderId}
+            />
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : (

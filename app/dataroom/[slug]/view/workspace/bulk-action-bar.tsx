@@ -57,6 +57,8 @@ interface BulkActionBarProps {
   /** Dataroom viewer: only download + print (no edits). */
   readOnly?: boolean
   dataroomSlug?: string
+  /** Matches URL `folder_id` so download/preview use the same allowlist as the document list. */
+  dataroomFolderId?: string | null
 }
 
 type BulkEditParameters = Record<string, unknown>
@@ -94,11 +96,13 @@ async function bulkDownload(documentIds: number[]) {
 function DataroomReadOnlyBulkBar({
   selectedIds,
   dataroomSlug,
+  dataroomFolderId,
   onClearSelection,
   onComplete,
 }: {
   selectedIds: number[]
   dataroomSlug: string
+  dataroomFolderId?: string | null
   onClearSelection: () => void
   onComplete: () => void
 }) {
@@ -108,7 +112,7 @@ function DataroomReadOnlyBulkBar({
   const handleDownload = async () => {
     setBusy(true)
     try {
-      await downloadDataroomDocuments(dataroomSlug, selectedIds)
+      await downloadDataroomDocuments(dataroomSlug, selectedIds, dataroomFolderId)
       toast.success(count === 1 ? "Download started" : "Downloads started")
       onComplete()
     } catch (error) {
@@ -121,7 +125,7 @@ function DataroomReadOnlyBulkBar({
   }
 
   const handlePrint = () => {
-    printDataroomDocuments(dataroomSlug, selectedIds)
+    printDataroomDocuments(dataroomSlug, selectedIds, dataroomFolderId)
     toast.message("Print", {
       description:
         selectedIds.length > 1
@@ -231,6 +235,7 @@ export function BulkActionBar({
   groupsList = [],
   readOnly = false,
   dataroomSlug = "",
+  dataroomFolderId,
 }: BulkActionBarProps) {
   const [showDelete, setShowDelete] = React.useState(false)
   const [showMerge, setShowMerge] = React.useState(false)
@@ -265,6 +270,7 @@ export function BulkActionBar({
       <DataroomReadOnlyBulkBar
         selectedIds={selectedIds}
         dataroomSlug={dataroomSlug}
+        dataroomFolderId={dataroomFolderId}
         onClearSelection={onClearSelection}
         onComplete={onComplete}
       />
