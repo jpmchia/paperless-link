@@ -12,9 +12,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Eye, Trash2, Pencil, Check, X, Upload, History } from "lucide-react"
+import { Eye, Trash2, Pencil, Check, X, Upload, History, FilePlus2 } from "lucide-react"
 import { toast } from "sonner"
 import type { PermissionedObject } from "@/lib/permissions"
+import { MergeAsVersionsDialog } from "@/components/documents/merge-as-versions-dialog"
 
 interface DocumentVersion {
   id: number
@@ -45,6 +46,7 @@ export function VersionsTab({ documentId, initialVersions, permissionedDocument 
   const [editId, setEditId] = React.useState<number | null>(null)
   const [editLabel, setEditLabel] = React.useState("")
   const [uploading, setUploading] = React.useState(false)
+  const [mergeOpen, setMergeOpen] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const refreshToken = useRealtimeDocumentRefresh({
     documentId,
@@ -176,6 +178,17 @@ export function VersionsTab({ documentId, initialVersions, permissionedDocument 
               {uploading ? "Uploading…" : "Upload version"}
             </Button>
           </HasObjectPermission>
+          <HasObjectPermission action="change" object={permissionedDocument} type="document">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => setMergeOpen(true)}
+            >
+              <FilePlus2 className="mr-1 h-3 w-3" />
+              Add existing
+            </Button>
+          </HasObjectPermission>
         </div>
         <input ref={fileInputRef} type="file" className="hidden" accept="application/pdf,image/*" onChange={handleUpload} />
       </div>
@@ -290,6 +303,16 @@ export function VersionsTab({ documentId, initialVersions, permissionedDocument 
           </AlertDialogContent>
         </AlertDialog>
       </HasObjectPermission>
+      <MergeAsVersionsDialog
+        open={mergeOpen}
+        onOpenChange={setMergeOpen}
+        documents={[]}
+        fixedRootId={documentId}
+        allowSearchSource
+        onComplete={() => {
+          void loadVersions()
+        }}
+      />
     </div>
   )
 }
