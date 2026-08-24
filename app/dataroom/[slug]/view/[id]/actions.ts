@@ -3,6 +3,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 import { revalidatePath } from "next/cache"
+import { paperlessJsonAccept } from "@/lib/paperless-transport"
 
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
 type AccessTokenSession = { accessToken?: string } | null
@@ -26,7 +27,7 @@ export async function updateDocument(id: number | string, data: unknown) {
     headers: {
       Authorization: `Token ${token}`,
       "Content-Type": "application/json",
-      Accept: "application/json; version=2",
+      Accept: paperlessJsonAccept(),
     },
     body: JSON.stringify(data),
   })
@@ -64,7 +65,7 @@ export async function deleteDocument(id: number | string) {
     method: "DELETE",
     headers: {
       Authorization: `Token ${token}`,
-      Accept: "application/json; version=2",
+      Accept: paperlessJsonAccept(),
     },
   })
 
@@ -84,7 +85,7 @@ export async function reprocessDocument(id: number | string) {
     headers: {
       Authorization: `Token ${token}`,
       "Content-Type": "application/json",
-      Accept: "application/json; version=2",
+      Accept: paperlessJsonAccept(),
     },
     body: JSON.stringify({
       documents: [Number(id)],
@@ -118,7 +119,7 @@ export async function removeDocumentPassword(
     headers: {
       Authorization: `Token ${token}`,
       "Content-Type": "application/json",
-      Accept: "application/json; version=2",
+      Accept: paperlessJsonAccept(),
     },
     body: JSON.stringify({
       documents: [Number(id)],

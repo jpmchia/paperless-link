@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth"
 import { NextResponse } from "next/server"
 import { authOptions } from "@/auth"
+import { paperlessJsonAccept } from "@/lib/paperless-transport"
 
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
 
@@ -20,7 +21,7 @@ export async function GET() {
   const res = await fetch(`${baseUrl}api/status/`, {
     cache: "no-store",
     headers: {
-      Accept: "application/json; version=2",
+      Accept: paperlessJsonAccept(),
       Authorization: `Token ${token}`,
     },
   })

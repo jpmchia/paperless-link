@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 import { NextResponse } from "next/server"
+import { paperlessJsonAccept } from "@/lib/paperless-transport"
 
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
 
@@ -22,7 +23,7 @@ export async function GET(
   const res = await fetch(`${baseUrl}api/documents/${resolvedParams.id}/notes/`, {
     headers: {
       Authorization: `Token ${token}`,
-      Accept: "application/json; version=2",
+      Accept: paperlessJsonAccept(),
     },
   })
   if (!res.ok) return NextResponse.json({ error: "Failed" }, { status: res.status })
@@ -44,7 +45,7 @@ export async function POST(
     headers: {
       Authorization: `Token ${token}`,
       "Content-Type": "application/json",
-      Accept: "application/json; version=2",
+      Accept: paperlessJsonAccept(),
     },
     body: JSON.stringify(body),
   })

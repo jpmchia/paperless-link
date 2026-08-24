@@ -1,8 +1,13 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/auth"
-
-const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
-const configuredToken = process.env.PAPERLESS_API_TOKEN?.trim()
+import {
+  getPaperlessApiVersion,
+  getPaperlessBaseUrl,
+  paperlessJsonAccept,
+  resolvePaperlessAccessToken,
+} from "@/lib/paperless-transport"
+import {
+  applySavedViewVisibilityFlags,
+  readSavedViewVisibility,
+} from "@/lib/saved-view-visibility"
 
 export interface PaginatedResults<T> {
   count?: number
@@ -15,8 +20,7 @@ export async function getPaperlessApi<T = unknown>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const session = await getServerSession(authOptions)
-  const token = configuredToken || session?.accessToken
+  const token = await resolvePaperlessAccessToken()
 
   if (!token) {
     throw new Error(
@@ -27,10 +31,10 @@ export async function getPaperlessApi<T = unknown>(
   const defaultHeaders = {
     Authorization: `Token ${token}`,
     "Content-Type": "application/json",
-    Accept: "application/json; version=2",
+    Accept: paperlessJsonAccept(),
   }
 
-  const response = await fetch(`${baseUrl}api/${endpoint}`, {
+  const response = await fetch(`${getPaperlessBaseUrl()}api/${endpoint}`, {
     ...options,
     headers: {
       ...defaultHeaders,
@@ -101,61 +105,76 @@ export interface FilterParams {
   sharedByUser?: number
 }
 
+export type NormalizedDocumentFilters = Record<string, string>
+
+export function serializeDocumentFilters(filters: FilterParams): NormalizedDocumentFilters {
+  const params: NormalizedDocumentFilters = {}
+
+  if (filters.query) params.query = filters.query
+  if (filters.titleContains) params.title__icontains = filters.titleContains
+  if (filters.contentContains) params.content__icontains = filters.contentContains
+  if (filters.titleContentContains) params.title_content = filters.titleContentContains
+  if (filters.moreLikeId) params.more_like_id = String(filters.moreLikeId)
+
+  if (filters.correspondent != null) params.correspondent__id = String(filters.correspondent)
+  if (filters.correspondentAny?.length) params.correspondent__id__in = filters.correspondentAny.join(",")
+  if (filters.correspondentNone?.length) params.correspondent__id__none = filters.correspondentNone.join(",")
+
+  if (filters.documentType != null) params.document_type__id = String(filters.documentType)
+  if (filters.documentTypeAny?.length) params.document_type__id__in = filters.documentTypeAny.join(",")
+  if (filters.documentTypeNone?.length) params.document_type__id__none = filters.documentTypeNone.join(",")
+
+  if (filters.storagePath != null) params.storage_path__id = String(filters.storagePath)
+  if (filters.storagePathAny?.length) params.storage_path__id__in = filters.storagePathAny.join(",")
+  if (filters.storagePathNone?.length) params.storage_path__id__none = filters.storagePathNone.join(",")
+
+  if (filters.tags?.length) params.tags__id__all = filters.tags.join(",")
+  if (filters.tagsAny?.length) params.tags__id__in = filters.tagsAny.join(",")
+  if (filters.tagsExclude?.length) params.tags__id__none = filters.tagsExclude.join(",")
+  if (filters.hasTag != null) params.is_tagged = String(filters.hasTag)
+  if (filters.isInInbox != null) params.is_in_inbox = String(filters.isInInbox)
+
+  if (filters.createdAfter) params.created__date__gt = filters.createdAfter
+  if (filters.createdBefore) params.created__date__lt = filters.createdBefore
+  if (filters.createdYear) params.created__year = String(filters.createdYear)
+  if (filters.createdMonth) params.created__month = String(filters.createdMonth)
+  if (filters.createdDay) params.created__day = String(filters.createdDay)
+  if (filters.addedAfter) params.added__date__gt = filters.addedAfter
+  if (filters.addedBefore) params.added__date__lt = filters.addedBefore
+
+  if (filters.asnGte != null) params.archive_serial_number__gte = String(filters.asnGte)
+  if (filters.asnLte != null) params.archive_serial_number__lte = String(filters.asnLte)
+  if (filters.asnIsNull) params.archive_serial_number__isnull = "true"
+
+  if (filters.ordering) params.ordering = filters.ordering
+  if (filters.customFieldQuery) params.custom_field_query = filters.customFieldQuery
+  if (filters.customFieldsContain) params.custom_fields__icontains = filters.customFieldsContain
+
+  if (filters.owner != null) params.owner__id = String(filters.owner)
+  if (filters.ownerAny?.length) params.owner__id__in = filters.ownerAny.join(",")
+  if (filters.ownerExclude?.length) params.owner__id__none = filters.ownerExclude.join(",")
+  if (filters.ownerIsNull === true) params.owner__isnull = "true"
+  if (filters.ownerIsNull === false) params.owner__isnull = "false"
+  if (filters.sharedByUser != null) params.shared_by__id = String(filters.sharedByUser)
+
+  return params
+}
+
 export function buildDocumentQueryString(
   page: number,
   pageSize: number,
-  filters: FilterParams
+  filters: FilterParams,
+  options: { includeSelectionData?: boolean } = {}
 ): string {
   const params = new URLSearchParams()
   params.set("page", String(page))
   params.set("page_size", String(pageSize))
-
-  if (filters.query) params.set("query", filters.query)
-  if (filters.titleContains) params.set("title__icontains", filters.titleContains)
-  if (filters.contentContains) params.set("content__icontains", filters.contentContains)
-  if (filters.titleContentContains) params.set("title_content", filters.titleContentContains)
-  if (filters.moreLikeId) params.set("more_like_id", String(filters.moreLikeId))
-
-  if (filters.correspondent != null) params.set("correspondent__id", String(filters.correspondent))
-  if (filters.correspondentAny?.length) params.set("correspondent__id__in", filters.correspondentAny.join(","))
-  if (filters.correspondentNone?.length) params.set("correspondent__id__none", filters.correspondentNone.join(","))
-
-  if (filters.documentType != null) params.set("document_type__id", String(filters.documentType))
-  if (filters.documentTypeAny?.length) params.set("document_type__id__in", filters.documentTypeAny.join(","))
-  if (filters.documentTypeNone?.length) params.set("document_type__id__none", filters.documentTypeNone.join(","))
-
-  if (filters.storagePath != null) params.set("storage_path__id", String(filters.storagePath))
-  if (filters.storagePathAny?.length) params.set("storage_path__id__in", filters.storagePathAny.join(","))
-  if (filters.storagePathNone?.length) params.set("storage_path__id__none", filters.storagePathNone.join(","))
-
-  if (filters.tags?.length) params.set("tags__id__all", filters.tags.join(","))
-  if (filters.tagsAny?.length) params.set("tags__id__in", filters.tagsAny.join(","))
-  if (filters.tagsExclude?.length) params.set("tags__id__none", filters.tagsExclude.join(","))
-  if (filters.hasTag != null) params.set("is_tagged", String(filters.hasTag))
-  if (filters.isInInbox != null) params.set("is_in_inbox", String(filters.isInInbox))
-
-  if (filters.createdAfter) params.set("created__date__gt", filters.createdAfter)
-  if (filters.createdBefore) params.set("created__date__lt", filters.createdBefore)
-  if (filters.createdYear) params.set("created__year", String(filters.createdYear))
-  if (filters.createdMonth) params.set("created__month", String(filters.createdMonth))
-  if (filters.createdDay) params.set("created__day", String(filters.createdDay))
-  if (filters.addedAfter) params.set("added__date__gt", filters.addedAfter)
-  if (filters.addedBefore) params.set("added__date__lt", filters.addedBefore)
-
-  if (filters.asnGte != null) params.set("archive_serial_number__gte", String(filters.asnGte))
-  if (filters.asnLte != null) params.set("archive_serial_number__lte", String(filters.asnLte))
-  if (filters.asnIsNull) params.set("archive_serial_number__isnull", "true")
-
-  if (filters.ordering) params.set("ordering", filters.ordering)
-  if (filters.customFieldQuery) params.set("custom_field_query", filters.customFieldQuery)
-  if (filters.customFieldsContain) params.set("custom_fields__icontains", filters.customFieldsContain)
-
-  if (filters.owner != null) params.set("owner__id", String(filters.owner))
-  if (filters.ownerAny?.length) params.set("owner__id__in", filters.ownerAny.join(","))
-  if (filters.ownerExclude?.length) params.set("owner__id__none", filters.ownerExclude.join(","))
-  if (filters.ownerIsNull === true) params.set("owner__isnull", "true")
-  if (filters.ownerIsNull === false) params.set("owner__isnull", "false")
-  if (filters.sharedByUser != null) params.set("shared_by__id", String(filters.sharedByUser))
+  for (const [key, value] of Object.entries(serializeDocumentFilters(filters))) {
+    params.set(key, value)
+  }
+  if (options.includeSelectionData) {
+    params.set("include_selection_data", "true")
+  }
 
   return params.toString()
 }
@@ -265,8 +284,22 @@ export async function getRecentDocuments<T = unknown>(limit: number = 5): Promis
 
 export async function getSavedViews<T = unknown>(): Promise<T[]> {
   try {
-    const data = await getPaperlessApi<PaginatedResults<T>>("saved_views/")
-    return data.results || []
+    const data = await getPaperlessApi<PaginatedResults<T>>(
+      "saved_views/?full_perms=true"
+    )
+    const results = data.results || []
+    if (getPaperlessApiVersion() < 10) {
+      return results
+    }
+
+    const uiSettings = await getPaperlessApi<{
+      settings?: Record<string, unknown>
+    }>("ui_settings/")
+    const visibility = readSavedViewVisibility(uiSettings?.settings)
+    return applySavedViewVisibilityFlags(
+      results as Array<{ id: number }>,
+      visibility
+    ) as T[]
   } catch (error) {
     console.error("Failed to fetch saved views", error)
     return [] as T[]
@@ -297,17 +330,22 @@ export async function getDocuments(
   filters: FilterParams = {}
 ) {
   try {
-    const qs = buildDocumentQueryString(page, pageSize, filters)
-    const data = await getPaperlessApi<PaginatedResults<unknown>>(`documents/?${qs}`)
+    const qs = buildDocumentQueryString(page, pageSize, filters, {
+      includeSelectionData: true,
+    })
+    const data = await getPaperlessApi<PaginatedResults<unknown> & {
+      selection_data?: unknown
+    }>(`documents/?${qs}`)
     return {
       count: data.count,
       next: data.next,
       previous: data.previous,
       results: data.results || [],
+      selectionData: data.selection_data ?? null,
     }
   } catch (error) {
     console.error("Failed to fetch documents:", error)
-    return { count: 0, next: null, previous: null, results: [] }
+    return { count: 0, next: null, previous: null, results: [], selectionData: null }
   }
 }
 

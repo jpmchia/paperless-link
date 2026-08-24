@@ -1,12 +1,20 @@
 "use server"
 
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/auth"
 import { revalidatePath } from "next/cache"
+import { updateUiSettings } from "@/app/actions/ui-settings"
+import { getPaperlessApi } from "@/lib/api"
 import { invokeLinkIQAction } from "@/lib/link-iq"
-
-const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
-const configuredToken = process.env.PAPERLESS_API_TOKEN?.trim()
+import {
+  getPaperlessApiVersion,
+  getPaperlessBaseUrl,
+  paperlessJsonAccept,
+  resolvePaperlessAccessToken,
+} from "@/lib/paperless-transport"
+import {
+  patchSavedViewVisibilitySettings,
+  stripLegacyVisibilityFields,
+} from "@/lib/saved-view-visibility"
+import type { UiSettingsRecord } from "@/lib/ui-settings"
 
 async function syncGeneratedBusinessContext() {
   try {
@@ -20,20 +28,19 @@ async function syncGeneratedBusinessContext() {
 }
 
 async function getToken() {
-  const session = await getServerSession(authOptions)
-  const token = configuredToken || session?.accessToken
+  const token = await resolvePaperlessAccessToken()
   if (!token) throw new Error("Unauthorized")
   return token
 }
 
 async function apiRequest(method: string, endpoint: string, body?: object) {
   const token = await getToken()
-  const res = await fetch(`${baseUrl}api/${endpoint}`, {
+  const res = await fetch(`${getPaperlessBaseUrl()}api/${endpoint}`, {
     method,
     headers: {
       Authorization: `Token ${token}`,
       "Content-Type": "application/json",
-      Accept: "application/json; version=2",
+      Accept: paperlessJsonAccept(),
     },
     body: body ? JSON.stringify(body) : undefined,
   })
@@ -148,9 +155,36 @@ export async function updateSavedViewMeta(id: number, data: Partial<{
   show_in_sidebar: boolean
   page_size: number
 }>) {
-  const result = await apiRequest("PATCH", `saved_views/${id}/`, data)
+  const apiVersion = getPaperlessApiVersion()
+  const hasVisibility =
+    data.show_on_dashboard !== undefined || data.show_in_sidebar !== undefined
+  const viewPatch = stripLegacyVisibilityFields({ ...data })
+  let result: unknown = null
+
+  if (apiVersion >= 10) {
+    if (Object.keys(viewPatch).length > 0) {
+      result = await apiRequest("PATCH", `saved_views/${id}/`, viewPatch)
+    }
+    if (hasVisibility) {
+      const current = (await getPaperlessApi("ui_settings/")) as UiSettingsRecord
+      const merged = patchSavedViewVisibilitySettings(
+        (current?.settings as Record<string, unknown> | undefined) ?? {},
+        id,
+        {
+          show_on_dashboard: data.show_on_dashboard,
+          show_in_sidebar: data.show_in_sidebar,
+        }
+      )
+      await updateUiSettings(merged)
+    }
+  } else {
+    result = await apiRequest("PATCH", `saved_views/${id}/`, data)
+  }
+
   revalidatePath("/savedviews")
   revalidatePath(`/view/${id}`)
+  revalidatePath("/documents")
+  revalidatePath("/dashboard")
   return result
 }
 

@@ -5,6 +5,7 @@ import {
   resolvePaperlessToken,
   type ValidatedSession,
 } from "./_shared"
+import { paperlessJsonAccept } from "@/lib/paperless-transport"
 
 type PaperlessDocument = {
   id: number
@@ -95,7 +96,7 @@ export async function isDocumentAccessibleInDataroomViewer(params: {
           const response = await fetch(`${baseUrl}api/documents/?page_size=500&page=${page}`, {
             headers: {
               Authorization: `Token ${paperlessToken}`,
-              Accept: "application/json; version=2",
+              Accept: paperlessJsonAccept(),
             },
             cache: "no-store",
           })
@@ -122,7 +123,7 @@ export async function isDocumentAccessibleInDataroomViewer(params: {
           const lookupResponse = await fetch(`${baseUrl}api/${lookupPath}/?page_size=100000`, {
             headers: {
               Authorization: `Token ${paperlessToken}`,
-              Accept: "application/json; version=2",
+              Accept: paperlessJsonAccept(),
             },
             cache: "no-store",
           })

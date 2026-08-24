@@ -10,6 +10,7 @@ import {
   mapPermissionBootstrapPayload,
   type PermissionBootstrapPayload,
 } from "@/lib/permissions"
+import { paperlessJsonAccept } from "@/lib/paperless-transport"
 
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
 
@@ -42,7 +43,7 @@ async function requestConfig<T>(path: string, init: RequestInit): Promise<T> {
     ...init,
     headers: {
       Authorization: `Token ${token}`,
-      Accept: "application/json; version=2",
+      Accept: paperlessJsonAccept(),
       ...(init.headers ?? {}),
     },
     next: { revalidate: 0 },

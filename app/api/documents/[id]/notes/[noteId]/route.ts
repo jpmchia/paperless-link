@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 import { NextResponse } from "next/server"
+import { paperlessJsonAccept } from "@/lib/paperless-transport"
 
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
 
@@ -25,7 +26,7 @@ export async function DELETE(
       method: "DELETE",
       headers: {
         Authorization: `Token ${token}`,
-        Accept: "application/json; version=2",
+        Accept: paperlessJsonAccept(),
       },
     }
   )

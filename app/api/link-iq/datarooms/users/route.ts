@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 import { requireDataroomActor } from "../auth"
+import { paperlessJsonAccept } from "@/lib/paperless-transport"
 
 type PaperlessUser = {
   id: number
@@ -33,7 +34,7 @@ export async function GET() {
     const response = await fetch(`${baseUrl}api/users/?page_size=100000`, {
       headers: {
         Authorization: `Token ${token}`,
-        Accept: "application/json; version=2",
+        Accept: paperlessJsonAccept(),
       },
       cache: "no-store",
     })

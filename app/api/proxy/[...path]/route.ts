@@ -1,35 +1,12 @@
 import { NextResponse } from "next/server"
-import { readFile } from "node:fs/promises"
-import { join } from "node:path"
-
-const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
-
-async function getPaperlessToken() {
-  const configuredToken = process.env.PAPERLESS_API_TOKEN?.trim()
-  if (configuredToken) return configuredToken
-
-  let fileToken: string | null = null
-  const candidates = [join(process.cwd(), ".env.local"), join(process.cwd(), ".env")]
-  for (const filePath of candidates) {
-    try {
-      const content = await readFile(filePath, "utf8")
-      const match = content.match(/^PAPERLESS_API_TOKEN=(.+)$/m)
-      if (!match?.[1]) continue
-      const raw = match[1].trim()
-      const value = raw.split("#")[0]?.trim()
-      if (value) {
-        fileToken = value
-        break
-      }
-    } catch {
-      // ignore missing env files
-    }
-  }
-  return fileToken
-}
+import {
+  getPaperlessBaseUrl,
+  paperlessJsonAccept,
+  resolvePaperlessAccessToken,
+} from "@/lib/paperless-transport"
 
 async function proxyRequest(req: Request, params: Promise<{ path: string[] }>) {
-  const token = await getPaperlessToken()
+  const token = await resolvePaperlessAccessToken()
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const resolvedParams = await params
@@ -39,7 +16,7 @@ async function proxyRequest(req: Request, params: Promise<{ path: string[] }>) {
   const proxiedPath = path.endsWith("/") ? path : `${path}/`
   const headers: Record<string, string> = {
     Authorization: `Token ${token}`,
-    Accept: req.headers.get("accept")?.trim() || "application/json; version=2",
+    Accept: req.headers.get("accept")?.trim() || paperlessJsonAccept(),
   }
 
   let body: BodyInit | undefined
@@ -52,29 +29,36 @@ async function proxyRequest(req: Request, params: Promise<{ path: string[] }>) {
       body = await req.formData()
     }
   }
-  const res = await fetch(`${baseUrl}api/${proxiedPath}${queryString}`, {
-    method: req.method,
-    headers,
-    body,
-  })
+  const res = await fetch(
+    `${getPaperlessBaseUrl()}api/${proxiedPath}${queryString}`,
+    {
+      method: req.method,
+      headers,
+      body,
+    }
+  )
 
   if (req.method === "DELETE" && res.status === 204) {
     return new NextResponse(null, { status: 204 })
   }
 
   const contentType = res.headers.get("content-type") || ""
-  if (contentType.includes("application/json")) {
-    const data = await res.json()
-    return NextResponse.json(data, { status: res.status })
+  // Stream non-JSON (binary / text/event-stream) without buffering as JSON
+  if (!contentType.includes("application/json")) {
+    const passthrough = new Headers()
+    passthrough.set("Content-Type", contentType)
+    const disposition = res.headers.get("Content-Disposition")
+    if (disposition) passthrough.set("Content-Disposition", disposition)
+    const length = res.headers.get("Content-Length")
+    if (length) passthrough.set("Content-Length", length)
+    return new NextResponse(res.body, {
+      status: res.status,
+      headers: passthrough,
+    })
   }
 
-  // Stream binary responses
-  return new NextResponse(res.body, {
-    status: res.status,
-    headers: {
-      "Content-Type": contentType,
-    },
-  })
+  const data = await res.json()
+  return NextResponse.json(data, { status: res.status })
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ path: string[] }> }) {

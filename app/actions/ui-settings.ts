@@ -4,6 +4,7 @@ import { getPaperlessApi } from "@/lib/api"
 import { authOptions } from "@/auth"
 import { getServerSession } from "next-auth"
 import type { UiSettingsRecord } from "@/lib/ui-settings"
+import { paperlessJsonAccept } from "@/lib/paperless-transport"
 
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
 const configuredToken = process.env.PAPERLESS_API_TOKEN?.trim()
@@ -22,7 +23,7 @@ async function writeUiSettings(settings: Record<string, unknown>) {
   const headers = {
     Authorization: `Token ${token}`,
     "Content-Type": "application/json",
-    Accept: "application/json; version=2",
+    Accept: paperlessJsonAccept(),
   }
   const body = JSON.stringify({ settings })
 
