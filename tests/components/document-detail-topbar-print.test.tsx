@@ -12,6 +12,7 @@ import {
   pdfViewerRegistryAtom,
 } from "@/lib/store"
 import { TopBar } from "@/app/documents/[id]/topbar"
+import { reprocessDocument } from "@/app/documents/[id]/actions"
 
 const {
   closeMock,
@@ -172,14 +173,20 @@ function InitializeAtoms({
 function RenderTopBar({
   versionId = null,
   registry = null,
+  remoteOcrSelectable = false,
 }: {
   versionId?: number | null
   registry?: unknown
+  remoteOcrSelectable?: boolean
 }) {
   return (
     <Provider>
       <InitializeAtoms versionId={versionId} registry={registry}>
-        <TopBar documentId={4} title="Test Document">
+        <TopBar
+          documentId={4}
+          title="Test Document"
+          remoteOcrSelectable={remoteOcrSelectable}
+        >
           <div>child</div>
         </TopBar>
       </InitializeAtoms>
@@ -355,5 +362,16 @@ describe("TopBar print flow", () => {
     expect(executeMock).toHaveBeenCalledWith("spread:odd", undefined, "ui")
     expect(executeMock).toHaveBeenCalledWith("rotate:counter-clockwise", undefined, "ui")
     expect(executeMock).toHaveBeenCalledWith("rotate:clockwise", undefined, "ui")
+  })
+
+  it("starts reprocessing with remote OCR when the option is available", async () => {
+    render(<RenderTopBar remoteOcrSelectable />)
+
+    fireEvent.click(await screen.findByText("Reprocess with Remote OCR"))
+
+    await waitFor(() => {
+      expect(reprocessDocument).toHaveBeenCalledWith(4, { remoteOcr: true })
+    })
+    expect(pushMock).toHaveBeenCalledWith("/documents")
   })
 })

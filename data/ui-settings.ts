@@ -13,6 +13,13 @@ export interface UiSetting {
   default: unknown
 }
 
+export type RemoteOcrMode = "always" | "workflow_only"
+
+export interface RemoteOcrSettings {
+  configured: boolean
+  mode: RemoteOcrMode | null
+}
+
 export enum GlobalSearchType {
   ADVANCED = 'advanced',
   TITLE_CONTENT = 'title-content',
@@ -93,6 +100,39 @@ export const SETTINGS_KEYS = {
   OUTLOOK_OAUTH_URL: 'outlook_oauth_url',
   EMAIL_ENABLED: 'email_enabled',
   AI_ENABLED: 'ai_enabled',
+  REMOTE_OCR_CONFIGURED: 'remote_ocr:configured',
+  REMOTE_OCR_MODE: 'remote_ocr:mode',
+}
+
+function isRemoteOcrMode(value: unknown): value is RemoteOcrMode {
+  return value === "always" || value === "workflow_only"
+}
+
+export function readRemoteOcrSettings(
+  settings: Record<string, unknown> | undefined
+): RemoteOcrSettings {
+  const nestedValue = settings?.remote_ocr
+  if (nestedValue && typeof nestedValue === "object") {
+    const configured =
+      "configured" in nestedValue ? Boolean(nestedValue.configured) : false
+    const mode = "mode" in nestedValue ? nestedValue.mode : null
+
+    return {
+      configured,
+      mode: isRemoteOcrMode(mode) ? mode : null,
+    }
+  }
+
+  const flattenedMode = settings?.[SETTINGS_KEYS.REMOTE_OCR_MODE]
+
+  return {
+    configured: Boolean(settings?.[SETTINGS_KEYS.REMOTE_OCR_CONFIGURED]),
+    mode: isRemoteOcrMode(flattenedMode) ? flattenedMode : null,
+  }
+}
+
+export function remoteOcrIsSelectable(remoteOcr: RemoteOcrSettings) {
+  return remoteOcr.configured && remoteOcr.mode === "workflow_only"
 }
 
 export const SETTINGS: UiSetting[] = [
@@ -340,6 +380,16 @@ export const SETTINGS: UiSetting[] = [
     key: SETTINGS_KEYS.AI_ENABLED,
     type: 'boolean',
     default: false,
+  },
+  {
+    key: SETTINGS_KEYS.REMOTE_OCR_CONFIGURED,
+    type: 'boolean',
+    default: false,
+  },
+  {
+    key: SETTINGS_KEYS.REMOTE_OCR_MODE,
+    type: 'string',
+    default: null,
   },
   {
     key: SETTINGS_KEYS.PDF_EDITOR_DEFAULT_EDIT_MODE,

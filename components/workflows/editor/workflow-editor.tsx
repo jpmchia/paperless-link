@@ -219,6 +219,10 @@ function updateActionAt(value: WorkflowDraft, index: number, updater: (action: W
   }
 }
 
+function assertNever(value: never): never {
+  throw new Error(`Unhandled workflow action type: ${String(value)}`)
+}
+
 function TriggerEditor({
   trigger,
   index,
@@ -430,26 +434,226 @@ function TriggerEditor({
 
 function ActionEditor({
   action,
+  actionOptions,
   index,
   lookups,
   onChange,
   onRemove,
 }: {
   action: WorkflowAction
+  actionOptions: typeof WORKFLOW_ACTION_TYPE_OPTIONS
   index: number
   lookups: WorkflowLookups
   onChange: (action: WorkflowAction) => void
   onRemove: () => void
 }) {
-  const isAssignment = action.type === WorkflowActionType.Assignment
-  const isRemoval = action.type === WorkflowActionType.Removal
-  const isEmail = action.type === WorkflowActionType.Email
-  const isWebhook = action.type === WorkflowActionType.Webhook
-  const isPasswordRemoval = action.type === WorkflowActionType.PasswordRemoval
-
   const userItems = lookups.users.map((user) => ({ id: user.id, name: user.username ?? `User ${user.id}` }))
   const actionTypeLabel =
     WORKFLOW_ACTION_TYPE_OPTIONS.find((option) => option.id === action.type)?.name ?? `Action ${index + 1}`
+
+  function renderActionFields() {
+    switch (action.type) {
+      case WorkflowActionType.Assignment:
+        return (
+          <div className="grid gap-3 xl:grid-cols-4">
+            <div className="space-y-2 xl:col-span-2">
+              <Label>Assign title</Label>
+              <Input value={action.assign_title ?? ""} onChange={(event) => onChange({ ...action, assign_title: event.target.value })} />
+            </div>
+            <SingleLookupSelect items={lookups.documentTypes} label="Assign document type" value={action.assign_document_type ?? null} onChange={(next) => onChange({ ...action, assign_document_type: next })} />
+            <SingleLookupSelect items={lookups.correspondents} label="Assign correspondent" value={action.assign_correspondent ?? null} onChange={(next) => onChange({ ...action, assign_correspondent: next })} />
+            <SingleLookupSelect items={lookups.storagePaths} label="Assign storage path" value={action.assign_storage_path ?? null} onChange={(next) => onChange({ ...action, assign_storage_path: next })} />
+            <SingleLookupSelect items={userItems} label="Assign owner" value={action.assign_owner ?? null} onChange={(next) => onChange({ ...action, assign_owner: next })} />
+            <div className="xl:col-span-2">
+              <MultiSelectChecklist items={lookups.tags} label="Assign tags" value={action.assign_tags} onChange={(next) => onChange({ ...action, assign_tags: next })} />
+            </div>
+            <div>
+              <MultiSelectChecklist items={lookups.customFields.map((field) => ({ id: field.id, name: field.name }))} label="Assign custom fields" value={action.assign_custom_fields} onChange={(next) => onChange({ ...action, assign_custom_fields: next })} />
+            </div>
+            <div>
+              <MultiSelectChecklist items={userItems} label="Assign view users" value={action.assign_view_users} onChange={(next) => onChange({ ...action, assign_view_users: next })} />
+            </div>
+            <div>
+              <MultiSelectChecklist items={lookups.groups} label="Assign view groups" value={action.assign_view_groups} onChange={(next) => onChange({ ...action, assign_view_groups: next })} />
+            </div>
+            <div>
+              <MultiSelectChecklist items={userItems} label="Assign change users" value={action.assign_change_users} onChange={(next) => onChange({ ...action, assign_change_users: next })} />
+            </div>
+            <div>
+              <MultiSelectChecklist items={lookups.groups} label="Assign change groups" value={action.assign_change_groups} onChange={(next) => onChange({ ...action, assign_change_groups: next })} />
+            </div>
+            {action.assign_custom_fields && action.assign_custom_fields.length > 0 ? (
+              <div className="xl:col-span-4 space-y-2">
+                <Label>Assign custom field values JSON</Label>
+                <Textarea
+                  className="min-h-20 font-mono text-xs"
+                  value={action.assign_custom_fields_values ? JSON.stringify(action.assign_custom_fields_values, null, 2) : ""}
+                  onChange={(event) => {
+                    const nextValue = event.target.value
+                    try {
+                      onChange({ ...action, assign_custom_fields_values: nextValue ? JSON.parse(nextValue) : null })
+                    } catch {
+                      onChange({ ...action, assign_custom_fields_values: { __invalid_json__: nextValue } })
+                    }
+                  }}
+                />
+              </div>
+            ) : null}
+          </div>
+        )
+      case WorkflowActionType.Removal:
+        return (
+          <div className="grid gap-3 xl:grid-cols-4">
+            <div className="xl:col-span-4 grid gap-2 md:grid-cols-3 xl:grid-cols-4">
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                <Checkbox checked={Boolean(action.remove_all_tags)} onCheckedChange={(checked) => onChange({ ...action, remove_all_tags: Boolean(checked) })} />
+                <span className="text-sm">Remove all tags</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                <Checkbox checked={Boolean(action.remove_all_document_types)} onCheckedChange={(checked) => onChange({ ...action, remove_all_document_types: Boolean(checked) })} />
+                <span className="text-sm">Remove all document types</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                <Checkbox checked={Boolean(action.remove_all_correspondents)} onCheckedChange={(checked) => onChange({ ...action, remove_all_correspondents: Boolean(checked) })} />
+                <span className="text-sm">Remove all correspondents</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                <Checkbox checked={Boolean(action.remove_all_storage_paths)} onCheckedChange={(checked) => onChange({ ...action, remove_all_storage_paths: Boolean(checked) })} />
+                <span className="text-sm">Remove all storage paths</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                <Checkbox checked={Boolean(action.remove_all_owners)} onCheckedChange={(checked) => onChange({ ...action, remove_all_owners: Boolean(checked) })} />
+                <span className="text-sm">Remove all owners</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                <Checkbox checked={Boolean(action.remove_all_permissions)} onCheckedChange={(checked) => onChange({ ...action, remove_all_permissions: Boolean(checked) })} />
+                <span className="text-sm">Remove all permissions</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                <Checkbox checked={Boolean(action.remove_all_custom_fields)} onCheckedChange={(checked) => onChange({ ...action, remove_all_custom_fields: Boolean(checked) })} />
+                <span className="text-sm">Remove all custom fields</span>
+              </div>
+            </div>
+            <MultiSelectChecklist items={lookups.tags} label="Remove tags" value={action.remove_tags} onChange={(next) => onChange({ ...action, remove_tags: next })} />
+            <MultiSelectChecklist items={lookups.documentTypes} label="Remove document types" value={action.remove_document_types} onChange={(next) => onChange({ ...action, remove_document_types: next })} />
+            <MultiSelectChecklist items={lookups.correspondents} label="Remove correspondents" value={action.remove_correspondents} onChange={(next) => onChange({ ...action, remove_correspondents: next })} />
+            <MultiSelectChecklist items={lookups.storagePaths} label="Remove storage paths" value={action.remove_storage_paths} onChange={(next) => onChange({ ...action, remove_storage_paths: next })} />
+            <MultiSelectChecklist items={userItems} label="Remove owners" value={action.remove_owners} onChange={(next) => onChange({ ...action, remove_owners: next })} />
+            <MultiSelectChecklist items={lookups.customFields.map((field) => ({ id: field.id, name: field.name }))} label="Remove custom fields" value={action.remove_custom_fields} onChange={(next) => onChange({ ...action, remove_custom_fields: next })} />
+            <MultiSelectChecklist items={userItems} label="Remove view users" value={action.remove_view_users} onChange={(next) => onChange({ ...action, remove_view_users: next })} />
+            <MultiSelectChecklist items={lookups.groups} label="Remove view groups" value={action.remove_view_groups} onChange={(next) => onChange({ ...action, remove_view_groups: next })} />
+            <MultiSelectChecklist items={userItems} label="Remove change users" value={action.remove_change_users} onChange={(next) => onChange({ ...action, remove_change_users: next })} />
+            <MultiSelectChecklist items={lookups.groups} label="Remove change groups" value={action.remove_change_groups} onChange={(next) => onChange({ ...action, remove_change_groups: next })} />
+          </div>
+        )
+      case WorkflowActionType.Email:
+        return (
+          <div className="grid gap-4 xl:grid-cols-3">
+            <div className="space-y-2 xl:col-span-2">
+              <Label>To</Label>
+              <Input value={action.email?.to ?? ""} onChange={(event) => onChange({ ...action, email: { ...action.email, to: event.target.value } })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Subject</Label>
+              <Input value={action.email?.subject ?? ""} onChange={(event) => onChange({ ...action, email: { ...action.email, subject: event.target.value } })} />
+            </div>
+            <div className="xl:col-span-3 space-y-2">
+              <Label>Body</Label>
+              <Textarea className="min-h-20" value={action.email?.body ?? ""} onChange={(event) => onChange({ ...action, email: { ...action.email, body: event.target.value } })} />
+            </div>
+            <div className="xl:col-span-3 flex items-center justify-between rounded-md border px-3 py-2">
+              <div>
+                <p className="text-sm font-medium">Include document</p>
+                <p className="text-xs text-muted-foreground">Attach the matching document to the outgoing email.</p>
+              </div>
+              <Switch checked={Boolean(action.email?.include_document)} onCheckedChange={(checked) => onChange({ ...action, email: { ...action.email, include_document: checked } })} />
+            </div>
+          </div>
+        )
+      case WorkflowActionType.Webhook:
+        return (
+          <div className="grid gap-4 xl:grid-cols-3">
+            <div className="space-y-2 xl:col-span-3">
+              <Label>Webhook URL</Label>
+              <Input value={action.webhook?.url ?? ""} onChange={(event) => onChange({ ...action, webhook: { ...action.webhook, url: event.target.value } })} />
+            </div>
+            <div className="xl:col-span-3 grid gap-3 md:grid-cols-3">
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                <Checkbox checked={Boolean(action.webhook?.use_params)} onCheckedChange={(checked) => onChange({ ...action, webhook: { ...action.webhook, use_params: Boolean(checked) } })} />
+                <span className="text-sm">Use query params</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                <Checkbox checked={Boolean(action.webhook?.as_json)} onCheckedChange={(checked) => onChange({ ...action, webhook: { ...action.webhook, as_json: Boolean(checked) } })} />
+                <span className="text-sm">Send as JSON</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                <Checkbox checked={Boolean(action.webhook?.include_document)} onCheckedChange={(checked) => onChange({ ...action, webhook: { ...action.webhook, include_document: Boolean(checked) } })} />
+                <span className="text-sm">Include document</span>
+              </div>
+            </div>
+            <div className="space-y-2 xl:col-span-1">
+              <Label>Params JSON</Label>
+              <Textarea
+                className="min-h-24 font-mono text-xs"
+                value={action.webhook?.params ? JSON.stringify(action.webhook.params, null, 2) : ""}
+                onChange={(event) => {
+                  const nextValue = event.target.value
+                  try {
+                    onChange({ ...action, webhook: { ...action.webhook, params: nextValue ? JSON.parse(nextValue) : null } })
+                  } catch {
+                    onChange({ ...action, webhook: { ...action.webhook, params: { __invalid_json__: nextValue } } })
+                  }
+                }}
+              />
+            </div>
+            <div className="space-y-2 xl:col-span-1">
+              <Label>Headers JSON</Label>
+              <Textarea
+                className="min-h-24 font-mono text-xs"
+                value={action.webhook?.headers ? JSON.stringify(action.webhook.headers, null, 2) : ""}
+                onChange={(event) => {
+                  const nextValue = event.target.value
+                  try {
+                    onChange({ ...action, webhook: { ...action.webhook, headers: nextValue ? JSON.parse(nextValue) : null } })
+                  } catch {
+                    onChange({ ...action, webhook: { ...action.webhook, headers: { __invalid_json__: nextValue } } })
+                  }
+                }}
+              />
+            </div>
+            <div className="xl:col-span-1 space-y-2">
+              <Label>Body</Label>
+              <Textarea className="min-h-24" value={action.webhook?.body ?? ""} onChange={(event) => onChange({ ...action, webhook: { ...action.webhook, body: event.target.value } })} />
+            </div>
+          </div>
+        )
+      case WorkflowActionType.PasswordRemoval:
+        return (
+          <div className="space-y-2">
+            <Label>Passwords</Label>
+            <Textarea
+              className="min-h-24"
+              placeholder="One password per line"
+              value={(action.passwords ?? []).join("\n")}
+              onChange={(event) =>
+                onChange({
+                  ...action,
+                  passwords: event.target.value
+                    .split("\n")
+                    .map((password) => password.trim())
+                    .filter(Boolean),
+                })
+              }
+            />
+          </div>
+        )
+      case WorkflowActionType.MoveToTrash:
+      case WorkflowActionType.RemoteOcr:
+        return null
+      default:
+        return assertNever(action.type)
+    }
+  }
 
   return (
     <FieldCard title={`${index + 1}. ${actionTypeLabel}`} onRemove={onRemove}>
@@ -470,7 +674,7 @@ function ActionEditor({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {WORKFLOW_ACTION_TYPE_OPTIONS.map((option) => (
+              {actionOptions.map((option) => (
                 <SelectItem key={option.id} value={String(option.id)}>
                   {option.name}
                 </SelectItem>
@@ -479,200 +683,7 @@ function ActionEditor({
           </Select>
         </div>
       </div>
-
-      {isAssignment ? (
-        <div className="grid gap-3 xl:grid-cols-4">
-          <div className="space-y-2 xl:col-span-2">
-            <Label>Assign title</Label>
-            <Input value={action.assign_title ?? ""} onChange={(event) => onChange({ ...action, assign_title: event.target.value })} />
-          </div>
-          <SingleLookupSelect items={lookups.documentTypes} label="Assign document type" value={action.assign_document_type ?? null} onChange={(next) => onChange({ ...action, assign_document_type: next })} />
-          <SingleLookupSelect items={lookups.correspondents} label="Assign correspondent" value={action.assign_correspondent ?? null} onChange={(next) => onChange({ ...action, assign_correspondent: next })} />
-          <SingleLookupSelect items={lookups.storagePaths} label="Assign storage path" value={action.assign_storage_path ?? null} onChange={(next) => onChange({ ...action, assign_storage_path: next })} />
-          <SingleLookupSelect items={userItems} label="Assign owner" value={action.assign_owner ?? null} onChange={(next) => onChange({ ...action, assign_owner: next })} />
-          <div className="xl:col-span-2">
-            <MultiSelectChecklist items={lookups.tags} label="Assign tags" value={action.assign_tags} onChange={(next) => onChange({ ...action, assign_tags: next })} />
-          </div>
-          <div>
-            <MultiSelectChecklist items={lookups.customFields.map((field) => ({ id: field.id, name: field.name }))} label="Assign custom fields" value={action.assign_custom_fields} onChange={(next) => onChange({ ...action, assign_custom_fields: next })} />
-          </div>
-          <div>
-            <MultiSelectChecklist items={userItems} label="Assign view users" value={action.assign_view_users} onChange={(next) => onChange({ ...action, assign_view_users: next })} />
-          </div>
-          <div>
-            <MultiSelectChecklist items={lookups.groups} label="Assign view groups" value={action.assign_view_groups} onChange={(next) => onChange({ ...action, assign_view_groups: next })} />
-          </div>
-          <div>
-            <MultiSelectChecklist items={userItems} label="Assign change users" value={action.assign_change_users} onChange={(next) => onChange({ ...action, assign_change_users: next })} />
-          </div>
-          <div>
-            <MultiSelectChecklist items={lookups.groups} label="Assign change groups" value={action.assign_change_groups} onChange={(next) => onChange({ ...action, assign_change_groups: next })} />
-          </div>
-          {action.assign_custom_fields && action.assign_custom_fields.length > 0 ? (
-            <div className="xl:col-span-4 space-y-2">
-              <Label>Assign custom field values JSON</Label>
-              <Textarea
-                className="min-h-20 font-mono text-xs"
-                value={action.assign_custom_fields_values ? JSON.stringify(action.assign_custom_fields_values, null, 2) : ""}
-                onChange={(event) => {
-                  const nextValue = event.target.value
-                  try {
-                    onChange({ ...action, assign_custom_fields_values: nextValue ? JSON.parse(nextValue) : null })
-                  } catch {
-                    onChange({ ...action, assign_custom_fields_values: { __invalid_json__: nextValue } })
-                  }
-                }}
-              />
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {isRemoval ? (
-        <div className="grid gap-3 xl:grid-cols-4">
-          <div className="xl:col-span-4 grid gap-2 md:grid-cols-3 xl:grid-cols-4">
-            <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-              <Checkbox checked={Boolean(action.remove_all_tags)} onCheckedChange={(checked) => onChange({ ...action, remove_all_tags: Boolean(checked) })} />
-              <span className="text-sm">Remove all tags</span>
-            </div>
-            <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-              <Checkbox checked={Boolean(action.remove_all_document_types)} onCheckedChange={(checked) => onChange({ ...action, remove_all_document_types: Boolean(checked) })} />
-              <span className="text-sm">Remove all document types</span>
-            </div>
-            <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-              <Checkbox checked={Boolean(action.remove_all_correspondents)} onCheckedChange={(checked) => onChange({ ...action, remove_all_correspondents: Boolean(checked) })} />
-              <span className="text-sm">Remove all correspondents</span>
-            </div>
-            <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-              <Checkbox checked={Boolean(action.remove_all_storage_paths)} onCheckedChange={(checked) => onChange({ ...action, remove_all_storage_paths: Boolean(checked) })} />
-              <span className="text-sm">Remove all storage paths</span>
-            </div>
-            <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-              <Checkbox checked={Boolean(action.remove_all_owners)} onCheckedChange={(checked) => onChange({ ...action, remove_all_owners: Boolean(checked) })} />
-              <span className="text-sm">Remove all owners</span>
-            </div>
-            <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-              <Checkbox checked={Boolean(action.remove_all_permissions)} onCheckedChange={(checked) => onChange({ ...action, remove_all_permissions: Boolean(checked) })} />
-              <span className="text-sm">Remove all permissions</span>
-            </div>
-            <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-              <Checkbox checked={Boolean(action.remove_all_custom_fields)} onCheckedChange={(checked) => onChange({ ...action, remove_all_custom_fields: Boolean(checked) })} />
-              <span className="text-sm">Remove all custom fields</span>
-            </div>
-          </div>
-          <MultiSelectChecklist items={lookups.tags} label="Remove tags" value={action.remove_tags} onChange={(next) => onChange({ ...action, remove_tags: next })} />
-          <MultiSelectChecklist items={lookups.documentTypes} label="Remove document types" value={action.remove_document_types} onChange={(next) => onChange({ ...action, remove_document_types: next })} />
-          <MultiSelectChecklist items={lookups.correspondents} label="Remove correspondents" value={action.remove_correspondents} onChange={(next) => onChange({ ...action, remove_correspondents: next })} />
-          <MultiSelectChecklist items={lookups.storagePaths} label="Remove storage paths" value={action.remove_storage_paths} onChange={(next) => onChange({ ...action, remove_storage_paths: next })} />
-          <MultiSelectChecklist items={userItems} label="Remove owners" value={action.remove_owners} onChange={(next) => onChange({ ...action, remove_owners: next })} />
-          <MultiSelectChecklist items={lookups.customFields.map((field) => ({ id: field.id, name: field.name }))} label="Remove custom fields" value={action.remove_custom_fields} onChange={(next) => onChange({ ...action, remove_custom_fields: next })} />
-          <MultiSelectChecklist items={userItems} label="Remove view users" value={action.remove_view_users} onChange={(next) => onChange({ ...action, remove_view_users: next })} />
-          <MultiSelectChecklist items={lookups.groups} label="Remove view groups" value={action.remove_view_groups} onChange={(next) => onChange({ ...action, remove_view_groups: next })} />
-          <MultiSelectChecklist items={userItems} label="Remove change users" value={action.remove_change_users} onChange={(next) => onChange({ ...action, remove_change_users: next })} />
-          <MultiSelectChecklist items={lookups.groups} label="Remove change groups" value={action.remove_change_groups} onChange={(next) => onChange({ ...action, remove_change_groups: next })} />
-        </div>
-      ) : null}
-
-      {isEmail ? (
-        <div className="grid gap-4 xl:grid-cols-3">
-          <div className="space-y-2 xl:col-span-2">
-            <Label>To</Label>
-            <Input value={action.email?.to ?? ""} onChange={(event) => onChange({ ...action, email: { ...action.email, to: event.target.value } })} />
-          </div>
-          <div className="space-y-2">
-            <Label>Subject</Label>
-            <Input value={action.email?.subject ?? ""} onChange={(event) => onChange({ ...action, email: { ...action.email, subject: event.target.value } })} />
-          </div>
-          <div className="xl:col-span-3 space-y-2">
-            <Label>Body</Label>
-            <Textarea className="min-h-20" value={action.email?.body ?? ""} onChange={(event) => onChange({ ...action, email: { ...action.email, body: event.target.value } })} />
-          </div>
-          <div className="xl:col-span-3 flex items-center justify-between rounded-md border px-3 py-2">
-            <div>
-              <p className="text-sm font-medium">Include document</p>
-              <p className="text-xs text-muted-foreground">Attach the matching document to the outgoing email.</p>
-            </div>
-            <Switch checked={Boolean(action.email?.include_document)} onCheckedChange={(checked) => onChange({ ...action, email: { ...action.email, include_document: checked } })} />
-          </div>
-        </div>
-      ) : null}
-
-      {isWebhook ? (
-        <div className="grid gap-4 xl:grid-cols-3">
-          <div className="space-y-2 xl:col-span-3">
-            <Label>Webhook URL</Label>
-            <Input value={action.webhook?.url ?? ""} onChange={(event) => onChange({ ...action, webhook: { ...action.webhook, url: event.target.value } })} />
-          </div>
-          <div className="xl:col-span-3 grid gap-3 md:grid-cols-3">
-            <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-              <Checkbox checked={Boolean(action.webhook?.use_params)} onCheckedChange={(checked) => onChange({ ...action, webhook: { ...action.webhook, use_params: Boolean(checked) } })} />
-              <span className="text-sm">Use query params</span>
-            </div>
-            <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-              <Checkbox checked={Boolean(action.webhook?.as_json)} onCheckedChange={(checked) => onChange({ ...action, webhook: { ...action.webhook, as_json: Boolean(checked) } })} />
-              <span className="text-sm">Send as JSON</span>
-            </div>
-            <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-              <Checkbox checked={Boolean(action.webhook?.include_document)} onCheckedChange={(checked) => onChange({ ...action, webhook: { ...action.webhook, include_document: Boolean(checked) } })} />
-              <span className="text-sm">Include document</span>
-            </div>
-          </div>
-          <div className="space-y-2 xl:col-span-1">
-            <Label>Params JSON</Label>
-            <Textarea
-              className="min-h-24 font-mono text-xs"
-              value={action.webhook?.params ? JSON.stringify(action.webhook.params, null, 2) : ""}
-              onChange={(event) => {
-                const nextValue = event.target.value
-                try {
-                  onChange({ ...action, webhook: { ...action.webhook, params: nextValue ? JSON.parse(nextValue) : null } })
-                } catch {
-                  onChange({ ...action, webhook: { ...action.webhook, params: { __invalid_json__: nextValue } } })
-                }
-              }}
-            />
-          </div>
-          <div className="space-y-2 xl:col-span-1">
-            <Label>Headers JSON</Label>
-            <Textarea
-              className="min-h-24 font-mono text-xs"
-              value={action.webhook?.headers ? JSON.stringify(action.webhook.headers, null, 2) : ""}
-              onChange={(event) => {
-                const nextValue = event.target.value
-                try {
-                  onChange({ ...action, webhook: { ...action.webhook, headers: nextValue ? JSON.parse(nextValue) : null } })
-                } catch {
-                  onChange({ ...action, webhook: { ...action.webhook, headers: { __invalid_json__: nextValue } } })
-                }
-              }}
-            />
-          </div>
-          <div className="xl:col-span-1 space-y-2">
-            <Label>Body</Label>
-            <Textarea className="min-h-24" value={action.webhook?.body ?? ""} onChange={(event) => onChange({ ...action, webhook: { ...action.webhook, body: event.target.value } })} />
-          </div>
-        </div>
-      ) : null}
-
-      {isPasswordRemoval ? (
-        <div className="space-y-2">
-          <Label>Passwords</Label>
-          <Textarea
-            className="min-h-24"
-            placeholder="One password per line"
-            value={(action.passwords ?? []).join("\n")}
-            onChange={(event) =>
-              onChange({
-                ...action,
-                passwords: event.target.value
-                  .split("\n")
-                  .map((password) => password.trim())
-                  .filter(Boolean),
-              })
-            }
-          />
-        </div>
-      ) : null}
+      {renderActionFields()}
     </FieldCard>
   )
 }
@@ -680,12 +691,31 @@ function ActionEditor({
 export function WorkflowEditor({
   lookups,
   onChange,
+  remoteOcrConfigured = false,
   value,
 }: {
   lookups: WorkflowLookups
   onChange: (value: WorkflowDraft) => void
+  remoteOcrConfigured?: boolean
   value: WorkflowDraft
 }) {
+  const actionOptions = React.useMemo(() => {
+    const hasConsumptionTrigger = value.triggers.some(
+      (trigger) => trigger.type === WorkflowTriggerType.Consumption
+    )
+    const hasRemoteOcrAction = value.actions.some(
+      (action) => action.type === WorkflowActionType.RemoteOcr
+    )
+
+    return WORKFLOW_ACTION_TYPE_OPTIONS.filter((option) => {
+      if (option.id !== WorkflowActionType.RemoteOcr) {
+        return true
+      }
+
+      return remoteOcrConfigured && (hasConsumptionTrigger || hasRemoteOcrAction)
+    })
+  }, [remoteOcrConfigured, value.actions, value.triggers])
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 xl:grid-cols-3">
@@ -747,6 +777,7 @@ export function WorkflowEditor({
             <ActionEditor
               key={`${action.id ?? "new"}-${index}`}
               action={action}
+              actionOptions={actionOptions}
               index={index}
               lookups={lookups}
               onChange={(nextAction) => onChange(updateActionAt(value, index, () => nextAction))}

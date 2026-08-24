@@ -104,6 +104,56 @@ vi.mock("@/components/ui/switch", () => ({
   ),
 }))
 
+vi.mock("@/components/ui/select", async () => {
+  const ReactModule = await import("react")
+
+  type SelectContextValue = {
+    value: string
+    onValueChange?: (value: string) => void
+  }
+
+  const SelectContext = ReactModule.createContext<SelectContextValue | null>(null)
+
+  return {
+    Select: ({
+      children,
+      value,
+      onValueChange,
+    }: {
+      children: React.ReactNode
+      value: string
+      onValueChange?: (value: string) => void
+    }) => (
+      <SelectContext.Provider value={{ value, onValueChange }}>
+        <div>{children}</div>
+      </SelectContext.Provider>
+    ),
+    SelectTrigger: ({ children }: { children: React.ReactNode }) => {
+      const context = ReactModule.useContext(SelectContext)
+      return (
+        <select
+          aria-label="Select value"
+          value={context?.value ?? ""}
+          onChange={(event) => context?.onValueChange?.(event.target.value)}
+        >
+          {children}
+        </select>
+      )
+    },
+    SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    SelectItem: ({
+      children,
+      value,
+    }: {
+      children: React.ReactNode
+      value: string
+    }) => <option value={value}>{children}</option>,
+    SelectValue: ({ placeholder }: { placeholder?: string }) => (
+      <option value="">{placeholder ?? ""}</option>
+    ),
+  }
+})
+
 const lookups: WorkflowLookups = {
   tags: [{ id: 4, name: "Finance" }],
   correspondents: [{ id: 6, name: "Accounts" }],
@@ -125,6 +175,13 @@ const baseWorkflow = {
 }
 
 function renderWorkflowsTable(
+  {
+    initialItems = [baseWorkflow],
+    remoteOcrConfigured = false,
+  }: {
+    initialItems?: typeof baseWorkflow[]
+    remoteOcrConfigured?: boolean
+  } = {},
   permissionCodes: string[] = [
     "view_workflow",
     "change_workflow",
@@ -144,7 +201,11 @@ function renderWorkflowsTable(
           userId: 1,
         }}
       >
-        <WorkflowsTable initialItems={[baseWorkflow]} lookups={lookups} />
+        <WorkflowsTable
+          initialItems={initialItems}
+          lookups={lookups}
+          remoteOcrConfigured={remoteOcrConfigured}
+        />
       </PermissionsProvider>
     </JotaiProvider>
   )
@@ -215,6 +276,11 @@ describe("buildWorkflowPayload", () => {
           {
             ...createDefaultAction(),
             id: 42,
+            type: WorkflowActionType.RemoteOcr,
+          },
+          {
+            ...createDefaultAction(),
+            id: 43,
             type: WorkflowActionType.Webhook,
             webhook: {
               url: " https://example.com/workflow ",
@@ -280,6 +346,10 @@ describe("buildWorkflowPayload", () => {
         }),
         expect.objectContaining({
           id: 42,
+          type: WorkflowActionType.RemoteOcr,
+        }),
+        expect.objectContaining({
+          id: 43,
           type: WorkflowActionType.Webhook,
           webhook: {
             url: "https://example.com/workflow",
@@ -393,12 +463,33 @@ describe("WorkflowsTable", () => {
   })
 
   it("hides change, delete, duplicate, and reorder affordances when permissions are missing", () => {
-    renderWorkflowsTable(["view_workflow"])
+    renderWorkflowsTable({}, ["view_workflow"])
 
     expect(screen.queryByRole("button", { name: "New workflow" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Edit Invoice triage" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Copy Invoice triage" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Delete Invoice triage" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Drag to reorder" })).not.toBeInTheDocument()
+  })
+
+  it("only offers remote OCR actions when configured and the workflow has a consumption trigger", () => {
+    const firstRender = renderWorkflowsTable({ remoteOcrConfigured: true })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Invoice triage" }))
+    expect(screen.queryByText("Remote OCR")).not.toBeInTheDocument()
+    firstRender.unmount()
+
+    renderWorkflowsTable({
+      initialItems: [
+        {
+          ...baseWorkflow,
+          triggers: [{ ...createDefaultTrigger(), type: WorkflowTriggerType.Consumption }],
+        },
+      ],
+      remoteOcrConfigured: true,
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Invoice triage" }))
+    expect(screen.getByText("Remote OCR")).toBeInTheDocument()
   })
 })

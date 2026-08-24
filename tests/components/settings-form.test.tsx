@@ -146,6 +146,10 @@ describe("SettingsForm", () => {
       app_title: "TerraNet Paperless",
       app_logo: "/logo/current.png",
       ai_enabled: false,
+      remote_ocr_engine: "azureai",
+      remote_ocr_endpoint: "https://updated.example.cognitiveservices.azure.com",
+      remote_ocr_api_key: "updated-key",
+      remote_ocr_mode: "workflow_only",
     })
 
     const { container } = render(
@@ -155,6 +159,10 @@ describe("SettingsForm", () => {
           app_title: "Paperless",
           app_logo: "/logo/current.png",
           ai_enabled: false,
+          remote_ocr_engine: "azureai",
+          remote_ocr_endpoint: "https://example.cognitiveservices.azure.com",
+          remote_ocr_api_key: "existing-key",
+          remote_ocr_mode: "workflow_only",
         }}
       />
     )
@@ -167,6 +175,18 @@ describe("SettingsForm", () => {
     fireEvent.change(titleInput!, {
       target: { value: "TerraNet Paperless" },
     })
+    fireEvent.click(screen.getByRole("button", { name: "OCR Settings" }))
+    fireEvent.change(
+      screen.getByDisplayValue("https://example.cognitiveservices.azure.com"),
+      {
+        target: {
+          value: "https://updated.example.cognitiveservices.azure.com",
+        },
+      }
+    )
+    fireEvent.change(screen.getByDisplayValue("existing-key"), {
+      target: { value: "updated-key" },
+    })
     fireEvent.click(screen.getByRole("button", { name: /Save configuration/i }))
 
     await waitFor(() => {
@@ -175,6 +195,11 @@ describe("SettingsForm", () => {
         expect.objectContaining({
           app_title: "TerraNet Paperless",
           ai_enabled: false,
+          remote_ocr_engine: "azureai",
+          remote_ocr_endpoint:
+            "https://updated.example.cognitiveservices.azure.com",
+          remote_ocr_api_key: "updated-key",
+          remote_ocr_mode: "workflow_only",
         })
       )
     })

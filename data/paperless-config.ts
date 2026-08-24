@@ -37,6 +37,15 @@ export enum ColorConvertConfig {
   CMYK = 'CMYK',
 }
 
+export enum RemoteOCREngineConfig {
+  AZURE_AI = 'azureai',
+}
+
+export enum RemoteOCRModeConfig {
+  ALWAYS = 'always',
+  WORKFLOW_ONLY = 'workflow_only',
+}
+
 export enum ConfigOptionType {
   String = 'string',
   Number = 'number',
@@ -179,6 +188,39 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     type: ConfigOptionType.JSON,
     config_key: 'PAPERLESS_OCR_USER_ARGS',
     category: ConfigCategory.OCR,
+  },
+  {
+    key: 'remote_ocr_engine',
+    title: 'Remote OCR Engine',
+    type: ConfigOptionType.Select,
+    choices: mapToItems(RemoteOCREngineConfig),
+    config_key: 'PAPERLESS_REMOTE_OCR_ENGINE',
+    category: ConfigCategory.OCR,
+    note: 'Enabling remote OCR sends documents to a third-party service for processing. Consider the privacy implications and potential cost before turning this on.',
+  },
+  {
+    key: 'remote_ocr_api_key',
+    title: 'Remote OCR API Key',
+    type: ConfigOptionType.Password,
+    config_key: 'PAPERLESS_REMOTE_OCR_API_KEY',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'remote_ocr_endpoint',
+    title: 'Remote OCR Endpoint',
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_REMOTE_OCR_ENDPOINT',
+    category: ConfigCategory.OCR,
+    note: 'Required when using the Azure AI engine.',
+  },
+  {
+    key: 'remote_ocr_mode',
+    title: 'Remote OCR Mode',
+    type: ConfigOptionType.Select,
+    choices: mapToItems(RemoteOCRModeConfig),
+    config_key: 'PAPERLESS_REMOTE_OCR_MODE',
+    category: ConfigCategory.OCR,
+    note: "Use 'workflow_only' to keep remote OCR off unless a workflow enables it for a specific document.",
   },
   {
     key: 'app_logo',
@@ -346,6 +388,10 @@ export interface PaperlessConfig extends ObjectWithId {
   max_image_pixels: number
   color_conversion_strategy: ColorConvertConfig
   user_args: object
+  remote_ocr_engine: string
+  remote_ocr_api_key: string
+  remote_ocr_endpoint: string
+  remote_ocr_mode: string
   app_logo: string
   app_title: string
   barcodes_enabled: boolean

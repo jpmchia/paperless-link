@@ -80,6 +80,10 @@ function sanitizeObjectTextarea(value: Record<string, unknown> | null | undefine
   return value
 }
 
+function assertNever(value: never): never {
+  throw new Error(`Unhandled workflow action type: ${String(value)}`)
+}
+
 function sanitizeTrigger(trigger: WorkflowTrigger): WorkflowTrigger {
   const next: WorkflowTrigger = {
     ...(trigger.id != null ? { id: trigger.id } : {}),
@@ -137,66 +141,69 @@ function sanitizeAction(action: WorkflowAction): WorkflowAction {
     type: action.type,
   }
 
-  if (action.type === WorkflowActionType.Assignment) {
-    next.assign_title = sanitizeString(action.assign_title)
-    if (action.assign_tags?.length) next.assign_tags = action.assign_tags
-    if (action.assign_document_type != null) next.assign_document_type = action.assign_document_type
-    if (action.assign_correspondent != null) next.assign_correspondent = action.assign_correspondent
-    if (action.assign_storage_path != null) next.assign_storage_path = action.assign_storage_path
-    if (action.assign_owner != null) next.assign_owner = action.assign_owner
-    if (action.assign_view_users?.length) next.assign_view_users = action.assign_view_users
-    if (action.assign_view_groups?.length) next.assign_view_groups = action.assign_view_groups
-    if (action.assign_change_users?.length) next.assign_change_users = action.assign_change_users
-    if (action.assign_change_groups?.length) next.assign_change_groups = action.assign_change_groups
-    if (action.assign_custom_fields?.length) next.assign_custom_fields = action.assign_custom_fields
-    next.assign_custom_fields_values = sanitizeObjectTextarea(action.assign_custom_fields_values ?? null, "Assign custom field values")
-  }
-
-  if (action.type === WorkflowActionType.Removal) {
-    if (action.remove_tags?.length) next.remove_tags = action.remove_tags
-    if (action.remove_document_types?.length) next.remove_document_types = action.remove_document_types
-    if (action.remove_correspondents?.length) next.remove_correspondents = action.remove_correspondents
-    if (action.remove_storage_paths?.length) next.remove_storage_paths = action.remove_storage_paths
-    if (action.remove_owners?.length) next.remove_owners = action.remove_owners
-    if (action.remove_view_users?.length) next.remove_view_users = action.remove_view_users
-    if (action.remove_view_groups?.length) next.remove_view_groups = action.remove_view_groups
-    if (action.remove_change_users?.length) next.remove_change_users = action.remove_change_users
-    if (action.remove_change_groups?.length) next.remove_change_groups = action.remove_change_groups
-    if (action.remove_custom_fields?.length) next.remove_custom_fields = action.remove_custom_fields
-    next.remove_all_tags = Boolean(action.remove_all_tags)
-    next.remove_all_document_types = Boolean(action.remove_all_document_types)
-    next.remove_all_correspondents = Boolean(action.remove_all_correspondents)
-    next.remove_all_storage_paths = Boolean(action.remove_all_storage_paths)
-    next.remove_all_owners = Boolean(action.remove_all_owners)
-    next.remove_all_permissions = Boolean(action.remove_all_permissions)
-    next.remove_all_custom_fields = Boolean(action.remove_all_custom_fields)
-  }
-
-  if (action.type === WorkflowActionType.Email) {
-    next.email = {
-      ...(action.email?.id != null ? { id: action.email.id } : {}),
-      to: sanitizeString(action.email?.to),
-      subject: sanitizeString(action.email?.subject),
-      body: sanitizeString(action.email?.body),
-      include_document: Boolean(action.email?.include_document),
-    }
-  }
-
-  if (action.type === WorkflowActionType.Webhook) {
-    next.webhook = {
-      ...(action.webhook?.id != null ? { id: action.webhook.id } : {}),
-      url: sanitizeString(action.webhook?.url),
-      use_params: Boolean(action.webhook?.use_params),
-      as_json: Boolean(action.webhook?.as_json),
-      params: sanitizeObjectTextarea(action.webhook?.params ?? null, "Webhook params"),
-      headers: sanitizeObjectTextarea(action.webhook?.headers ?? null, "Webhook headers"),
-      body: sanitizeString(action.webhook?.body),
-      include_document: Boolean(action.webhook?.include_document),
-    }
-  }
-
-  if (action.type === WorkflowActionType.PasswordRemoval) {
-    next.passwords = (action.passwords ?? []).map((password) => password.trim()).filter(Boolean)
+  switch (action.type) {
+    case WorkflowActionType.Assignment:
+      next.assign_title = sanitizeString(action.assign_title)
+      if (action.assign_tags?.length) next.assign_tags = action.assign_tags
+      if (action.assign_document_type != null) next.assign_document_type = action.assign_document_type
+      if (action.assign_correspondent != null) next.assign_correspondent = action.assign_correspondent
+      if (action.assign_storage_path != null) next.assign_storage_path = action.assign_storage_path
+      if (action.assign_owner != null) next.assign_owner = action.assign_owner
+      if (action.assign_view_users?.length) next.assign_view_users = action.assign_view_users
+      if (action.assign_view_groups?.length) next.assign_view_groups = action.assign_view_groups
+      if (action.assign_change_users?.length) next.assign_change_users = action.assign_change_users
+      if (action.assign_change_groups?.length) next.assign_change_groups = action.assign_change_groups
+      if (action.assign_custom_fields?.length) next.assign_custom_fields = action.assign_custom_fields
+      next.assign_custom_fields_values = sanitizeObjectTextarea(action.assign_custom_fields_values ?? null, "Assign custom field values")
+      break
+    case WorkflowActionType.Removal:
+      if (action.remove_tags?.length) next.remove_tags = action.remove_tags
+      if (action.remove_document_types?.length) next.remove_document_types = action.remove_document_types
+      if (action.remove_correspondents?.length) next.remove_correspondents = action.remove_correspondents
+      if (action.remove_storage_paths?.length) next.remove_storage_paths = action.remove_storage_paths
+      if (action.remove_owners?.length) next.remove_owners = action.remove_owners
+      if (action.remove_view_users?.length) next.remove_view_users = action.remove_view_users
+      if (action.remove_view_groups?.length) next.remove_view_groups = action.remove_view_groups
+      if (action.remove_change_users?.length) next.remove_change_users = action.remove_change_users
+      if (action.remove_change_groups?.length) next.remove_change_groups = action.remove_change_groups
+      if (action.remove_custom_fields?.length) next.remove_custom_fields = action.remove_custom_fields
+      next.remove_all_tags = Boolean(action.remove_all_tags)
+      next.remove_all_document_types = Boolean(action.remove_all_document_types)
+      next.remove_all_correspondents = Boolean(action.remove_all_correspondents)
+      next.remove_all_storage_paths = Boolean(action.remove_all_storage_paths)
+      next.remove_all_owners = Boolean(action.remove_all_owners)
+      next.remove_all_permissions = Boolean(action.remove_all_permissions)
+      next.remove_all_custom_fields = Boolean(action.remove_all_custom_fields)
+      break
+    case WorkflowActionType.Email:
+      next.email = {
+        ...(action.email?.id != null ? { id: action.email.id } : {}),
+        to: sanitizeString(action.email?.to),
+        subject: sanitizeString(action.email?.subject),
+        body: sanitizeString(action.email?.body),
+        include_document: Boolean(action.email?.include_document),
+      }
+      break
+    case WorkflowActionType.Webhook:
+      next.webhook = {
+        ...(action.webhook?.id != null ? { id: action.webhook.id } : {}),
+        url: sanitizeString(action.webhook?.url),
+        use_params: Boolean(action.webhook?.use_params),
+        as_json: Boolean(action.webhook?.as_json),
+        params: sanitizeObjectTextarea(action.webhook?.params ?? null, "Webhook params"),
+        headers: sanitizeObjectTextarea(action.webhook?.headers ?? null, "Webhook headers"),
+        body: sanitizeString(action.webhook?.body),
+        include_document: Boolean(action.webhook?.include_document),
+      }
+      break
+    case WorkflowActionType.PasswordRemoval:
+      next.passwords = (action.passwords ?? []).map((password) => password.trim()).filter(Boolean)
+      break
+    case WorkflowActionType.MoveToTrash:
+    case WorkflowActionType.RemoteOcr:
+      break
+    default:
+      assertNever(action.type)
   }
 
   return next
@@ -298,9 +305,11 @@ function SortableRow({
 export function WorkflowsTable({
   initialItems,
   lookups,
+  remoteOcrConfigured = false,
 }: {
   initialItems: Workflow[]
   lookups: WorkflowLookups
+  remoteOcrConfigured?: boolean
 }) {
   const canChangeWorkflow = usePermission("change", "workflow")
   const [items, setItems] = React.useState<Workflow[]>([...initialItems].sort((a, b) => a.order - b.order))
@@ -499,7 +508,12 @@ export function WorkflowsTable({
             </DraggableDialogDescription>
           </DraggableDialogHeader>
           <DraggableDialogBody>
-            <WorkflowEditor value={workflowDraft} onChange={setWorkflowDraft} lookups={lookups} />
+            <WorkflowEditor
+              value={workflowDraft}
+              onChange={setWorkflowDraft}
+              lookups={lookups}
+              remoteOcrConfigured={remoteOcrConfigured}
+            />
           </DraggableDialogBody>
           <DraggableDialogFooter>
             <Button variant="outline" onClick={() => setWorkflowDialogOpen(false)}>

@@ -28,6 +28,7 @@ export enum WorkflowActionType {
   Webhook = 4,
   PasswordRemoval = 5,
   MoveToTrash = 6,
+  RemoteOcr = 7,
 }
 
 export type WorkflowTrigger = {
@@ -166,6 +167,7 @@ export const WORKFLOW_ACTION_TYPE_OPTIONS = [
   { id: WorkflowActionType.Webhook, name: "Webhook" },
   { id: WorkflowActionType.PasswordRemoval, name: "Password removal" },
   { id: WorkflowActionType.MoveToTrash, name: "Move to trash" },
+  { id: WorkflowActionType.RemoteOcr, name: "Remote OCR" },
 ]
 
 export const MATCHING_ALGORITHM_OPTIONS = [

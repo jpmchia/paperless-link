@@ -90,6 +90,7 @@ export function TopBar({
     emailEnabled = false,
     hasArchiveVersion = false,
     canEditPdf = false,
+    remoteOcrSelectable = false,
     totalPages = 1,
     versions = [],
     correspondents = [],
@@ -106,6 +107,7 @@ export function TopBar({
     emailEnabled?: boolean
     hasArchiveVersion?: boolean
     canEditPdf?: boolean
+    remoteOcrSelectable?: boolean
     totalPages?: number
     versions?: Array<{
         id: number
@@ -573,10 +575,10 @@ export function TopBar({
         router.push("/documents")
     }, [buildUnsavedChangesDescription, confirm, isDocumentDirty, router, submitDetailsForm])
 
-    const handleReprocess = async () => {
+    const handleReprocess = async (remoteOcr = false) => {
         if (!documentId) return
         try {
-            await reprocessDocument(documentId)
+            await reprocessDocument(documentId, { remoteOcr })
             toast.success("Document added to reprocessing queue")
             router.push("/documents")
         } catch {
@@ -682,10 +684,18 @@ export function TopBar({
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                                 <HasObjectPermission action="change" object={permissionedDocument} type="document">
-                                    <DropdownMenuItem onClick={handleReprocess}>
+                                    <DropdownMenuItem onClick={() => void handleReprocess()}>
                                         <RefreshCw className="mr-2 h-4 w-4" />
                                         Reprocess
                                     </DropdownMenuItem>
+                                    {remoteOcrSelectable ? (
+                                        <DropdownMenuItem
+                                            onClick={() => void handleReprocess(true)}
+                                        >
+                                            <RefreshCw className="mr-2 h-4 w-4" />
+                                            Reprocess with Remote OCR
+                                        </DropdownMenuItem>
+                                    ) : null}
                                 </HasObjectPermission>
                                 {documentId && emailEnabled && (
                                     <DropdownMenuItem onClick={() => setEmailDialogOpen(true)}>

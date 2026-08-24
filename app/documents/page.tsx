@@ -16,6 +16,10 @@ import {
 } from "@/lib/api"
 import type { FilterParams } from "@/lib/api"
 import { requireRoutePermission } from "@/lib/server-permissions"
+import {
+  readRemoteOcrSettings,
+  remoteOcrIsSelectable,
+} from "@/data/ui-settings"
 import { DocumentsWorkspace } from "./documents-workspace"
 import type { LookupMaps } from "./columns"
 import { TopBar } from "./topbar"
@@ -118,6 +122,9 @@ export default async function DocumentsPage({
     profile && typeof profile === "object" && "id" in profile && typeof profile.id === "number"
       ? profile.id
       : null
+  const remoteOcrSelectable = remoteOcrIsSelectable(
+    readRemoteOcrSettings(uiSettings.settings)
+  )
 
   const pageCount = Math.ceil((documentsData.count || 0) / pageSize)
 
@@ -154,6 +161,12 @@ export default async function DocumentsPage({
         currentUserId={currentUserId}
         initialDisplayMode={uiSettings.settings?.document_list_display_mode ?? null}
         initialTableLayouts={uiSettings.settings?.document_table_layouts ?? null}
+        remoteOcrSelectable={remoteOcrSelectable}
+        paperlessBaseUrl={
+          process.env.PAPERLESS_PUBLIC_URL?.trim() ||
+          process.env.PAPERLESS_API_URL ||
+          "http://localhost:8000/"
+        }
       />
     </AppShell>
   )

@@ -74,6 +74,15 @@ const colorConvertChoices = choices({
   CMYK: "CMYK",
 })
 
+const remoteOcrEngineChoices = choices({
+  AZURE_AI: "azureai",
+})
+
+const remoteOcrModeChoices = choices({
+  ALWAYS: "always",
+  WORKFLOW_ONLY: "workflow_only",
+})
+
 const llmEmbeddingBackendChoices = choices({
   OPENAI: "openai",
   HUGGINGFACE: "huggingface",
@@ -207,6 +216,39 @@ export const configOptions: ConfigOption[] = [
     type: configOptionTypes.json,
     category: configCategories.ocr,
     configKey: "PAPERLESS_OCR_USER_ARGS",
+  },
+  {
+    key: "remote_ocr_engine",
+    title: "Remote OCR Engine",
+    type: configOptionTypes.select,
+    category: configCategories.ocr,
+    configKey: "PAPERLESS_REMOTE_OCR_ENGINE",
+    choices: remoteOcrEngineChoices,
+    note: "Enabling remote OCR sends documents to a third-party service for processing. Consider the privacy implications and potential cost before turning this on.",
+  },
+  {
+    key: "remote_ocr_api_key",
+    title: "Remote OCR API Key",
+    type: configOptionTypes.password,
+    category: configCategories.ocr,
+    configKey: "PAPERLESS_REMOTE_OCR_API_KEY",
+  },
+  {
+    key: "remote_ocr_endpoint",
+    title: "Remote OCR Endpoint",
+    type: configOptionTypes.string,
+    category: configCategories.ocr,
+    configKey: "PAPERLESS_REMOTE_OCR_ENDPOINT",
+    note: "Required when using the Azure AI engine.",
+  },
+  {
+    key: "remote_ocr_mode",
+    title: "Remote OCR Mode",
+    type: configOptionTypes.select,
+    category: configCategories.ocr,
+    configKey: "PAPERLESS_REMOTE_OCR_MODE",
+    choices: remoteOcrModeChoices,
+    note: "Use 'workflow_only' to keep remote OCR off unless a workflow enables it for a specific document.",
   },
   {
     key: "barcodes_enabled",
