@@ -4,6 +4,7 @@ import {
   getCorrespondents,
   getCustomFields,
   getDocumentTypes,
+  getGroups,
   getSavedViews,
   getStoragePaths,
   getTags,
@@ -23,6 +24,7 @@ export default async function SavedViewsPage() {
     storagePaths,
     tags,
     users,
+    groups,
     customFields,
   ] = await Promise.all([
     getSavedViews<TableProps["initialViews"][number]>(),
@@ -31,6 +33,7 @@ export default async function SavedViewsPage() {
     getStoragePaths<TableProps["storagePaths"][number]>(),
     getTags<TableProps["tags"][number]>(),
     getUsers<TableProps["users"][number]>(),
+    getGroups<NonNullable<TableProps["groups"]>[number]>(),
     getCustomFields<TableProps["customFields"][number]>(),
   ])
 
@@ -44,6 +47,7 @@ export default async function SavedViewsPage() {
           storagePaths={storagePaths}
           tags={tags}
           users={users}
+          groups={groups}
           customFields={customFields}
         />
       </div>

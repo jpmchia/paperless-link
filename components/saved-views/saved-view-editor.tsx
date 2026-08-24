@@ -49,6 +49,7 @@ import {
   type SavedViewRule,
   type SavedViewRuleEditorLookups,
 } from "./filter-rule-editor"
+import { PermissionAssignmentEditor } from "@/components/permissions/permission-assignment-editor"
 
 const PAGE_SIZES = [10, 25, 50, 100, 250]
 
@@ -63,6 +64,12 @@ export type SavedViewEditorValue = {
   page_size: number | null
   display_mode: DocumentDisplayMode | null
   display_fields: string[]
+  owner: number | null
+  view_users: number[]
+  view_groups: number[]
+  change_users: number[]
+  change_groups: number[]
+  user_can_change?: boolean
 }
 
 const SORT_FIELDS = [
@@ -100,6 +107,8 @@ export function SavedViewEditor({
   saving,
   isNew,
   lookups,
+  users = [],
+  groups = [],
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -110,6 +119,8 @@ export function SavedViewEditor({
   saving?: boolean
   isNew: boolean
   lookups: SavedViewRuleEditorLookups
+  users?: Array<{ id: number; username?: string }>
+  groups?: Array<{ id: number; name: string }>
 }) {
   const displayFieldOptions = React.useMemo(
     () => [
@@ -269,6 +280,36 @@ export function SavedViewEditor({
                   />
                 </div>
               </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <Label>Sharing</Label>
+                <p className="text-xs text-muted-foreground">
+                  Assign an owner and who can view or edit this saved view.
+                </p>
+              </div>
+              <PermissionAssignmentEditor
+                value={{
+                  owner: current.owner,
+                  view_users: current.view_users,
+                  view_groups: current.view_groups,
+                  change_users: current.change_users,
+                  change_groups: current.change_groups,
+                }}
+                onChange={(next) =>
+                  update({
+                    owner: next.owner,
+                    view_users: next.view_users,
+                    view_groups: next.view_groups,
+                    change_users: next.change_users,
+                    change_groups: next.change_groups,
+                  })
+                }
+                users={users}
+                groups={groups}
+                disabled={!isNew && current.user_can_change === false}
+              />
             </div>
 
             <div className="space-y-3">

@@ -48,6 +48,12 @@ import type {
   SavedViewRuleEditorLookups,
 } from "@/components/saved-views/filter-rule-editor"
 import type { DocumentDisplayMode } from "@/app/documents/display-mode"
+import {
+  emptyPermissionAssignment,
+  fromPermissionedObject,
+  summarizePermissionAssignment,
+  toSetPermissions,
+} from "@/lib/permission-assignments"
 
 type SavedView = {
   id: number
@@ -68,6 +74,7 @@ type SavedView = {
 type LookupOption = { id: number; name: string }
 type UserOption = { id: number; username?: string; first_name?: string; last_name?: string }
 type CustomFieldOption = { id: number; name: string }
+type GroupOption = { id: number; name: string }
 
 const SORT_FIELD_LABELS: Record<string, string> = {
   created: "Created",
@@ -88,9 +95,12 @@ const emptyView = (): SavedViewEditorValue => ({
   page_size: null,
   display_mode: null,
   display_fields: [],
+  ...emptyPermissionAssignment(null),
+  user_can_change: true,
 })
 
 function toEditorValue(view: SavedView): SavedViewEditorValue {
+  const permissions = fromPermissionedObject(view)
   return {
     id: view.id,
     name: view.name,
@@ -102,6 +112,18 @@ function toEditorValue(view: SavedView): SavedViewEditorValue {
     page_size: view.page_size ?? null,
     display_mode: view.display_mode ?? null,
     display_fields: view.display_fields ?? [],
+    ...permissions,
+    user_can_change: view.user_can_change,
+  }
+}
+
+function permissionPayload(value: SavedViewEditorValue) {
+  if (value.user_can_change === false) {
+    return {}
+  }
+  return {
+    owner: value.owner,
+    set_permissions: toSetPermissions(value),
   }
 }
 
@@ -112,6 +134,7 @@ export function SavedViewsTable({
   storagePaths,
   tags,
   users,
+  groups = [],
   customFields,
 }: {
   initialViews: SavedView[]
@@ -120,6 +143,7 @@ export function SavedViewsTable({
   storagePaths: LookupOption[]
   tags: LookupOption[]
   users: UserOption[]
+  groups?: GroupOption[]
   customFields: CustomFieldOption[]
 }) {
   const [views, setViews] = React.useState<SavedView[]>(initialViews)
@@ -161,13 +185,29 @@ export function SavedViewsTable({
           display_fields: editing.display_fields,
           show_on_dashboard: editing.show_on_dashboard ?? false,
           show_in_sidebar: editing.show_in_sidebar ?? false,
+          ...permissionPayload(editing),
         })
 
         setViews((prev) => [
           ...prev,
-          { ...created, ...editing, id: created.id } as SavedView,
+          {
+            ...created,
+            ...editing,
+            id: created.id,
+            owner: editing.owner,
+            permissions: {
+              view: {
+                users: editing.view_users,
+                groups: editing.view_groups,
+              },
+              change: {
+                users: editing.change_users,
+                groups: editing.change_groups,
+              },
+            },
+          } as SavedView,
         ])
-        toast.success(`View "${created.name}" created`)
+        toast.success(`View "${editing.name}" created`)
         return
       }
 
@@ -181,10 +221,27 @@ export function SavedViewsTable({
         display_mode: editing.display_mode,
         display_fields: editing.display_fields,
         filter_rules: editing.filter_rules,
+        ...permissionPayload(editing),
       })
       setViews((prev) =>
         prev.map((view) =>
-          view.id === editing.id ? ({ ...view, ...editing } as SavedView) : view
+          view.id === editing.id
+            ? ({
+                ...view,
+                ...editing,
+                owner: editing.owner,
+                permissions: {
+                  view: {
+                    users: editing.view_users,
+                    groups: editing.view_groups,
+                  },
+                  change: {
+                    users: editing.change_users,
+                    groups: editing.change_groups,
+                  },
+                },
+              } as SavedView)
+            : view
         )
       )
       toast.success(`View "${editing.name}" updated`)
@@ -221,6 +278,10 @@ export function SavedViewsTable({
       display_fields: source.display_fields,
       show_on_dashboard: false,
       show_in_sidebar: false,
+      ...permissionPayload({
+        ...emptyView(),
+        name: `${source.name} Copy`,
+      }),
     })
 
     const duplicatedView = duplicated as SavedView
@@ -305,6 +366,7 @@ export function SavedViewsTable({
               <TableHead>Name</TableHead>
               <TableHead className="text-center">Dashboard</TableHead>
               <TableHead className="text-center">Sidebar</TableHead>
+              <TableHead>Sharing</TableHead>
               <TableHead>Filters</TableHead>
               <TableHead>Sort</TableHead>
               <TableHead className="w-24 text-right">Actions</TableHead>
@@ -313,7 +375,7 @@ export function SavedViewsTable({
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
+                <TableCell colSpan={7} className="text-center text-muted-foreground h-24">
                   {search ? "No views match your search." : "No saved views yet."}
                 </TableCell>
               </TableRow>
@@ -346,6 +408,12 @@ export function SavedViewsTable({
                         className="mx-auto"
                       />
                     </HasObjectPermission>
+                  </TableCell>
+                  <TableCell className="max-w-[220px] truncate text-xs text-muted-foreground">
+                    {summarizePermissionAssignment(
+                      fromPermissionedObject(view),
+                      { users, groups }
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="font-mono text-xs">
@@ -416,6 +484,8 @@ export function SavedViewsTable({
         saving={saving}
         isNew={isNew}
         lookups={lookups}
+        users={users}
+        groups={groups}
       />
 
       {/* Delete Confirmation */}

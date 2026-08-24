@@ -1,22 +1,24 @@
 "use server"
 
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/auth"
 import { revalidatePath } from "next/cache"
-import type { DocumentDisplayMode } from "./display-mode"
+import { updateUiSettings } from "@/app/actions/ui-settings"
+import type { DocumentDisplayMode } from "@/app/documents/display-mode"
 import type { SavedViewRule } from "@/components/saved-views/filter-rule-editor"
-
-const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
-type AccessTokenSession = { accessToken?: string } | null
+import { getPaperlessApi } from "@/lib/api"
+import {
+  getPaperlessApiVersion,
+  getPaperlessBaseUrl,
+  paperlessJsonAccept,
+  resolvePaperlessAccessToken,
+} from "@/lib/paperless-transport"
+import {
+  patchSavedViewVisibilitySettings,
+  stripLegacyVisibilityFields,
+} from "@/lib/saved-view-visibility"
+import type { UiSettingsRecord } from "@/lib/ui-settings"
 
 async function getToken() {
-  const configuredToken = process.env.PAPERLESS_API_TOKEN?.trim()
-  if (configuredToken) {
-    return configuredToken
-  }
-
-  const session = (await getServerSession(authOptions as never)) as AccessTokenSession
-  const token = session?.accessToken?.trim()
+  const token = await resolvePaperlessAccessToken()
   if (!token) throw new Error("Unauthorized")
   return token
 }
@@ -31,26 +33,58 @@ type SavedViewMutation = {
   page_size?: number | null
   show_on_dashboard?: boolean
   show_in_sidebar?: boolean
+  owner?: number | null
+  set_permissions?: {
+    view: { users: number[]; groups: number[] }
+    change: { users: number[]; groups: number[] }
+  }
+}
+
+async function syncVisibility(
+  viewId: number,
+  data: { show_on_dashboard?: boolean; show_in_sidebar?: boolean }
+) {
+  if (
+    getPaperlessApiVersion() < 10 ||
+    (data.show_on_dashboard === undefined && data.show_in_sidebar === undefined)
+  ) {
+    return
+  }
+  const current = (await getPaperlessApi("ui_settings/")) as UiSettingsRecord
+  const merged = patchSavedViewVisibilitySettings(
+    (current?.settings as Record<string, unknown> | undefined) ?? {},
+    viewId,
+    data
+  )
+  await updateUiSettings(merged)
 }
 
 export async function patchSavedView(id: number, data: SavedViewMutation) {
   const token = await getToken()
-  const res = await fetch(`${baseUrl}api/saved_views/${id}/`, {
+  const apiVersion = getPaperlessApiVersion()
+  const body =
+    apiVersion >= 10
+      ? stripLegacyVisibilityFields({ ...data })
+      : data
+
+  const res = await fetch(`${getPaperlessBaseUrl()}api/saved_views/${id}/`, {
     method: "PATCH",
     headers: {
       Authorization: `Token ${token}`,
       "Content-Type": "application/json",
-      Accept: "application/json; version=2",
+      Accept: paperlessJsonAccept(),
     },
-    body: JSON.stringify(data),
+    body: JSON.stringify(body),
   })
   if (!res.ok) {
     const err = await res.text()
     throw new Error(`Failed to save view: ${err}`)
   }
+  await syncVisibility(id, data)
   revalidatePath("/documents")
   revalidatePath(`/view/${id}`)
   revalidatePath("/savedviews")
+  revalidatePath("/dashboard")
   return res.json()
 }
 
@@ -64,33 +98,47 @@ export async function createSavedView(data: {
   page_size?: number
   show_on_dashboard?: boolean
   show_in_sidebar?: boolean
+  owner?: number | null
+  set_permissions?: {
+    view: { users: number[]; groups: number[] }
+    change: { users: number[]; groups: number[] }
+  }
 }) {
   const token = await getToken()
-  const res = await fetch(`${baseUrl}api/saved_views/`, {
+  const apiVersion = getPaperlessApiVersion()
+  const body =
+    apiVersion >= 10
+      ? stripLegacyVisibilityFields({ ...data })
+      : data
+
+  const res = await fetch(`${getPaperlessBaseUrl()}api/saved_views/`, {
     method: "POST",
     headers: {
       Authorization: `Token ${token}`,
       "Content-Type": "application/json",
-      Accept: "application/json; version=2",
+      Accept: paperlessJsonAccept(),
     },
-    body: JSON.stringify(data),
+    body: JSON.stringify(body),
   })
   if (!res.ok) {
     const err = await res.text()
     throw new Error(`Failed to create view: ${err}`)
   }
+  const created = (await res.json()) as { id: number }
+  await syncVisibility(created.id, data)
   revalidatePath("/documents")
   revalidatePath("/savedviews")
-  return res.json()
+  revalidatePath("/dashboard")
+  return created
 }
 
 export async function deleteSavedView(id: number) {
   const token = await getToken()
-  const res = await fetch(`${baseUrl}api/saved_views/${id}/`, {
+  const res = await fetch(`${getPaperlessBaseUrl()}api/saved_views/${id}/`, {
     method: "DELETE",
     headers: {
       Authorization: `Token ${token}`,
-      Accept: "application/json; version=2",
+      Accept: paperlessJsonAccept(),
     },
   })
   if (!res.ok) {

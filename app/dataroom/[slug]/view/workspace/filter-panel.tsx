@@ -310,6 +310,12 @@ export function FilterPanel({
         display_mode: currentSavedViewState.displayMode,
         display_fields: currentSavedViewState.displayFields,
         page_size: currentSavedViewState.pageSize,
+        owner: null,
+        view_users: [],
+        view_groups: [],
+        change_users: [],
+        change_groups: [],
+        user_can_change: true,
       } satisfies SavedViewEditorValue
     },
     [currentSavedViewState, filters.ordering]
@@ -594,6 +600,17 @@ export function FilterPanel({
           page_size: editorValue.page_size ?? undefined,
           show_on_dashboard: editorValue.show_on_dashboard,
           show_in_sidebar: editorValue.show_in_sidebar,
+          owner: editorValue.owner,
+          set_permissions: {
+            view: {
+              users: editorValue.view_users,
+              groups: editorValue.view_groups,
+            },
+            change: {
+              users: editorValue.change_users,
+              groups: editorValue.change_groups,
+            },
+          },
         })
         if (onCreateViewExtras) {
           runExtrasWithoutBlocking(onCreateViewExtras(created.id), "Layout")
@@ -619,6 +636,21 @@ export function FilterPanel({
         page_size: editorValue.page_size ?? undefined,
         show_on_dashboard: editorValue.show_on_dashboard,
         show_in_sidebar: editorValue.show_in_sidebar,
+        ...(editorValue.user_can_change === false
+          ? {}
+          : {
+              owner: editorValue.owner,
+              set_permissions: {
+                view: {
+                  users: editorValue.view_users,
+                  groups: editorValue.view_groups,
+                },
+                change: {
+                  users: editorValue.change_users,
+                  groups: editorValue.change_groups,
+                },
+              },
+            }),
       })
       if (onSaveExtras) {
         runExtrasWithoutBlocking(onSaveExtras(), "Layout")
