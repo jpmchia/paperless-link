@@ -1,9 +1,14 @@
 import type { NextAuthOptions } from "next-auth"
+import { encode } from "next-auth/jwt"
 import CredentialsProvider from "next-auth/providers/credentials"
+
+import { serializeCookie } from "@/lib/server-cookie"
 
 type PaperlessUser = {
   id: string
   name: string
+  email?: string | null
+  image?: string | null
   token: string
 }
 
@@ -15,7 +20,75 @@ type SessionWithAccessToken = {
   accessToken?: string
 }
 
+const DEFAULT_SESSION_MAX_AGE = 30 * 24 * 60 * 60
+
+function getNextAuthSecret() {
+  const secret = process.env.NEXTAUTH_SECRET
+  if (!secret) {
+    throw new Error("NEXTAUTH_SECRET is required for Paperless Link auth.")
+  }
+  return secret
+}
+
+function shouldUseSecureAuthCookies() {
+  const nextAuthUrl = process.env.NEXTAUTH_URL
+
+  if (!nextAuthUrl) {
+    return false
+  }
+
+  try {
+    return new URL(nextAuthUrl).protocol === "https:"
+  } catch {
+    return false
+  }
+}
+
+function getSessionCookieName() {
+  return `${shouldUseSecureAuthCookies() ? "__Secure-" : ""}next-auth.session-token`
+}
+
+function getSessionCookieOptions() {
+  return {
+    httpOnly: true,
+    path: "/",
+    sameSite: "lax" as const,
+    secure: shouldUseSecureAuthCookies(),
+  }
+}
+
+export async function createLinkSessionCookie(user: PaperlessUser) {
+  const token = await encode({
+    maxAge: DEFAULT_SESSION_MAX_AGE,
+    secret: getNextAuthSecret(),
+    token: {
+      accessToken: user.token,
+      email: user.email ?? null,
+      name: user.name,
+      picture: user.image ?? null,
+      sub: user.id,
+    },
+  })
+
+  const expires = new Date(Date.now() + DEFAULT_SESSION_MAX_AGE * 1000)
+
+  return serializeCookie(getSessionCookieName(), token, {
+    ...getSessionCookieOptions(),
+    expires,
+  })
+}
+
+export function clearLinkSessionCookie() {
+  return serializeCookie(getSessionCookieName(), "", {
+    ...getSessionCookieOptions(),
+    maxAge: 0,
+  })
+}
+
 export const authOptions: NextAuthOptions = {
+  session: {
+    strategy: "jwt",
+  },
   providers: [
     CredentialsProvider({
       name: "Paperless-ngx",

@@ -10,11 +10,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  extractPaperlessSsoProviders,
+  fetchPaperlessSsoConfig,
+  getPaperlessPublicBaseUrl,
+  resolvePaperlessSsoState,
+  type PaperlessSsoProvider,
+  type PaperlessSsoPendingState,
+} from "@/lib/paperless-sso"
 
 type LoginPageProps = {
   callbackUrl: string
   errorMessage: string | null
   paperlessHost: string | null
+  paperlessSsoProviders: PaperlessSsoProvider[]
+  paperlessSsoState: PaperlessSsoPendingState
 }
 
 function normalizeCallbackUrl(value: string | string[] | undefined) {
@@ -38,6 +48,14 @@ function resolveErrorMessage(error: string | string[] | undefined) {
       return "Sign in to continue."
     case "AccessDenied":
       return "Access denied."
+    case "paperless-sso-provider-signup":
+      return "Complete your Paperless account setup to continue."
+    case "paperless-sso-verify-email":
+      return "Verify your email in Paperless, then continue signing in."
+    case "paperless-sso-mfa":
+      return "Complete your Paperless multi-factor authentication to continue."
+    case "paperless-sso-error":
+      return "Unable to complete Paperless SSO."
     default:
       return code ? "Unable to complete sign in." : null
   }
@@ -59,18 +77,31 @@ export const getServerSideProps: GetServerSideProps<LoginPageProps> = async (
   }
 
   let paperlessHost: string | null = null
+  let paperlessSsoProviders: PaperlessSsoProvider[] = []
   try {
-    const paperlessUrl = process.env.PAPERLESS_API_URL
-    paperlessHost = paperlessUrl ? new URL(paperlessUrl).host : null
+    paperlessHost = new URL(getPaperlessPublicBaseUrl()).host
   } catch {
     paperlessHost = null
   }
 
+  try {
+    const config = await fetchPaperlessSsoConfig()
+    paperlessSsoProviders = extractPaperlessSsoProviders(config)
+  } catch {
+    paperlessSsoProviders = []
+  }
+
+  const rawError = Array.isArray(context.query.error)
+    ? context.query.error[0]
+    : context.query.error ?? null
+
   return {
     props: {
       callbackUrl,
-      errorMessage: resolveErrorMessage(context.query.error),
+      errorMessage: resolveErrorMessage(rawError ?? undefined),
       paperlessHost,
+      paperlessSsoProviders,
+      paperlessSsoState: resolvePaperlessSsoState(rawError),
     },
   }
 }
@@ -79,6 +110,8 @@ export default function LoginPage({
   callbackUrl,
   errorMessage,
   paperlessHost,
+  paperlessSsoProviders,
+  paperlessSsoState,
 }: InferGetServerSidePropsType<typeof getServerSideProps>) {
   return (
     <>
@@ -120,7 +153,7 @@ export default function LoginPage({
                   Auth
                 </div>
                 <div className="mt-2 text-sm font-medium text-foreground">
-                  Credentials via Paperless-ngx
+                  Paperless SSO + credentials
                 </div>
               </div>
             </div>
@@ -137,7 +170,12 @@ export default function LoginPage({
                 </CardDescription>
               </CardHeader>
 
-              <LoginForm callbackUrl={callbackUrl} errorMessage={errorMessage} />
+              <LoginForm
+                callbackUrl={callbackUrl}
+                errorMessage={errorMessage}
+                paperlessSsoProviders={paperlessSsoProviders}
+                paperlessSsoState={paperlessSsoState}
+              />
             </Card>
           </section>
         </div>
