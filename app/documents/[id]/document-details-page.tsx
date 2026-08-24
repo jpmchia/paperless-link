@@ -24,7 +24,12 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable"
 import { Badge } from "@/components/ui/badge"
-import { SETTINGS_KEYS } from "@/data/ui-settings"
+import {
+  remoteOcrIsSelectable,
+  readRemoteOcrSettings,
+  SETTINGS_KEYS,
+} from "@/data/ui-settings"
+import { DocumentChat } from "@/components/documents/document-chat"
 import { Document } from "../columns"
 import { TopBar } from "./topbar"
 import { PdfViewer } from "./pdf-viewer"
@@ -114,13 +119,18 @@ export async function DocumentDetailsPageContent({
   const duplicates = (Array.isArray(doc.duplicate_documents) ? doc.duplicate_documents : []) as React.ComponentProps<
     typeof DocumentTabs
   >["duplicates"]
+  const aiEnabled = Boolean(uiSettingsRecord.settings?.[SETTINGS_KEYS.AI_ENABLED])
   const emailEnabled = Boolean(uiSettingsRecord.settings?.[SETTINGS_KEYS.EMAIL_ENABLED])
+  const remoteOcrSelectable = remoteOcrIsSelectable(
+    readRemoteOcrSettings(uiSettingsRecord.settings)
+  )
   const hasArchiveVersion = Boolean(
     metadataRecord?.has_archive_version ?? doc.archived_file_name
   )
   const canEditPdf =
     doc.mime_type === "application/pdf" ||
     metadataRecord?.original_mime_type === "application/pdf"
+  const canViewDocument = canAccessObject(permissions, "view", document, "document")
   const canChangeDocument = canAccessObject(permissions, "change", document, "document")
   const canManageShareLinks =
     currentUserCan(permissions, "create", "shareLink") ||
@@ -151,6 +161,7 @@ export async function DocumentDetailsPageContent({
           emailEnabled={emailEnabled}
           hasArchiveVersion={hasArchiveVersion}
           canEditPdf={canEditPdf}
+          remoteOcrSelectable={remoteOcrSelectable}
           totalPages={metadataRecord?.pages ?? 1}
           versions={versions}
           correspondents={correspondents}
@@ -175,6 +186,14 @@ export async function DocumentDetailsPageContent({
       />
       <RealtimeDocumentDetailSync documentId={document.id} title={document.title} />
       <div className="flex h-full w-full flex-col">
+        {aiEnabled && canViewDocument ? (
+          <div className="mb-4">
+            <DocumentChat
+              documentId={document.id}
+              documentTitle={document.title}
+            />
+          </div>
+        ) : null}
         <ResizablePanelGroup
           // @ts-expect-error ResizablePrimitive type conflict in react-resizable-panels v4
           direction="horizontal"
