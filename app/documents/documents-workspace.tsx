@@ -12,6 +12,7 @@ import { FilterPanel } from "./filter-panel"
 import { DataTable, DataTableHeaderBar } from "./data-table"
 import { ColumnsPicker } from "./columns-picker"
 import { CardGrid } from "./card-grid"
+import { BulkActionBar } from "./bulk-action-bar"
 import { DisplayModePicker } from "./display-mode-picker"
 import { DocumentPreviewDialog } from "./document-preview-dialog"
 import {
@@ -20,6 +21,12 @@ import {
   resolveDocumentDisplayMode,
 } from "./display-mode"
 import { toErrorMessage } from "@/lib/errors"
+import {
+  createAllFilteredDocumentSelection,
+  createExplicitDocumentSelection,
+  getDocumentSelectionCount,
+} from "@/lib/document-selection"
+import { serializeDocumentFilters } from "@/lib/api"
 
 type LookupItem = { id: number; name: string }
 type UserOption = { id: number; username?: string; first_name?: string; last_name?: string }
@@ -97,6 +104,8 @@ interface DocumentsWorkspaceProps {
   currentUserId?: number | null
   initialDisplayMode?: string | null
   initialTableLayouts?: DocumentTableLayoutSettings | null
+  remoteOcrSelectable?: boolean
+  paperlessBaseUrl?: string
 }
 
 export function DocumentsWorkspace({
@@ -119,6 +128,8 @@ export function DocumentsWorkspace({
   currentUserId,
   initialDisplayMode,
   initialTableLayouts,
+  remoteOcrSelectable = false,
+  paperlessBaseUrl = "/",
 }: DocumentsWorkspaceProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -184,6 +195,15 @@ export function DocumentsWorkspace({
     id: number
     title?: string
   } | null>(null)
+  const [selection, setSelection] = React.useState(() => createExplicitDocumentSelection())
+  const filterSnapshotKey = React.useMemo(
+    () => JSON.stringify(serializeDocumentFilters(currentFilters)),
+    [currentFilters]
+  )
+  const selectedCount = React.useMemo(
+    () => getDocumentSelectionCount(selection, totalCount),
+    [selection, totalCount]
+  )
 
   React.useEffect(() => {
     if (activeViewDisplayFields?.length) {
@@ -207,6 +227,10 @@ export function DocumentsWorkspace({
   React.useEffect(() => {
     setDisplayMode(resolveDocumentDisplayMode(activeView?.display_mode, initialDisplayMode))
   }, [activeView?.id, activeView?.display_mode, initialDisplayMode])
+
+  React.useEffect(() => {
+    setSelection(createExplicitDocumentSelection())
+  }, [activeView?.id, filterSnapshotKey])
 
   React.useEffect(() => {
     if (activeView?.id) return
@@ -470,19 +494,49 @@ export function DocumentsWorkspace({
         currentDisplayFields={displayFields}
         currentPageSize={currentPageSize}
       />
+      {selectedCount > 0 ? (
+        <BulkActionBar
+          selection={selection}
+          selectedCount={selectedCount}
+          totalResultsCount={totalCount}
+          remoteOcrSelectable={remoteOcrSelectable}
+          onClearSelection={() => setSelection(createExplicitDocumentSelection())}
+          onComplete={() => {
+            setSelection(createExplicitDocumentSelection())
+            router.refresh()
+          }}
+          onSelectAllFiltered={() => {
+            setSelection(createAllFilteredDocumentSelection(currentFilters))
+          }}
+          tags={Object.values(lookup.tags ?? {}).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color }))}
+          correspondents={Object.values(lookup.correspondents ?? {}).map((correspondent) => ({ id: correspondent.id, name: correspondent.name }))}
+          documentTypes={Object.values(lookup.documentTypes ?? {}).map((documentType) => ({ id: documentType.id, name: documentType.name }))}
+          storagePaths={Object.values(lookup.storagePaths ?? {}).map((storagePath) => ({ id: storagePath.id, name: storagePath.name }))}
+          customFields={Object.values(lookup.customFields ?? {}).map((customField) => ({ id: customField.id, name: customField.name, data_type: customField.data_type }))}
+          usersList={users
+            .filter((user): user is { id: number; username: string } => typeof user.username === "string")
+            .map((user) => ({ id: user.id, username: user.username }))}
+          groupsList={groupsList}
+          documentTitles={data.map((doc) => ({
+            id: doc.id,
+            title: doc.title || `Document ${doc.id}`,
+          }))}
+          paperlessBaseUrl={paperlessBaseUrl}
+        />
+      ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {displayMode === "table" ? (
           <DataTable
             lookup={lookup}
             data={data}
             pageCount={pageCount}
+            totalCount={totalCount}
             displayFields={displayFields}
             columnSizing={columnSizing}
-            currentFilters={currentFilters}
-            usersList={users}
-            groupsList={groupsList}
             onColumnSizingChange={setColumnSizing}
             onPreviewDocument={setPreviewDocument}
+            selection={selection}
+            onSelectionChange={setSelection}
           />
         ) : (
           <CardGrid
@@ -492,6 +546,9 @@ export function DocumentsWorkspace({
             displayFields={displayFields}
             cardSize={cardSize}
             onPreviewDocument={setPreviewDocument}
+            enableSelection
+            selection={selection}
+            onSelectionChange={setSelection}
           />
         )}
       </div>

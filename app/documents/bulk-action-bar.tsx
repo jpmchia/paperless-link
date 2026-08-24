@@ -36,16 +36,27 @@ import {
 } from "@/components/ui/select"
 import {
   Trash2, Download, Tags, User, FileType, FolderOpen, X, RotateCcw, Check,
-  ShieldCheck, FormInput, Merge, RotateCw,
+  ShieldCheck, FormInput, Merge, RotateCw, Share2, Layers,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { tagPillStyle } from "@/lib/tag-colors"
+import {
+  getDocumentSelectionExcludedIds,
+  serializeDocumentSelection,
+  type DocumentSelection,
+} from "@/lib/document-selection"
+import { ShareLinkBundleCreateDialog } from "@/components/share-links/share-link-bundles-panel"
+import { MergeAsVersionsDialog } from "@/components/documents/merge-as-versions-dialog"
 
 interface BulkActionBarProps {
-  selectedIds: number[]
+  selection: DocumentSelection
+  selectedCount: number
+  totalResultsCount: number
   onClearSelection: () => void
   onComplete: () => void
+  onSelectAllFiltered?: () => void
+  remoteOcrSelectable?: boolean
   tags: { id: number; name: string; color: string | number }[]
   correspondents: { id: number; name: string }[]
   documentTypes: { id: number; name: string }[]
@@ -53,16 +64,27 @@ interface BulkActionBarProps {
   customFields?: { id: number; name: string; data_type: string }[]
   usersList?: { id: number; username: string }[]
   groupsList?: { id: number; name: string }[]
+  documentTitles?: Array<{ id: number; title?: string | null }>
+  paperlessBaseUrl?: string
 }
 
 type BulkEditParameters = Record<string, unknown>
 type SelectableActor = { id: number; username?: string; name?: string }
 
-async function bulkEdit(documentIds: number[], method: string, parameters: BulkEditParameters) {
+async function bulkEdit(
+  selection: DocumentSelection,
+  method: string,
+  parameters: BulkEditParameters
+) {
   const res = await fetch("/api/bulk-edit", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ documents: documentIds, method, parameters }),
+    body: JSON.stringify({
+      ...serializeDocumentSelection(selection),
+      excluded_document_ids: getDocumentSelectionExcludedIds(selection),
+      method,
+      parameters,
+    }),
   })
   if (!res.ok) {
     const err = await res.text().catch(() => res.statusText)
@@ -156,9 +178,13 @@ function MultiSelectCombobox({
 }
 
 export function BulkActionBar({
-  selectedIds,
+  selection,
+  selectedCount,
+  totalResultsCount,
   onClearSelection,
   onComplete,
+  onSelectAllFiltered,
+  remoteOcrSelectable = false,
   tags,
   correspondents,
   documentTypes,
@@ -166,9 +192,13 @@ export function BulkActionBar({
   customFields = [],
   usersList = [],
   groupsList = [],
+  documentTitles = [],
+  paperlessBaseUrl = "/",
 }: BulkActionBarProps) {
   const [showDelete, setShowDelete] = React.useState(false)
   const [showMerge, setShowMerge] = React.useState(false)
+  const [showMergeAsVersions, setShowMergeAsVersions] = React.useState(false)
+  const [showBundle, setShowBundle] = React.useState(false)
   const [showPermissions, setShowPermissions] = React.useState(false)
   const [showCustomFields, setShowCustomFields] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
@@ -192,13 +222,23 @@ export function BulkActionBar({
   // Merge dialog state
   const [mergeDeleteOriginals, setMergeDeleteOriginals] = React.useState(false)
 
-  const count = selectedIds.length
+  const explicitDocumentIds =
+    selection.type === "explicit"
+      ? selection.documentIds
+      : []
+  const excludedCount =
+    selection.type === "all-filtered"
+      ? selection.excludedDocumentIds.length
+      : 0
+  const count = selectedCount
+  const supportsExplicitOnlyActions = selection.type === "explicit"
+
   if (count === 0) return null
 
   const run = async (method: string, parameters: BulkEditParameters, message: string) => {
     setBusy(true)
     try {
-      await bulkEdit(selectedIds, method, parameters)
+      await bulkEdit(selection, method, parameters)
       toast.success(message)
       onComplete()
     } catch (error) {
@@ -231,7 +271,7 @@ export function BulkActionBar({
   const handleDelete = async () => {
     setBusy(true)
     try {
-      await bulkEdit(selectedIds, "delete", {})
+      await bulkEdit(selection, "delete", {})
       toast.success(`${count} document(s) moved to trash`)
       onComplete()
     } catch (error) {
@@ -245,9 +285,10 @@ export function BulkActionBar({
   }
 
   const handleDownload = async () => {
+    if (!supportsExplicitOnlyActions) return
     setBusy(true)
     try {
-      await bulkDownload(selectedIds)
+      await bulkDownload(explicitDocumentIds)
       toast.success("Download started")
     } catch (error) {
       toast.error("Download failed", {
@@ -258,14 +299,20 @@ export function BulkActionBar({
     }
   }
 
-  const handleRedoOcr = async () => {
-    await run("redo_ocr", {}, `OCR reprocessing started on ${count} documents`)
+  const handleRedoOcr = async (remoteOcr = false) => {
+    await run(
+      "redo_ocr",
+      { remote_ocr: remoteOcr },
+      remoteOcr
+        ? `Remote OCR reprocessing started on ${count} documents`
+        : `OCR reprocessing started on ${count} documents`
+    )
   }
 
   const handleRotate = async (degrees: number) => {
     setBusy(true)
     try {
-      await proxyPost("documents/rotate/", { documents: selectedIds, degrees })
+      await bulkEdit(selection, "rotate", { degrees })
       toast.success(`Rotated ${count} document(s) by ${degrees}°`)
       onComplete()
     } catch (error) {
@@ -278,10 +325,11 @@ export function BulkActionBar({
   }
 
   const handleMerge = async () => {
+    if (!supportsExplicitOnlyActions) return
     setBusy(true)
     try {
       await proxyPost("documents/merge/", {
-        documents: selectedIds,
+        documents: explicitDocumentIds,
         delete_originals: mergeDeleteOriginals,
       })
       toast.success(`Merging ${count} documents…`)
@@ -299,7 +347,7 @@ export function BulkActionBar({
   const handleSavePermissions = async () => {
     setBusy(true)
     try {
-      await bulkEdit(selectedIds, "set_permissions", {
+      await bulkEdit(selection, "set_permissions", {
         owner: permOwner,
         set_permissions: {
           view: { users: permViewUsers, groups: permViewGroups },
@@ -323,7 +371,7 @@ export function BulkActionBar({
     if (!cfFieldId) return
     setBusy(true)
     try {
-      await bulkEdit(selectedIds, "modify_custom_fields", {
+      await bulkEdit(selection, "modify_custom_fields", {
         custom_fields: [{ field: Number(cfFieldId), value: cfValue || null }],
       })
       toast.success(`Custom field updated on ${count} documents`)
@@ -348,6 +396,21 @@ export function BulkActionBar({
         <Badge variant="secondary" className="font-mono text-xs">
           {count} selected
         </Badge>
+        {selection.type === "all-filtered" && excludedCount > 0 ? (
+          <span className="text-xs text-muted-foreground">
+            {excludedCount} excluded
+          </span>
+        ) : null}
+        {onSelectAllFiltered && selection.type === "explicit" && totalResultsCount > count ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={onSelectAllFiltered}
+          >
+            Select all {totalResultsCount.toLocaleString()} documents
+          </Button>
+        ) : null}
 
         {/* Set Tags */}
         <CanChange type="document">
@@ -496,22 +559,43 @@ export function BulkActionBar({
             </CanChange>
 
             <CanChange type="document">
-              {count >= 2 && (
+              {supportsExplicitOnlyActions && count >= 2 && (
                 <DropdownMenuItem onClick={() => setShowMerge(true)} disabled={busy}>
-                  <Merge className="mr-2 h-3.5 w-3.5" />Merge…
+                  <Merge className="mr-2 h-3.5 w-3.5" />Merge PDFs…
+                </DropdownMenuItem>
+              )}
+              {supportsExplicitOnlyActions && count >= 2 && (
+                <DropdownMenuItem
+                  onClick={() => setShowMergeAsVersions(true)}
+                  disabled={busy}
+                >
+                  <Layers className="mr-2 h-3.5 w-3.5" />Merge as versions…
                 </DropdownMenuItem>
               )}
             </CanChange>
+            {supportsExplicitOnlyActions && (
+              <DropdownMenuItem onClick={() => setShowBundle(true)} disabled={busy}>
+                <Share2 className="mr-2 h-3.5 w-3.5" />Create share bundle…
+              </DropdownMenuItem>
+            )}
 
             <DropdownMenuSeparator />
 
-            <DropdownMenuItem onClick={handleDownload} disabled={busy}>
+            <DropdownMenuItem onClick={handleDownload} disabled={busy || !supportsExplicitOnlyActions}>
               <Download className="mr-2 h-3.5 w-3.5" />Download
             </DropdownMenuItem>
             <CanChange type="document">
-              <DropdownMenuItem onClick={handleRedoOcr} disabled={busy}>
+              <DropdownMenuItem onClick={() => void handleRedoOcr()} disabled={busy}>
                 <RotateCcw className="mr-2 h-3.5 w-3.5" />Redo OCR
               </DropdownMenuItem>
+              {remoteOcrSelectable ? (
+                <DropdownMenuItem
+                  onClick={() => void handleRedoOcr(true)}
+                  disabled={busy}
+                >
+                  <RotateCcw className="mr-2 h-3.5 w-3.5" />Redo OCR with Remote OCR
+                </DropdownMenuItem>
+              ) : null}
             </CanChange>
             <DropdownMenuSeparator />
             <CanDelete type="document">
@@ -574,6 +658,28 @@ export function BulkActionBar({
           </AlertDialogContent>
         </AlertDialog>
       </CanChange>
+
+      <CanChange type="document">
+        <MergeAsVersionsDialog
+          open={showMergeAsVersions}
+          onOpenChange={setShowMergeAsVersions}
+          documents={
+            documentTitles.length > 0
+              ? documentTitles.filter((doc) =>
+                  explicitDocumentIds.includes(doc.id)
+                )
+              : explicitDocumentIds.map((id) => ({ id, title: `Document ${id}` }))
+          }
+          onComplete={onComplete}
+        />
+      </CanChange>
+
+      <ShareLinkBundleCreateDialog
+        open={showBundle}
+        onOpenChange={setShowBundle}
+        documentIds={explicitDocumentIds}
+        paperlessBaseUrl={paperlessBaseUrl}
+      />
 
       {/* Permissions dialog */}
       <CanChange type="document">

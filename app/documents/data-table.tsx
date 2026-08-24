@@ -8,7 +8,6 @@ import {
   SortingState,
   ColumnResizeMode,
   ColumnSizingState,
-  RowSelectionState,
   useReactTable,
   ColumnDef,
 } from "@tanstack/react-table"
@@ -16,7 +15,6 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useSetAtom } from "jotai"
 import { useOpenDocumentNavigation } from "@/hooks/use-open-document-navigation"
 import { documentListState } from "@/lib/store"
-import type { FilterParams } from "@/lib/api"
 import {
   makeColumns,
   LookupMaps,
@@ -47,24 +45,28 @@ import {
 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import Link from "next/link"
-import { BulkActionBar } from "./bulk-action-bar"
 import { Slider } from "@/components/ui/slider"
 import type { DocumentDisplayMode } from "./display-mode"
+import {
+  areAllPageDocumentsSelected,
+  areSomePageDocumentsSelected,
+  createExplicitDocumentSelection,
+  isDocumentSelected,
+  type DocumentSelection,
+} from "@/lib/document-selection"
 
 interface DataTableProps {
   lookup: LookupMaps
   data: Document[]
   pageCount: number
+  totalCount: number
   displayFields?: string[]
   columnSizing?: ColumnSizingState
-  currentFilters?: FilterParams
-  onFilterChange?: (params: FilterParams) => void
-  usersList?: Array<{ id: number; username?: string }>
-  groupsList?: Array<{ id: number; name?: string }>
   onDisplayFieldsChange?: React.Dispatch<React.SetStateAction<string[]>>
   onColumnSizingChange?: React.Dispatch<React.SetStateAction<ColumnSizingState>>
   onPreviewDocument?: (document: { id: number; title?: string }) => void
-  onSelectedIdsChange?: (ids: number[]) => void
+  selection: DocumentSelection
+  onSelectionChange: (selection: DocumentSelection) => void
 }
 
 const PAGE_SIZES = [10, 25, 50, 100]
@@ -191,20 +193,18 @@ export function DataTable({
   lookup,
   data,
   pageCount,
+  totalCount: _totalCount,
   displayFields: initialDisplayFields,
   columnSizing: controlledColumnSizing,
-  usersList = [],
-  groupsList = [],
   onDisplayFieldsChange,
   onColumnSizingChange,
   onPreviewDocument,
-  onSelectedIdsChange,
+  selection,
+  onSelectionChange,
 }: DataTableProps) {
-  const router = useRouter()
   const navigateToDocument = useOpenDocumentNavigation()
   const setDocList = useSetAtom(documentListState)
   const [sorting, setSorting] = React.useState<SortingState>([])
-  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
   const [columnResizeMode] = React.useState<ColumnResizeMode>("onChange")
   const [localColumnSizing, setLocalColumnSizing] = React.useState<ColumnSizingState>(
     controlledColumnSizing ?? {}
@@ -241,22 +241,69 @@ export function DataTable({
     setDocList(data.map((document) => document.id))
   }, [data, setDocList])
 
+  const pageDocumentIds = React.useMemo(
+    () => data.map((document) => document.id),
+    [data]
+  )
+  const allPageSelected = areAllPageDocumentsSelected(selection, pageDocumentIds)
+  const somePageSelected = areSomePageDocumentsSelected(selection, pageDocumentIds)
+
+  const handleToggleAllPageRows = React.useCallback((nextChecked: boolean) => {
+    if (selection.type === "all-filtered") {
+      const excludedDocumentIds = nextChecked
+        ? selection.excludedDocumentIds.filter((id) => !pageDocumentIds.includes(id))
+        : [...new Set([...selection.excludedDocumentIds, ...pageDocumentIds])]
+
+      onSelectionChange({
+        ...selection,
+        excludedDocumentIds,
+      })
+      return
+    }
+
+    const documentIds = nextChecked
+      ? [...new Set([...selection.documentIds, ...pageDocumentIds])]
+      : selection.documentIds.filter((id) => !pageDocumentIds.includes(id))
+
+    onSelectionChange(createExplicitDocumentSelection(documentIds))
+  }, [onSelectionChange, pageDocumentIds, selection])
+
+  const handleToggleRow = React.useCallback((documentId: number, nextChecked: boolean) => {
+    if (selection.type === "all-filtered") {
+      const excludedDocumentIds = nextChecked
+        ? selection.excludedDocumentIds.filter((id) => id !== documentId)
+        : [...selection.excludedDocumentIds, documentId]
+
+      onSelectionChange({
+        ...selection,
+        excludedDocumentIds: [...new Set(excludedDocumentIds)],
+      })
+      return
+    }
+
+    const documentIds = nextChecked
+      ? [...selection.documentIds, documentId]
+      : selection.documentIds.filter((id) => id !== documentId)
+
+    onSelectionChange(createExplicitDocumentSelection(documentIds))
+  }, [onSelectionChange, selection])
+
   const columns = React.useMemo(() => {
     const selectColumn: ColumnDef<Document>[] = [{
       id: "select",
-      header: ({ table }) => (
+      header: () => (
         <Checkbox
-          checked={table.getIsAllPageRowsSelected()}
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          checked={allPageSelected ? true : somePageSelected ? "indeterminate" : false}
+          onCheckedChange={(value) => handleToggleAllPageRows(!!value)}
           aria-label="Select all"
           className="translate-y-[2px]"
         />
       ),
       cell: ({ row }) => (
         <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Select row"
+          checked={isDocumentSelected(selection, row.original.id)}
+          onCheckedChange={(value) => handleToggleRow(row.original.id, !!value)}
+          aria-label={`Select ${row.original.title ?? "document"}`}
           className="translate-y-[2px]"
           onClick={(e) => e.stopPropagation()}
         />
@@ -292,7 +339,16 @@ export function DataTable({
       ),
     }
     return [...selectColumn, ...makeColumns(lookup, displayFields), previewColumn]
-  }, [displayFields, lookup, onPreviewDocument])
+  }, [
+    allPageSelected,
+    displayFields,
+    handleToggleAllPageRows,
+    handleToggleRow,
+    lookup,
+    onPreviewDocument,
+    selection,
+    somePageSelected,
+  ])
 
   const table = useReactTable({
     data,
@@ -300,14 +356,12 @@ export function DataTable({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     onSortingChange: setSorting,
-    onRowSelectionChange: setRowSelection,
     onColumnSizingChange: onColumnSizingChange ?? setLocalColumnSizing,
-    state: { sorting, rowSelection, columnSizing },
+    state: { sorting, columnSizing },
     manualPagination: true,
     pageCount,
     columnResizeMode,
     enableColumnResizing: true,
-    enableRowSelection: true,
     getRowId: (row) => String(row.id),
     defaultColumn: {
       minSize: 60,
@@ -316,38 +370,8 @@ export function DataTable({
     },
   })
 
-  const selectedIds = Object.keys(rowSelection).map(Number)
-
-  React.useEffect(() => {
-    onSelectedIdsChange?.(selectedIds)
-  }, [onSelectedIdsChange, selectedIds])
-
-  const handleBulkComplete = () => {
-    setRowSelection({})
-    router.refresh()
-  }
-
   return (
     <div className="flex flex-col gap-2 min-h-0 flex-1">
-      {/* Bulk Action Bar */}
-      {selectedIds.length > 0 && (
-        <BulkActionBar
-          selectedIds={selectedIds}
-          onClearSelection={() => setRowSelection({})}
-          onComplete={handleBulkComplete}
-          tags={Object.values(lookup.tags ?? {}).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color }))}
-          correspondents={Object.values(lookup.correspondents ?? {}).map((correspondent) => ({ id: correspondent.id, name: correspondent.name }))}
-          documentTypes={Object.values(lookup.documentTypes ?? {}).map((documentType) => ({ id: documentType.id, name: documentType.name }))}
-          storagePaths={Object.values(lookup.storagePaths ?? {}).map((storagePath) => ({ id: storagePath.id, name: storagePath.name }))}
-          customFields={Object.values(lookup.customFields ?? {}).map((customField) => ({ id: customField.id, name: customField.name, data_type: customField.data_type }))}
-          usersList={usersList
-            .filter((user): user is { id: number; username: string } => typeof user.username === "string")
-            .map((user) => ({ id: user.id, username: user.username }))}
-          groupsList={groupsList
-            .filter((group): group is { id: number; name: string } => typeof group.name === "string")
-            .map((group) => ({ id: group.id, name: group.name }))}
-        />
-      )}
       {/* Table */}
       <div className="relative flex-1 overflow-auto rounded-md border [&>[data-slot=table-container]]:overflow-visible">
         <Table

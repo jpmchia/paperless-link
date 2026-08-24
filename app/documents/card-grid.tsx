@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { OpenDocumentLink } from "@/components/open-document-link"
+import { Checkbox } from "@/components/ui/checkbox"
 import { tagPillStyle } from "@/lib/tag-colors"
 import {
   CUSTOM_FIELD_PREFIX,
@@ -35,6 +36,11 @@ import {
   Tag,
   User,
 } from "lucide-react"
+import {
+  createExplicitDocumentSelection,
+  isDocumentSelected,
+  type DocumentSelection,
+} from "@/lib/document-selection"
 
 type OverlayItem =
   | {
@@ -61,6 +67,9 @@ interface CardGridProps {
   displayFields?: string[]
   cardSize?: number
   onPreviewDocument?: (document: { id: number; title?: string }) => void
+  enableSelection?: boolean
+  selection: DocumentSelection
+  onSelectionChange: (selection: DocumentSelection) => void
 }
 
 function formatDocumentDate(value?: string | null) {
@@ -202,6 +211,9 @@ export function CardGrid({
   ],
   cardSize = 220,
   onPreviewDocument,
+  enableSelection = false,
+  selection,
+  onSelectionChange,
 }: CardGridProps) {
   if (data.length === 0) {
     return (
@@ -222,15 +234,51 @@ export function CardGrid({
     >
       {data.map((doc) => {
         const overlayFields = buildOverlayFields(doc, lookup, displayFields)
+        const selected = isDocumentSelected(selection, doc.id)
+
+        const toggleSelect = (nextChecked: boolean) => {
+          if (selection.type === "all-filtered") {
+            const excludedDocumentIds = nextChecked
+              ? selection.excludedDocumentIds.filter((id) => id !== doc.id)
+              : [...selection.excludedDocumentIds, doc.id]
+
+            onSelectionChange({
+              ...selection,
+              excludedDocumentIds: [...new Set(excludedDocumentIds)],
+            })
+            return
+          }
+
+          const documentIds = nextChecked
+            ? [...selection.documentIds, doc.id]
+            : selection.documentIds.filter((id) => id !== doc.id)
+
+          onSelectionChange(createExplicitDocumentSelection(documentIds))
+        }
 
         return (
           <div
             key={doc.id}
             className={
               "group relative overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm transition-all hover:border-primary/50 hover:shadow-md " +
-              (isLarge ? "min-h-[22rem]" : "min-h-[18rem]")
+              (isLarge ? "min-h-[22rem]" : "min-h-[18rem]") +
+              (selected ? " ring-2 ring-primary/60" : "")
             }
           >
+            {enableSelection ? (
+              <div
+                className="absolute left-2 top-2 z-30 rounded-md border border-white/20 bg-black/50 p-0.5 backdrop-blur-sm"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <Checkbox
+                  checked={selected}
+                  onCheckedChange={(value) => toggleSelect(!!value)}
+                  aria-label={`Select ${doc.title ?? "document"}`}
+                  className="border-white/80 data-[state=checked]:border-primary"
+                />
+              </div>
+            ) : null}
+
             {onPreviewDocument && (
               <button
                 type="button"
