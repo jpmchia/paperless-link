@@ -44,6 +44,7 @@ import {
   FileCode2,
   BrainCircuit,
   Building2,
+  Share2,
 } from "lucide-react"
 
 import {
@@ -140,6 +141,7 @@ const navSystem: NavItem[] = [
   { title: "Mail", url: "/mail", icon: Mail, permissionType: "mailAccount" },
   { title: "Users", url: "/users", icon: Users },
   { title: "Saved Views", url: "/savedviews", icon: LayoutList, permissionType: "savedView" },
+  { title: "Share Bundles", url: "/share-link-bundles", icon: Share2, permissionType: "shareLink" },
   { title: "Storage Paths", url: "/storage-paths", icon: FolderOpen, permissionType: "storagePath" },
   { title: "Workflows", url: "/workflows", icon: GitBranch, permissionType: "workflow" },
   { title: "Trash", url: "/trash", icon: Trash2 },

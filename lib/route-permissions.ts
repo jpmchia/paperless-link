@@ -32,6 +32,7 @@ export type RoutePermissionKey =
   | "/mail"
   | "/savedviews"
   | "/settings"
+  | "/share-link-bundles"
   | "/storage-paths"
   | "/system-status"
   | "/tags"
@@ -90,6 +91,9 @@ export const routePermissionRequirements: Record<
   },
   "/savedviews": {
     anyOf: [{ action: "view", type: "savedView" }],
+  },
+  "/share-link-bundles": {
+    anyOf: [{ action: "view", type: "shareLink" }],
   },
   "/settings": {
     anyOf: [{ action: "view", type: "uiSettings" }],

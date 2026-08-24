@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Copy, Trash2, Plus, Link, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { ShareLinkBundlesPanel } from "@/components/share-links/share-link-bundles-panel"
 
 interface ShareLink {
   id: number
@@ -244,6 +245,14 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl, hasArchiveVersion 
           })}
         </div>
       )}
+
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Share link bundles</p>
+        <ShareLinkBundlesPanel
+          documentId={documentId}
+          paperlessBaseUrl={paperlessBaseUrl}
+        />
+      </div>
 
       <CanDelete type="shareLink">
         <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>
