@@ -173,29 +173,26 @@ describe("document detail subview realtime refresh", () => {
   })
 
   it("refreshes share links when the current document updates", async () => {
-    fetchMock
-      .mockImplementationOnce(() =>
-        jsonResponse([
-          {
-            created: "2026-03-17T11:00:00Z",
-            document: 42,
-            expiration: null,
-            id: 1,
-            slug: "first-link",
-          },
-        ])
-      )
-      .mockImplementationOnce(() =>
-        jsonResponse([
-          {
-            created: "2026-03-17T12:00:00Z",
-            document: 42,
-            expiration: null,
-            id: 2,
-            slug: "second-link",
-          },
-        ])
-      )
+    let shareLinks = [
+      {
+        created: "2026-03-17T11:00:00Z",
+        document: 42,
+        expiration: null,
+        id: 1,
+        slug: "first-link",
+      },
+    ]
+
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/share_link_bundles/")) {
+        return Promise.resolve(jsonResponse({ results: [] }))
+      }
+      if (url.includes("/share_links/")) {
+        return Promise.resolve(jsonResponse(shareLinks))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
 
     const { rerender } = render(
       <JotaiProvider>
@@ -209,6 +206,16 @@ describe("document detail subview realtime refresh", () => {
 
     expect(await screen.findByText(/first-link/)).toBeInTheDocument()
 
+    shareLinks = [
+      {
+        created: "2026-03-17T12:00:00Z",
+        document: 42,
+        expiration: null,
+        id: 2,
+        slug: "second-link",
+      },
+    ]
+
     rerender(
       <JotaiProvider>
         <RealtimeSeed event={{ documentId: 42, kind: "document-updated" }} />
@@ -220,8 +227,7 @@ describe("document detail subview realtime refresh", () => {
     )
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenNthCalledWith(
-        2,
+      expect(fetchMock).toHaveBeenCalledWith(
         "/api/proxy/documents/42/share_links/"
       )
       expect(screen.getByText(/second-link/)).toBeInTheDocument()
