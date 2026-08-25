@@ -127,7 +127,7 @@ export type WorkflowDraft = {
 }
 
 export type WorkflowLookups = {
-  tags: Array<{ id: number; name: string }>
+  tags: Array<{ id: number; name: string; parent?: number | null }>
   correspondents: Array<{ id: number; name: string }>
   documentTypes: Array<{ id: number; name: string }>
   storagePaths: Array<{ id: number; name: string }>

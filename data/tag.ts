@@ -7,7 +7,7 @@ export interface Tag extends MatchingModel {
 
   is_inbox_tag?: boolean
 
-  parent?: number // Tag ID
+  parent?: number | null // Tag ID
 
   children?: Tag[] // read-only
 

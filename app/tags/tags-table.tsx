@@ -52,11 +52,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Pencil, Trash2, Search } from "lucide-react"
+import { ChevronDown, ChevronRight, Plus, Pencil, Trash2, Search } from "lucide-react"
 import { toast } from "sonner"
 import { useAsyncAction } from "@/hooks/use-async-action"
 import { createTag, updateTag, deleteTag } from "@/lib/management-actions"
 import { tagColourHex, tagPillStyle, TAG_COLOUR_OPTIONS } from "@/lib/tag-colors"
+import {
+  flattenTagHierarchy,
+  getTagAncestors,
+  getTagPath,
+  getValidTagParents,
+} from "@/lib/tag-hierarchy"
 
 const MATCHING_ALGORITHMS = [
   { id: 0, label: "None" },
@@ -79,6 +85,7 @@ type Tag = {
   is_insensitive: boolean
   is_inbox_tag: boolean
   document_count?: number
+  parent?: number | null
 }
 
 const emptyTag = (): Partial<Tag> => ({
@@ -109,10 +116,32 @@ export function TagsTable({
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<number[]>([])
   const [page, setPage] = React.useState(1)
-
-  const filtered = tags.filter((t) =>
-    t.name.toLowerCase().includes(search.toLowerCase())
+  const [expandedIds, setExpandedIds] = React.useState<Set<number>>(
+    () => new Set(initialTags.filter((tag) => initialTags.some((child) => child.parent === tag.id)).map((tag) => tag.id))
   )
+
+  const flattenedTags = React.useMemo(() => flattenTagHierarchy(tags), [tags])
+  const parentIds = React.useMemo(
+    () => new Set(tags.flatMap((tag) => tag.parent == null ? [] : [tag.parent])),
+    [tags]
+  )
+  const filtered = React.useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (query) {
+      const includedIds = new Set<number>()
+      tags
+        .filter((tag) => getTagPath(tags, tag.id).toLowerCase().includes(query))
+        .forEach((tag) => {
+          includedIds.add(tag.id)
+          getTagAncestors(tags, tag.id).forEach((ancestor) => includedIds.add(ancestor.id))
+        })
+      return flattenedTags.filter((tag) => includedIds.has(tag.id))
+    }
+
+    return flattenedTags.filter((tag) =>
+      getTagAncestors(tags, tag.id).every((ancestor) => expandedIds.has(ancestor.id))
+    )
+  }, [expandedIds, flattenedTags, search, tags])
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const currentPage = Math.min(page, pageCount)
   const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
@@ -141,8 +170,9 @@ export function TagsTable({
           match: editTag.match ?? "",
           is_insensitive: editTag.is_insensitive ?? false,
           is_inbox_tag: editTag.is_inbox_tag ?? false,
+          parent: editTag.parent ?? null,
         })
-        setTags((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+        setTags((prev) => [...prev, created])
         toast.success(`Tag "${created.name}" created`)
         return
       }
@@ -153,6 +183,8 @@ export function TagsTable({
         matching_algorithm: editTag.matching_algorithm,
         match: editTag.match,
         is_insensitive: editTag.is_insensitive,
+        is_inbox_tag: editTag.is_inbox_tag,
+        parent: editTag.parent ?? null,
       })
       setTags((prev) => prev.map((tag) => (tag.id === updated.id ? updated : tag)))
       toast.success(`Tag "${updated.name}" updated`)
@@ -313,12 +345,40 @@ export function TagsTable({
                     </div>
                   </TableCell>
                   <TableCell className="font-medium">
-                    <span
-                      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-                      style={tagPillStyle(tag.color)}
-                    >
-                      {tag.name}
-                    </span>
+                    <div className="flex items-center" style={{ paddingLeft: `${tag.depth * 20}px` }}>
+                      {parentIds.has(tag.id) ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="mr-1 h-6 w-6"
+                          aria-label={`${expandedIds.has(tag.id) ? "Collapse" : "Expand"} ${tag.name}`}
+                          onClick={() =>
+                            setExpandedIds((current) => {
+                              const next = new Set(current)
+                              if (next.has(tag.id)) next.delete(tag.id)
+                              else next.add(tag.id)
+                              return next
+                            })
+                          }
+                        >
+                          {expandedIds.has(tag.id) || search ? (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      ) : (
+                        <span className="mr-1 inline-block w-6" />
+                      )}
+                      <span
+                        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                        style={tagPillStyle(tag.color)}
+                        title={getTagPath(tags, tag.id)}
+                      >
+                        {search ? getTagPath(tags, tag.id) : tag.name}
+                      </span>
+                    </div>
                     {tag.is_inbox_tag && (
                       <Badge variant="outline" className="ml-2 text-xs">Inbox</Badge>
                     )}
@@ -433,6 +493,31 @@ export function TagsTable({
                       {editTag?.name || "Tag name"}
                     </span>
                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Parent tag</Label>
+                  <Select
+                    value={editTag?.parent == null ? "root" : String(editTag.parent)}
+                    onValueChange={(value) =>
+                      setEditTag((previous) => ({
+                        ...previous,
+                        parent: value === "root" ? null : Number(value),
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="No parent" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="root">No parent (top level)</SelectItem>
+                      {getValidTagParents(tags, editTag?.id).map((tag) => (
+                        <SelectItem key={tag.id} value={String(tag.id)}>
+                          {getTagPath(tags, tag.id)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-1.5">

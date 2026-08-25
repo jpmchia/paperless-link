@@ -60,6 +60,7 @@ export async function createTag(data: {
   match?: string
   is_insensitive?: boolean
   is_inbox_tag?: boolean
+  parent?: number | null
 }) {
   const result = await apiRequest("POST", "tags/", data)
   revalidatePath("/tags")
@@ -72,6 +73,8 @@ export async function updateTag(id: number, data: Partial<{
   matching_algorithm: number
   match: string
   is_insensitive: boolean
+  is_inbox_tag: boolean
+  parent: number | null
 }>) {
   const result = await apiRequest("PATCH", `tags/${id}/`, data)
   revalidatePath("/tags")
@@ -151,6 +154,7 @@ export async function deleteDocumentType(id: number) {
 
 export async function updateSavedViewMeta(id: number, data: Partial<{
   name: string
+  icon: string
   show_on_dashboard: boolean
   show_in_sidebar: boolean
   page_size: number

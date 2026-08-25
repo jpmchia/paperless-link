@@ -39,7 +39,6 @@ import { Document } from "../columns"
 import { updateDocument } from "./actions"
 import { updateUiSettings } from "@/app/actions/ui-settings"
 import { toast } from "sonner"
-import { Badge } from "@/components/ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Dialog,
@@ -76,6 +75,7 @@ import {
 import { CorrespondentsTable } from "@/app/correspondents/correspondents-table"
 import { TagsTable } from "@/app/tags/tags-table"
 import { DocumentTypesTable } from "@/app/document-types/document-types-table"
+import { HierarchicalTagPicker } from "@/components/tags/hierarchical-tag-picker"
 import {
   areDetailFieldLayoutsEqual,
   buildAvailableDetailFields,
@@ -132,6 +132,7 @@ type TagItem = NamedEntity & {
   is_inbox_tag: boolean
   document_count?: number
   text_color?: string | null
+  parent?: number | null
 }
 
 type CustomFieldDefinition = {
@@ -856,85 +857,13 @@ export function DetailsForm({ document, correspondents, documentTypes, storagePa
 
   // Multi-select for tags
   const renderTagsCombobox = (field: TagsField) => {
-    const selectedTags = field.value || []
-
     return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <FormControl>
-            <Button
-              variant="outline"
-              role="combobox"
-              className="h-auto min-h-10 w-full justify-between py-2"
-            >
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-left">
-                {selectedTags.length > 0 ? (
-                  selectedTags.map((tagId: number) => {
-                    const tag = tagItems.find((t) => t.id === tagId)
-                    if (!tag) return null
-
-                    return (
-                      <Badge
-                        key={tag.id}
-                        variant="secondary"
-                        className="max-w-full truncate px-2 py-0.5"
-                        style={{
-                          backgroundColor: tag.text_color ? (tag.color ?? undefined) : undefined,
-                          color: tag.text_color ?? undefined,
-                        }}
-                      >
-                        {tag.name}
-                      </Badge>
-                    )
-                  })
-                ) : (
-                  <span className="text-muted-foreground">Select Tags...</span>
-                )}
-              </div>
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </FormControl>
-        </PopoverTrigger>
-        <PopoverContent className="w-[300px] p-0" align="start">
-          <Command>
-            <CommandInput placeholder="Search tags..." />
-            <CommandList>
-              <CommandEmpty>No Tags found.</CommandEmpty>
-              <CommandGroup>
-                {tagItems.map((tag) => {
-                  const isSelected = selectedTags.includes(tag.id)
-                  return (
-                    <CommandItem
-                      key={tag.id}
-                      value={tag.name}
-                      onSelect={() => {
-                        if (isSelected) {
-                          field.onChange(selectedTags.filter((id: number) => id !== tag.id))
-                        } else {
-                          field.onChange([...selectedTags, tag.id])
-                        }
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          isSelected ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      <div className="flex items-center gap-2">
-                        {tag.name}
-                        {tag.color && (
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }} />
-                        )}
-                      </div>
-                    </CommandItem>
-                  )
-                })}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+      <HierarchicalTagPicker
+        tags={tagItems}
+        selectedIds={field.value ?? []}
+        onSelectionChange={field.onChange}
+        placeholder="Select Tags..."
+      />
     )
   }
 

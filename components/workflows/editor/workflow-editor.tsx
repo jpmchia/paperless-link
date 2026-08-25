@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { HierarchicalTagPicker } from "@/components/tags/hierarchical-tag-picker"
 import {
   createDefaultAction,
   createDefaultTrigger,
@@ -68,13 +69,29 @@ function MultiSelectChecklist({
   label,
   value,
   onChange,
+  hierarchical = false,
 }: {
-  items: Array<{ id: number; name: string }>
+  items: Array<{ id: number; name: string; parent?: number | null }>
   label: string
   value: number[] | undefined
   onChange: (value: number[]) => void
+  hierarchical?: boolean
 }) {
   const current = value ?? []
+  if (hierarchical) {
+    return (
+      <div className="space-y-2">
+        <Label>{label}</Label>
+        <HierarchicalTagPicker
+          tags={items}
+          selectedIds={current}
+          onSelectionChange={onChange}
+          placeholder={`Select ${label.toLowerCase()}...`}
+        />
+      </div>
+    )
+  }
+
   const selectedItems = current
     .map((itemId) => items.find((candidate) => candidate.id === itemId))
     .filter((item): item is { id: number; name: string } => Boolean(item))
@@ -406,9 +423,9 @@ function TriggerEditor({
 
       {isDocumentEvent ? (
         <div className="grid gap-4 xl:grid-cols-3">
-          <MultiSelectChecklist items={lookups.tags} label="Has any tags" value={trigger.filter_has_tags} onChange={(next) => onChange({ ...trigger, filter_has_tags: next })} />
-          <MultiSelectChecklist items={lookups.tags} label="Has all tags" value={trigger.filter_has_all_tags} onChange={(next) => onChange({ ...trigger, filter_has_all_tags: next })} />
-          <MultiSelectChecklist items={lookups.tags} label="Has no tags" value={trigger.filter_has_not_tags} onChange={(next) => onChange({ ...trigger, filter_has_not_tags: next })} />
+          <MultiSelectChecklist hierarchical items={lookups.tags} label="Has any tags" value={trigger.filter_has_tags} onChange={(next) => onChange({ ...trigger, filter_has_tags: next })} />
+          <MultiSelectChecklist hierarchical items={lookups.tags} label="Has all tags" value={trigger.filter_has_all_tags} onChange={(next) => onChange({ ...trigger, filter_has_all_tags: next })} />
+          <MultiSelectChecklist hierarchical items={lookups.tags} label="Has no tags" value={trigger.filter_has_not_tags} onChange={(next) => onChange({ ...trigger, filter_has_not_tags: next })} />
           <MultiSelectChecklist items={lookups.correspondents} label="Has any correspondents" value={trigger.filter_has_any_correspondents} onChange={(next) => onChange({ ...trigger, filter_has_any_correspondents: next })} />
           <MultiSelectChecklist items={lookups.correspondents} label="Has no correspondents" value={trigger.filter_has_not_correspondents} onChange={(next) => onChange({ ...trigger, filter_has_not_correspondents: next })} />
           <SingleLookupSelect items={lookups.correspondents} label="Has correspondent" value={trigger.filter_has_correspondent ?? null} onChange={(next) => onChange({ ...trigger, filter_has_correspondent: next })} />
@@ -450,6 +467,11 @@ function ActionEditor({
   const userItems = lookups.users.map((user) => ({ id: user.id, name: user.username ?? `User ${user.id}` }))
   const actionTypeLabel =
     WORKFLOW_ACTION_TYPE_OPTIONS.find((option) => option.id === action.type)?.name ?? `Action ${index + 1}`
+  const selectedLongTextFields = lookups.customFields.filter(
+    (field) =>
+      field.data_type === "long_text" &&
+      action.assign_custom_fields?.includes(field.id)
+  )
 
   function renderActionFields() {
     switch (action.type) {
@@ -465,7 +487,7 @@ function ActionEditor({
             <SingleLookupSelect items={lookups.storagePaths} label="Assign storage path" value={action.assign_storage_path ?? null} onChange={(next) => onChange({ ...action, assign_storage_path: next })} />
             <SingleLookupSelect items={userItems} label="Assign owner" value={action.assign_owner ?? null} onChange={(next) => onChange({ ...action, assign_owner: next })} />
             <div className="xl:col-span-2">
-              <MultiSelectChecklist items={lookups.tags} label="Assign tags" value={action.assign_tags} onChange={(next) => onChange({ ...action, assign_tags: next })} />
+              <MultiSelectChecklist hierarchical items={lookups.tags} label="Assign tags" value={action.assign_tags} onChange={(next) => onChange({ ...action, assign_tags: next })} />
             </div>
             <div>
               <MultiSelectChecklist items={lookups.customFields.map((field) => ({ id: field.id, name: field.name }))} label="Assign custom fields" value={action.assign_custom_fields} onChange={(next) => onChange({ ...action, assign_custom_fields: next })} />
@@ -482,6 +504,24 @@ function ActionEditor({
             <div>
               <MultiSelectChecklist items={lookups.groups} label="Assign change groups" value={action.assign_change_groups} onChange={(next) => onChange({ ...action, assign_change_groups: next })} />
             </div>
+            {selectedLongTextFields.map((customField) => (
+              <div key={customField.id} className="space-y-2 xl:col-span-4">
+                <Label>{customField.name}</Label>
+                <Textarea
+                  className="min-h-24"
+                  value={String(action.assign_custom_fields_values?.[String(customField.id)] ?? "")}
+                  onChange={(event) =>
+                    onChange({
+                      ...action,
+                      assign_custom_fields_values: {
+                        ...(action.assign_custom_fields_values ?? {}),
+                        [String(customField.id)]: event.target.value,
+                      },
+                    })
+                  }
+                />
+              </div>
+            ))}
             {action.assign_custom_fields && action.assign_custom_fields.length > 0 ? (
               <div className="xl:col-span-4 space-y-2">
                 <Label>Assign custom field values JSON</Label>
@@ -534,7 +574,7 @@ function ActionEditor({
                 <span className="text-sm">Remove all custom fields</span>
               </div>
             </div>
-            <MultiSelectChecklist items={lookups.tags} label="Remove tags" value={action.remove_tags} onChange={(next) => onChange({ ...action, remove_tags: next })} />
+            <MultiSelectChecklist hierarchical items={lookups.tags} label="Remove tags" value={action.remove_tags} onChange={(next) => onChange({ ...action, remove_tags: next })} />
             <MultiSelectChecklist items={lookups.documentTypes} label="Remove document types" value={action.remove_document_types} onChange={(next) => onChange({ ...action, remove_document_types: next })} />
             <MultiSelectChecklist items={lookups.correspondents} label="Remove correspondents" value={action.remove_correspondents} onChange={(next) => onChange({ ...action, remove_correspondents: next })} />
             <MultiSelectChecklist items={lookups.storagePaths} label="Remove storage paths" value={action.remove_storage_paths} onChange={(next) => onChange({ ...action, remove_storage_paths: next })} />

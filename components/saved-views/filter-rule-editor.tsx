@@ -12,6 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { HierarchicalTagPicker } from "@/components/tags/hierarchical-tag-picker"
+
+const TAG_RULE_TYPES = new Set([6, 17, 22])
 
 export type SavedViewRule = {
   rule_type: number
@@ -21,6 +24,7 @@ export type SavedViewRule = {
 type NamedOption = {
   id: number
   name: string
+  parent?: number | null
 }
 
 type UserOption = {
@@ -132,8 +136,24 @@ function buildRuleDefinitions(lookups: SavedViewRuleEditorLookups): RuleDefiniti
 function renderValueControl(
   rule: SavedViewRule,
   definition: RuleDefinition,
+  tags: NamedOption[],
   onChange: (value: string) => void
 ) {
+  if (TAG_RULE_TYPES.has(rule.rule_type)) {
+    const selectedIds = rule.value
+      .split(",")
+      .map(Number)
+      .filter((value) => Number.isInteger(value) && value > 0)
+    return (
+      <HierarchicalTagPicker
+        tags={tags}
+        selectedIds={selectedIds}
+        onSelectionChange={(ids) => onChange(ids[0] == null ? "" : String(ids[0]))}
+        multiple={false}
+      />
+    )
+  }
+
   if (definition.valueKind === "option" || definition.valueKind === "boolean") {
     const options = definition.options ?? []
     const selected = options.some((option) => option.value === rule.value)
@@ -261,7 +281,7 @@ export function FilterRuleEditor({
 
                 <div className="space-y-1.5">
                   <Label>Value</Label>
-                  {renderValueControl(rule, definition, (value) => updateRule(index, { value }))}
+                  {renderValueControl(rule, definition, lookups.tags, (value) => updateRule(index, { value }))}
                 </div>
 
                 <div className="flex items-end">
