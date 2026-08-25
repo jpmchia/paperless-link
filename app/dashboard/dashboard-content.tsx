@@ -4,6 +4,22 @@ import * as React from "react"
 import Link from "next/link"
 import { useAtomValue } from "jotai"
 import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  type DragEndEvent,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import {
   Clock,
   FileText,
   Folder,
@@ -11,6 +27,7 @@ import {
   Loader2,
   Users,
 } from "lucide-react"
+import { CSS } from "@dnd-kit/utilities"
 import { OpenDocumentLink } from "@/components/open-document-link"
 import {
   Card,
@@ -23,10 +40,16 @@ import {
   latestRealtimeEventAtom,
   realtimeConnectionAtom,
 } from "@/lib/stores/realtime"
+import { updateUiSettings } from "@/app/actions/ui-settings"
+import { toast } from "sonner"
 import { UploadWidget } from "./upload-widget"
-import { getSavedViewIcon } from "@/data/saved-view-icons"
+import { SavedViewWidget } from "./saved-view-widget"
 import { useUserPreferences } from "@/components/user-preferences-provider"
 import { formatUserPreferenceDate } from "@/lib/user-preferences"
+import type {
+  DashboardSavedView,
+  DashboardSavedViewWidget as DashboardSavedViewWidgetData,
+} from "@/lib/dashboard-saved-views"
 
 interface DashboardEntity {
   id: number
@@ -41,14 +64,6 @@ interface DashboardDocument {
   title: string
 }
 
-interface DashboardSavedView {
-  id: number
-  name: string
-  icon?: string
-  show_in_sidebar?: boolean
-  show_on_dashboard?: boolean
-}
-
 interface DashboardStatistics {
   documents_inbox?: number
   documents_total?: number
@@ -59,6 +74,7 @@ export interface DashboardData {
   documentTypes: DashboardEntity[]
   recentDocuments: DashboardDocument[]
   savedViews: DashboardSavedView[]
+  savedViewWidgets: DashboardSavedViewWidgetData[]
   statistics: DashboardStatistics
 }
 
@@ -94,6 +110,39 @@ function StatCard({
         <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
       </CardContent>
     </Card>
+  )
+}
+
+function SortableSavedViewWidget({
+  correspondents,
+  documentTypes,
+  widget,
+}: {
+  correspondents: Record<number, string>
+  documentTypes: Record<number, string>
+  widget: DashboardSavedViewWidgetData
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: widget.view.id })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <SavedViewWidget
+        correspondents={correspondents}
+        documentTypes={documentTypes}
+        dragHandleProps={{
+          ...(attributes as React.ButtonHTMLAttributes<HTMLButtonElement>),
+          ...(listeners as React.ButtonHTMLAttributes<HTMLButtonElement>),
+        }}
+        widget={widget}
+      />
+    </div>
   )
 }
 
@@ -170,9 +219,10 @@ export function DashboardContent({
     () => buildNameMap(data.documentTypes),
     [data.documentTypes]
   )
-  const dashboardViews = React.useMemo(
-    () => data.savedViews.filter((view) => view.show_on_dashboard),
-    [data.savedViews]
+  const dashboardWidgets = data.savedViewWidgets
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
   const statCards = [
@@ -201,6 +251,45 @@ export function DashboardContent({
       value: data.documentTypes.length,
     },
   ]
+
+  const handleDragEnd = React.useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+
+      const oldIndex = dashboardWidgets.findIndex(
+        (widget) => widget.view.id === active.id
+      )
+      const newIndex = dashboardWidgets.findIndex(
+        (widget) => widget.view.id === over.id
+      )
+
+      if (oldIndex < 0 || newIndex < 0) return
+
+      const previousWidgets = dashboardWidgets
+      const nextWidgets = arrayMove(previousWidgets, oldIndex, newIndex)
+
+      setData((current) => ({
+        ...current,
+        savedViewWidgets: nextWidgets,
+      }))
+
+      try {
+        await updateUiSettings({
+          saved_views: {
+            dashboard_views_sort_order: nextWidgets.map((widget) => widget.view.id),
+          },
+        })
+      } catch {
+        setData((current) => ({
+          ...current,
+          savedViewWidgets: previousWidgets,
+        }))
+        toast.error("Failed to save dashboard order")
+      }
+    },
+    [dashboardWidgets]
+  )
 
   return (
     <div className="flex h-full flex-col gap-6 overflow-y-auto p-4">
@@ -232,49 +321,35 @@ export function DashboardContent({
               <CardTitle>Saved Views</CardTitle>
             </CardHeader>
             <CardContent>
-              {dashboardViews.length > 0 ? (
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {dashboardViews.map((view) => {
-                    const ViewIcon = getSavedViewIcon(view.icon)
-                    return (
-                    <Link
-                      key={view.id}
-                      href={`/view/${view.id}`}
-                      className="group flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50"
-                    >
-                      <ViewIcon className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium leading-none">
-                          {view.name}
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {view.show_in_sidebar ? "Sidebar" : "Dashboard only"}
-                        </p>
-                      </div>
-                    </Link>
-                    )
-                  })}
-                </div>
+              {dashboardWidgets.length > 0 ? (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={(event) => {
+                    void handleDragEnd(event)
+                  }}
+                >
+                  <SortableContext
+                    items={dashboardWidgets.map((widget) => widget.view.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="grid grid-cols-1 gap-3">
+                      {dashboardWidgets.map((widget) => (
+                        <SortableSavedViewWidget
+                          key={widget.view.id}
+                          correspondents={corrMap}
+                          documentTypes={typeMap}
+                          widget={widget}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               ) : data.savedViews.length > 0 ? (
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {data.savedViews.slice(0, 6).map((view) => {
-                    const ViewIcon = getSavedViewIcon(view.icon)
-                    return (
-                    <Link
-                      key={view.id}
-                      href={`/view/${view.id}`}
-                      className="group flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50"
-                    >
-                      <ViewIcon className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium leading-none">
-                          {view.name}
-                        </p>
-                      </div>
-                    </Link>
-                    )
-                  })}
-                </div>
+                <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                  No dashboard widgets yet. Pin a saved view to the dashboard from
+                  the Documents page.
+                </p>
               ) : (
                 <p className="py-4 text-center text-sm text-muted-foreground">
                   No saved views yet. Create one from the Documents page.

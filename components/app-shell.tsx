@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sidebar"
 import { SETTINGS_KEYS } from "@/data/ui-settings"
 import { getSavedViews, getUiSettings } from "@/lib/api"
+import { readSavedViewVisibility } from "@/lib/saved-view-visibility"
 import { getThemePresetById } from "@/lib/theme-presets"
 import {
   emptyPermissions,
@@ -127,6 +128,7 @@ export async function AppShell({
   let appTitle: string | null = null
   let appLogo: string | null = null
   let initialTourComplete = false
+  let sidebarViewSortOrder: number[] = []
   let userPreferences = readUserPreferences()
   let themeVariables: Record<string, string> = {}
   try {
@@ -138,6 +140,8 @@ export async function AppShell({
       )
       const uiSettingsValues =
         (uiSettings?.settings as Record<string, unknown> | undefined) ?? {}
+      sidebarViewSortOrder =
+        readSavedViewVisibility(uiSettingsValues).sidebar_views_sort_order
       appTitle =
         typeof uiSettingsValues.app_title === "string"
           ? uiSettingsValues.app_title
@@ -196,6 +200,7 @@ export async function AppShell({
                   appTitle={appTitle}
                   initialPermissions={resolvedPermissions}
                   savedViews={savedViews}
+                  savedViewSortOrder={sidebarViewSortOrder}
                   slimSidebar={userPreferences.slimSidebar}
                 />
               )}

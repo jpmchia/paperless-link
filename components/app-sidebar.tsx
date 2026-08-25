@@ -64,8 +64,8 @@ import { NavUser } from "@/components/nav-user"
 import { ModeToggle } from "@/components/theme-toggle"
 import { SidebarOpenDocuments } from "@/components/sidebar-open-documents"
 import {
-  SidebarManagementDialog,
   type SidebarManagementDialogKind,
+  useSidebarManagementDialog,
 } from "@/components/sidebar-management-dialog"
 import {
   Collapsible,
@@ -93,6 +93,7 @@ import {
 import { updateUiSettings } from "@/app/actions/ui-settings"
 import type { CurrentUserPermissions } from "@/lib/permissions"
 import { getSavedViewIcon } from "@/data/saved-view-icons"
+import { orderSavedViewsBySortOrder } from "@/lib/saved-view-visibility"
 
 interface SavedViewEntry {
   id: number
@@ -111,6 +112,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   appTitle?: string | null
   initialPermissions?: CurrentUserPermissions
   savedViews?: SavedViewEntry[]
+  savedViewSortOrder?: number[]
   slimSidebar?: boolean
 }
 
@@ -173,10 +175,24 @@ const SYSTEM_SECTION_OPEN_STORAGE_KEY = "paperless.sidebar.system.open"
 
 async function persistViewOrder(orderedIds: number[]) {
   try {
-    await updateUiSettings({ sidebar_views_sort_order: orderedIds })
+    await updateUiSettings({
+      saved_views: {
+        sidebar_views_sort_order: orderedIds,
+      },
+    })
   } catch {
     // Silently fail — order just won't be persisted
   }
+}
+
+function getOrderedSidebarViews(
+  savedViews: SavedViewEntry[],
+  savedViewSortOrder: number[]
+) {
+  return orderSavedViewsBySortOrder(
+    savedViews.filter((view) => view.show_in_sidebar),
+    savedViewSortOrder
+  )
 }
 
 function SortableViewItem({
@@ -223,6 +239,7 @@ export function AppSidebar({
   appTitle,
   initialPermissions,
   savedViews = [],
+  savedViewSortOrder = [],
   slimSidebar = false,
   ...props
 }: AppSidebarProps) {
@@ -234,10 +251,9 @@ export function AppSidebar({
   const realtimeConnection = useAtomValue(realtimeConnectionAtom)
   const setPendingTaskCount = useSetAtom(setPendingTaskCountAtom)
   const adjustPendingTaskCount = useSetAtom(adjustPendingTaskCountAtom)
+  const { activeDialogKind, openManagementDialog } = useSidebarManagementDialog()
   const [applicationOpen, setApplicationOpen] = React.useState(true)
   const [managementOpen, setManagementOpen] = React.useState(true)
-  const [managementDialogKind, setManagementDialogKind] =
-    React.useState<SidebarManagementDialogKind | null>(null)
   const [systemOpen, setSystemOpen] = React.useState(false)
   const [viewsOpen, setViewsOpen] = React.useState(true)
   const [hasMounted, setHasMounted] = React.useState(false)
@@ -316,13 +332,13 @@ export function AppSidebar({
     }
   }, [adjustPendingTaskCount, latestRealtimeEvent])
 
-  const initialSidebarViews = savedViews.filter((v) => v.show_in_sidebar)
-  const [orderedViews, setOrderedViews] = React.useState<SavedViewEntry[]>(initialSidebarViews)
+  const [orderedViews, setOrderedViews] = React.useState<SavedViewEntry[]>(() =>
+    getOrderedSidebarViews(savedViews, savedViewSortOrder)
+  )
 
-  // Re-sync when prop changes (e.g. after navigation)
   React.useEffect(() => {
-    setOrderedViews(savedViews.filter((v) => v.show_in_sidebar))
-  }, [savedViews.map((v) => v.id).join(",")]) // eslint-disable-line react-hooks/exhaustive-deps
+    setOrderedViews(getOrderedSidebarViews(savedViews, savedViewSortOrder))
+  }, [savedViewSortOrder, savedViews])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -547,8 +563,10 @@ export function AppSidebar({
                       <SidebarMenuItem key={item.title}>
                         {item.managementDialogKind ? (
                           <SidebarMenuButton
-                            isActive={managementDialogKind === item.managementDialogKind}
-                            onClick={() => setManagementDialogKind(item.managementDialogKind ?? null)}
+                            isActive={activeDialogKind === item.managementDialogKind}
+                            onClick={() =>
+                              openManagementDialog(item.managementDialogKind ?? "tags")
+                            }
                           >
                             <item.icon />
                             <span>{item.title}</span>
@@ -620,15 +638,6 @@ export function AppSidebar({
           <ModeToggle />
         </div>
       </SidebarFooter>
-
-      <SidebarManagementDialog
-        kind={managementDialogKind}
-        onOpenChange={(open) => {
-          if (!open) {
-            setManagementDialogKind(null)
-          }
-        }}
-      />
     </Sidebar>
   )
 }
