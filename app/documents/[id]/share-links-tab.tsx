@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useAtomValue } from "jotai"
 import { CanCreate } from "@/components/permissions/can-create"
 import { CanDelete } from "@/components/permissions/can-delete"
 import { useRealtimeDocumentRefresh } from "@/hooks/use-realtime-document-refresh"
@@ -16,6 +17,7 @@ import {
 import { Copy, Trash2, Plus, Link, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { ShareLinkBundlesPanel } from "@/components/share-links/share-link-bundles-panel"
+import { activeVersionIdAtom } from "@/lib/store"
 
 interface ShareLink {
   id: number
@@ -62,6 +64,8 @@ async function fetchShareLinks(documentId: number): Promise<ShareLink[]> {
 }
 
 export function ShareLinksTab({ documentId, paperlessBaseUrl, hasArchiveVersion = true }: ShareLinksTabProps) {
+  const activeVersionId = useAtomValue(activeVersionIdAtom)
+  const targetDocumentId = activeVersionId ?? documentId
   const [links, setLinks] = React.useState<ShareLink[]>([])
   const [loading, setLoading] = React.useState(true)
   const [creating, setCreating] = React.useState(false)
@@ -77,14 +81,14 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl, hasArchiveVersion 
 
   const loadLinks = React.useCallback(async () => {
     try {
-      const nextLinks = await fetchShareLinks(documentId)
+      const nextLinks = await fetchShareLinks(targetDocumentId)
       setLinks(nextLinks)
     } catch {
       toast.error("Failed to load share links")
     } finally {
       setLoading(false)
     }
-  }, [documentId])
+  }, [targetDocumentId])
 
   React.useEffect(() => { loadLinks() }, [loadLinks])
 
@@ -101,7 +105,7 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl, hasArchiveVersion 
       }
       const exp = expirationDate(expiration)
       if (exp) body.expiration = exp
-      const res = await fetch(`/api/proxy/documents/${documentId}/share_links/`, {
+      const res = await fetch(`/api/proxy/documents/${targetDocumentId}/share_links/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -109,7 +113,11 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl, hasArchiveVersion 
       if (!res.ok) throw new Error(await res.text())
       const created = await res.json()
       setLinks((prev) => [created, ...prev])
-      toast.success("Share link created")
+      toast.success(
+        activeVersionId != null
+          ? `Share link created for version ${activeVersionId}`
+          : "Share link created"
+      )
     } catch (e: unknown) {
       toast.error("Failed to create share link", {
         description: e instanceof Error ? e.message : "Unknown error",
@@ -122,7 +130,7 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl, hasArchiveVersion 
   const handleDelete = async () => {
     if (deleteId == null) return
     try {
-      const res = await fetch(`/api/proxy/documents/${documentId}/share_links/${deleteId}/`, {
+      const res = await fetch(`/api/proxy/documents/${targetDocumentId}/share_links/${deleteId}/`, {
         method: "DELETE",
       })
       if (!res.ok && res.status !== 204) throw new Error()
@@ -148,6 +156,11 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl, hasArchiveVersion 
       {/* Create new link */}
       <div className="rounded-lg border p-3 space-y-3">
         <p className="text-sm font-medium">Create share link</p>
+        {activeVersionId != null ? (
+          <p className="text-xs text-muted-foreground">
+            Targeting selected version {activeVersionId}. Bundles below always use the root document.
+          </p>
+        ) : null}
         <div className="flex items-center gap-2">
           <Select value={fileVersion} onValueChange={(value: "archive" | "original") => setFileVersion(value)}>
             <SelectTrigger className="h-8 text-xs w-40">

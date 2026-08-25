@@ -8,6 +8,7 @@ import { VersionsTab } from "@/app/documents/[id]/versions-tab"
 import { JotaiProvider } from "@/components/jotai-provider"
 import type { RealtimeEvent } from "@/lib/realtime/events"
 import { latestRealtimeEventAtom } from "@/lib/stores/realtime"
+import { activeVersionIdAtom } from "@/lib/store"
 
 const fetchMock = vi.fn()
 
@@ -44,6 +45,16 @@ function RealtimeSeed({
   React.useEffect(() => {
     setLatestEvent(event)
   }, [event, setLatestEvent])
+
+  return null
+}
+
+function ActiveVersionSeed({ versionId }: { versionId: number | null }) {
+  const setActiveVersionId = useSetAtom(activeVersionIdAtom)
+
+  React.useEffect(() => {
+    setActiveVersionId(versionId)
+  }, [setActiveVersionId, versionId])
 
   return null
 }
@@ -231,6 +242,38 @@ describe("document detail subview realtime refresh", () => {
         "/api/proxy/documents/42/share_links/"
       )
       expect(screen.getByText(/second-link/)).toBeInTheDocument()
+    })
+  })
+
+  it("loads ordinary share links for the selected version", async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes("/share_link_bundles/")) {
+        return Promise.resolve(jsonResponse({ results: [] }))
+      }
+      if (url.includes("/share_links/")) {
+        return Promise.resolve(jsonResponse([]))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    render(
+      <JotaiProvider>
+        <ActiveVersionSeed versionId={77} />
+        <ShareLinksTab
+          documentId={42}
+          paperlessBaseUrl="http://paperless.test"
+        />
+      </JotaiProvider>
+    )
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/proxy/documents/77/share_links/"
+      )
+      expect(
+        screen.getByText(/Targeting selected version 77/)
+      ).toBeInTheDocument()
     })
   })
 })

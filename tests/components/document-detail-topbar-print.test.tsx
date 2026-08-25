@@ -17,6 +17,7 @@ import { reprocessDocument } from "@/app/documents/[id]/actions"
 const {
   closeMock,
   confirmMock,
+  emailDialogMock,
   focusMock,
   getDocumentMock,
   openMock,
@@ -28,6 +29,7 @@ const {
 } = vi.hoisted(() => ({
   closeMock: vi.fn(),
   confirmMock: vi.fn().mockResolvedValue(true),
+  emailDialogMock: vi.fn(),
   focusMock: vi.fn(),
   getDocumentMock: vi.fn(),
   openMock: vi.fn(),
@@ -82,7 +84,10 @@ vi.mock("@/app/documents/[id]/details-fields-picker", () => ({
 }))
 
 vi.mock("@/app/documents/[id]/email-document-dialog", () => ({
-  EmailDocumentDialog: () => null,
+  EmailDocumentDialog: (props: unknown) => {
+    emailDialogMock(props)
+    return null
+  },
 }))
 
 vi.mock("@/app/documents/[id]/pdf-tools-dialog", () => ({
@@ -373,5 +378,18 @@ describe("TopBar print flow", () => {
       expect(reprocessDocument).toHaveBeenCalledWith(4, { remoteOcr: true })
     })
     expect(pushMock).toHaveBeenCalledWith("/documents")
+  })
+
+  it("targets the selected version when opening the email dialog", async () => {
+    render(<RenderTopBar versionId={77} />)
+
+    await waitFor(() => {
+      expect(emailDialogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          documentId: 77,
+          versionLabel: "Version 77",
+        })
+      )
+    })
   })
 })

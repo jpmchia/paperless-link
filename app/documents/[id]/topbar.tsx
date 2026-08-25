@@ -867,11 +867,16 @@ export function TopBar({
 
             {documentId && (
                 <EmailDocumentDialog
-                    documentId={documentId}
+                    documentId={activeVersionId ?? documentId}
                     documentTitle={typeof title === "string" ? title : "Document"}
                     hasArchiveVersion={hasArchiveVersion}
                     open={emailDialogOpen}
                     onOpenChange={setEmailDialogOpen}
+                    versionLabel={
+                      activeVersionId != null
+                        ? `Version ${activeVersionId}`
+                        : null
+                    }
                 />
             )}
             {documentId && canEditPdf && (

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useAtomValue } from "jotai"
 import { CanCreate } from "@/components/permissions/can-create"
 import { CanDelete } from "@/components/permissions/can-delete"
 import { useRealtimeDocumentRefresh } from "@/hooks/use-realtime-document-refresh"
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Copy, Trash2, Plus, Link, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { activeVersionIdAtom } from "@/lib/store"
 
 interface ShareLink {
   id: number
@@ -61,6 +63,8 @@ async function fetchShareLinks(documentId: number): Promise<ShareLink[]> {
 }
 
 export function ShareLinksTab({ documentId, paperlessBaseUrl, hasArchiveVersion = true }: ShareLinksTabProps) {
+  const activeVersionId = useAtomValue(activeVersionIdAtom)
+  const targetDocumentId = activeVersionId ?? documentId
   const [links, setLinks] = React.useState<ShareLink[]>([])
   const [loading, setLoading] = React.useState(true)
   const [creating, setCreating] = React.useState(false)
@@ -76,14 +80,14 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl, hasArchiveVersion 
 
   const loadLinks = React.useCallback(async () => {
     try {
-      const nextLinks = await fetchShareLinks(documentId)
+      const nextLinks = await fetchShareLinks(targetDocumentId)
       setLinks(nextLinks)
     } catch {
       toast.error("Failed to load share links")
     } finally {
       setLoading(false)
     }
-  }, [documentId])
+  }, [targetDocumentId])
 
   React.useEffect(() => { loadLinks() }, [loadLinks])
 
@@ -100,7 +104,7 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl, hasArchiveVersion 
       }
       const exp = expirationDate(expiration)
       if (exp) body.expiration = exp
-      const res = await fetch(`/api/proxy/documents/${documentId}/share_links/`, {
+      const res = await fetch(`/api/proxy/documents/${targetDocumentId}/share_links/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -121,7 +125,7 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl, hasArchiveVersion 
   const handleDelete = async () => {
     if (deleteId == null) return
     try {
-      const res = await fetch(`/api/proxy/documents/${documentId}/share_links/${deleteId}/`, {
+      const res = await fetch(`/api/proxy/documents/${targetDocumentId}/share_links/${deleteId}/`, {
         method: "DELETE",
       })
       if (!res.ok && res.status !== 204) throw new Error()
@@ -144,6 +148,11 @@ export function ShareLinksTab({ documentId, paperlessBaseUrl, hasArchiveVersion 
 
   return (
     <div className="flex flex-col gap-4 p-4 h-full overflow-y-auto">
+      {activeVersionId != null ? (
+        <p className="text-xs text-muted-foreground">
+          Targeting selected version {activeVersionId}. Bundles below always use the root document.
+        </p>
+      ) : null}
       {/* Create new link */}
       <div className="rounded-lg border p-3 space-y-3">
         <p className="text-sm font-medium">Create share link</p>
