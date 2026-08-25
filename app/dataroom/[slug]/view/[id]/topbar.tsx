@@ -16,6 +16,7 @@ import { useConfirmationDialog } from "@/components/confirmation-dialog-provider
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { HasObjectPermission } from "@/components/permissions/has-object-permission"
 import { OpenDocumentLink } from "@/components/open-document-link"
+import { DocumentId } from "@/components/documents/document-id"
 import {
     activeVersionIdAtom,
     documentDetailAvailableFieldsAtom,
@@ -629,7 +630,10 @@ export function TopBar({
     return (
         <div className="flex items-center justify-between w-full">
             <div className="flex flex-col gap-2">
-                <h1 className="text-xl font-bold tracking-tight">{title}</h1>
+                <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-xl font-bold tracking-tight">{title}</h1>
+                    {documentId != null ? <DocumentId documentId={documentId} /> : null}
+                </div>
                 <div className="flex items-center gap-2 mb-2">
                 {children}
                 </div>
