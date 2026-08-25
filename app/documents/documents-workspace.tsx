@@ -204,6 +204,12 @@ export function DocumentsWorkspace({
     () => getDocumentSelectionCount(selection, totalCount),
     [selection, totalCount]
   )
+  const showSearchHits = Boolean(
+    currentFilters.query ||
+    currentFilters.titleContains ||
+    currentFilters.contentContains ||
+    currentFilters.titleContentContains
+  )
 
   React.useEffect(() => {
     if (activeViewDisplayFields?.length) {
@@ -537,6 +543,7 @@ export function DocumentsWorkspace({
             onPreviewDocument={setPreviewDocument}
             selection={selection}
             onSelectionChange={setSelection}
+            showSearchHits={showSearchHits}
           />
         ) : (
           <CardGrid
@@ -549,6 +556,7 @@ export function DocumentsWorkspace({
             enableSelection
             selection={selection}
             onSelectionChange={setSelection}
+            showSearchHits={showSearchHits}
           />
         )}
       </div>

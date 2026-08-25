@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,12 +36,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import {
-  Trash2, Download, Tags, User, FileType, FolderOpen, X, RotateCcw, Check,
-  ShieldCheck, FormInput, Merge, RotateCw, Share2, Layers,
+  Trash2, Download, User, FileType, FolderOpen, X, RotateCcw, Check,
+  ShieldCheck, FormInput, Merge, RotateCw, Share2, Layers, Mail,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { tagPillStyle } from "@/lib/tag-colors"
 import {
   getDocumentSelectionExcludedIds,
   serializeDocumentSelection,
@@ -48,6 +48,8 @@ import {
 } from "@/lib/document-selection"
 import { ShareLinkBundleCreateDialog } from "@/components/share-links/share-link-bundles-panel"
 import { MergeAsVersionsDialog } from "@/components/documents/merge-as-versions-dialog"
+import { EmailDocumentsDialog } from "@/components/documents/email-documents-dialog"
+import { HierarchicalTagPicker } from "@/components/tags/hierarchical-tag-picker"
 
 interface BulkActionBarProps {
   selection: DocumentSelection
@@ -57,7 +59,7 @@ interface BulkActionBarProps {
   onComplete: () => void
   onSelectAllFiltered?: () => void
   remoteOcrSelectable?: boolean
-  tags: { id: number; name: string; color: string | number }[]
+  tags: { id: number; name: string; color: string | number; parent?: number | null }[]
   correspondents: { id: number; name: string }[]
   documentTypes: { id: number; name: string }[]
   storagePaths: { id: number; name: string }[]
@@ -199,12 +201,12 @@ export function BulkActionBar({
   const [showMerge, setShowMerge] = React.useState(false)
   const [showMergeAsVersions, setShowMergeAsVersions] = React.useState(false)
   const [showBundle, setShowBundle] = React.useState(false)
+  const [showEmail, setShowEmail] = React.useState(false)
   const [showPermissions, setShowPermissions] = React.useState(false)
   const [showCustomFields, setShowCustomFields] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
 
   // Tag picker state
-  const [tagPickerOpen, setTagPickerOpen] = React.useState(false)
   const [selectedTags, setSelectedTags] = React.useState<number[]>([])
 
   // Permissions dialog state
@@ -264,7 +266,6 @@ export function BulkActionBar({
 
   const handleSetTags = async () => {
     await run("set_tags", { tags: selectedTags }, `Tags set on ${count} documents`)
-    setTagPickerOpen(false)
     setSelectedTags([])
   }
 
@@ -414,46 +415,21 @@ export function BulkActionBar({
 
         {/* Set Tags */}
         <CanChange type="document">
-          <Popover open={tagPickerOpen} onOpenChange={setTagPickerOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-7 text-xs" disabled={busy}>
-                <Tags className="mr-1 h-3 w-3" />Tags
+          <div className="flex items-center gap-1">
+            <HierarchicalTagPicker
+              tags={tags}
+              selectedIds={selectedTags}
+              onSelectionChange={setSelectedTags}
+              placeholder="Tags"
+              disabled={busy}
+              className="min-h-7 w-[180px] py-0 text-xs"
+            />
+            {selectedTags.length > 0 ? (
+              <Button size="sm" className="h-7 text-xs" disabled={busy} onClick={handleSetTags}>
+                Apply ({selectedTags.length})
               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[250px] p-0" align="start">
-              <Command>
-                <CommandInput placeholder="Search tags…" />
-                <CommandList>
-                  <CommandEmpty>No tags found.</CommandEmpty>
-                  <CommandGroup className="max-h-40 overflow-y-auto">
-                    {tags.map((tag) => (
-                      <CommandItem
-                        key={tag.id}
-                        onSelect={() => {
-                          setSelectedTags((prev) =>
-                            prev.includes(tag.id)
-                              ? prev.filter((t) => t !== tag.id)
-                              : [...prev, tag.id]
-                          )
-                        }}
-                      >
-                        <Check className={cn("mr-2 h-3 w-3", selectedTags.includes(tag.id) ? "opacity-100" : "opacity-0")} />
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="inline-block h-2.5 w-2.5 rounded-full" style={tagPillStyle(tag.color)} />
-                          {tag.name}
-                        </span>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-                <div className="border-t p-2">
-                  <Button size="sm" className="w-full h-7 text-xs" disabled={selectedTags.length === 0 || busy} onClick={handleSetTags}>
-                    Apply tags ({selectedTags.length})
-                  </Button>
-                </div>
-              </Command>
-            </PopoverContent>
-          </Popover>
+            ) : null}
+          </div>
         </CanChange>
 
         {/* Set Correspondent */}
@@ -578,6 +554,16 @@ export function BulkActionBar({
                 <Share2 className="mr-2 h-3.5 w-3.5" />Create share bundle…
               </DropdownMenuItem>
             )}
+            {supportsExplicitOnlyActions ? (
+              <DropdownMenuItem onClick={() => setShowEmail(true)} disabled={busy}>
+                <Mail className="mr-2 h-3.5 w-3.5" />Email documents…
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem disabled>
+                <Mail className="mr-2 h-3.5 w-3.5" />
+                Email requires an explicit selection
+              </DropdownMenuItem>
+            )}
 
             <DropdownMenuSeparator />
 
@@ -679,6 +665,19 @@ export function BulkActionBar({
         onOpenChange={setShowBundle}
         documentIds={explicitDocumentIds}
         paperlessBaseUrl={paperlessBaseUrl}
+      />
+
+      <EmailDocumentsDialog
+        open={showEmail}
+        onOpenChange={setShowEmail}
+        documentIds={explicitDocumentIds}
+        documentLabel={
+          count === 1
+            ? documentTitles.find((doc) => doc.id === explicitDocumentIds[0])?.title ||
+              `Document ${explicitDocumentIds[0]}`
+            : `${count} selected documents`
+        }
+        hasArchiveVersion
       />
 
       {/* Permissions dialog */}
@@ -784,6 +783,13 @@ export function BulkActionBar({
                         <SelectItem value="false">False</SelectItem>
                       </SelectContent>
                     </Select>
+                  ) : selectedField.data_type === "long_text" ? (
+                    <Textarea
+                      className="min-h-24 text-xs"
+                      placeholder="Enter long text value…"
+                      value={cfValue}
+                      onChange={(event) => setCfValue(event.target.value)}
+                    />
                   ) : (
                     <Input
                       className="h-8 text-xs"
