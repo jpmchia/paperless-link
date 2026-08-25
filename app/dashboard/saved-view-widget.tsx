@@ -41,7 +41,6 @@ export function SavedViewWidget({
   widget: DashboardSavedViewWidgetData
 }) {
   const preferences = useUserPreferences()
-  const ViewIcon = getSavedViewIcon(widget.view.icon)
   const error = widget.error
   const documents = widget.documents
 
@@ -60,7 +59,9 @@ export function SavedViewWidget({
             </button>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <ViewIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                {React.createElement(getSavedViewIcon(widget.view.icon), {
+                  className: "h-4 w-4 shrink-0 text-muted-foreground",
+                })}
                 <CardTitle className="truncate text-base">
                   {widget.view.name}
                 </CardTitle>

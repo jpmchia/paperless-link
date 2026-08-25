@@ -126,9 +126,11 @@ export function stripLegacyVisibilityFields<T extends Record<string, unknown>>(
   show_in_sidebar?: boolean
 } {
   const {
-    show_on_dashboard: _dashboard,
-    show_in_sidebar: _sidebar,
+    show_on_dashboard: _showOnDashboard,
+    show_in_sidebar: _showInSidebar,
     ...rest
   } = data
+  void _showOnDashboard
+  void _showInSidebar
   return rest as Omit<T, "show_on_dashboard" | "show_in_sidebar">
 }

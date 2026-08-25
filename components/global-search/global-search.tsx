@@ -420,12 +420,8 @@ export function GlobalSearch({
   )
 
   const refreshSearchResults = React.useCallback(() => {
-    if (!deferredQuery || !canViewDocuments) {
-      return
-    }
-
     setSearchRefreshKey((current) => current + 1)
-  }, [canViewDocuments, deferredQuery])
+  }, [])
 
   const handleResultAction = React.useCallback(
     (actionId: GlobalSearchActionId, result: GlobalSearchResult) => {

@@ -375,19 +375,6 @@ export function BulkActionBar({
     () => createExplicitDocumentSelection(selectedIds),
     [selectedIds]
   )
-  if (count === 0) return null
-
-  if (readOnly && dataroomSlug) {
-    return (
-      <DataroomReadOnlyBulkBar
-        selectedIds={selectedIds}
-        dataroomSlug={dataroomSlug}
-        dataroomFolderId={dataroomFolderId}
-        onClearSelection={onClearSelection}
-        onComplete={onComplete}
-      />
-    )
-  }
 
   React.useEffect(() => {
     let cancelled = false
@@ -439,6 +426,20 @@ export function BulkActionBar({
       cancelled = true
     }
   }, [count, selectedIds])
+
+  if (count === 0) return null
+
+  if (readOnly && dataroomSlug) {
+    return (
+      <DataroomReadOnlyBulkBar
+        selectedIds={selectedIds}
+        dataroomSlug={dataroomSlug}
+        dataroomFolderId={dataroomFolderId}
+        onClearSelection={onClearSelection}
+        onComplete={onComplete}
+      />
+    )
+  }
 
   const actionsDisabled = busy || selectionDataLoading
 
