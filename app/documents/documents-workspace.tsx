@@ -27,6 +27,7 @@ import {
   getDocumentSelectionCount,
 } from "@/lib/document-selection"
 import { serializeDocumentFilters } from "@/lib/api"
+import type { SelectionData } from "@/lib/bulk-selection-data"
 
 type LookupItem = { id: number; name: string }
 type UserOption = { id: number; username?: string; first_name?: string; last_name?: string }
@@ -106,6 +107,7 @@ interface DocumentsWorkspaceProps {
   initialTableLayouts?: DocumentTableLayoutSettings | null
   remoteOcrSelectable?: boolean
   paperlessBaseUrl?: string
+  selectionData?: SelectionData | null
 }
 
 export function DocumentsWorkspace({
@@ -130,6 +132,7 @@ export function DocumentsWorkspace({
   initialTableLayouts,
   remoteOcrSelectable = false,
   paperlessBaseUrl = "/",
+  selectionData = null,
 }: DocumentsWorkspaceProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -505,6 +508,7 @@ export function DocumentsWorkspace({
           selection={selection}
           selectedCount={selectedCount}
           totalResultsCount={totalCount}
+          selectionData={selectionData}
           remoteOcrSelectable={remoteOcrSelectable}
           onClearSelection={() => setSelection(createExplicitDocumentSelection())}
           onComplete={() => {

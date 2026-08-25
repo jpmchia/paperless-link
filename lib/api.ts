@@ -8,12 +8,24 @@ import {
   applySavedViewVisibilityFlags,
   readSavedViewVisibility,
 } from "@/lib/saved-view-visibility"
+import {
+  normalizeSelectionData,
+  type SelectionData,
+} from "@/lib/bulk-selection-data"
 
 export interface PaginatedResults<T> {
   count?: number
   next?: string | null
   previous?: string | null
   results?: T[]
+}
+
+export type DocumentResults<T> = {
+  count: number
+  next: string | null
+  previous: string | null
+  results: T[]
+  selectionData: SelectionData | null
 }
 
 export async function getPaperlessApi<T = unknown>(
@@ -328,20 +340,22 @@ export async function getDocuments(
   page: number = 1,
   pageSize: number = 25,
   filters: FilterParams = {}
-) {
+): Promise<DocumentResults<unknown>> {
   try {
     const qs = buildDocumentQueryString(page, pageSize, filters, {
       includeSelectionData: true,
     })
     const data = await getPaperlessApi<PaginatedResults<unknown> & {
-      selection_data?: unknown
+      selection_data?: SelectionData | null
     }>(`documents/?${qs}`)
     return {
-      count: data.count,
-      next: data.next,
-      previous: data.previous,
+      count: data.count ?? 0,
+      next: data.next ?? null,
+      previous: data.previous ?? null,
       results: data.results || [],
-      selectionData: data.selection_data ?? null,
+      selectionData: data.selection_data
+        ? normalizeSelectionData(data.selection_data)
+        : null,
     }
   } catch (error) {
     console.error("Failed to fetch documents:", error)

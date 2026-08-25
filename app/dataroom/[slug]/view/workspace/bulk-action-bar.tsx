@@ -42,8 +42,15 @@ import {
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { downloadDataroomDocuments, printDataroomDocuments } from "@/lib/dataroom-public-client"
-import { HierarchicalTagPicker } from "@/components/tags/hierarchical-tag-picker"
 import { EmailDocumentsDialog } from "@/components/documents/email-documents-dialog"
+import { MixedSelectionPicker } from "@/components/documents/mixed-selection-picker"
+import {
+  buildToggleMap,
+  getSingleValueFieldState,
+  normalizeSelectionData,
+  type SingleValueFieldState,
+  type TriState,
+} from "@/lib/bulk-selection-data"
 
 interface BulkActionBarProps {
   selectedIds: number[]
@@ -65,6 +72,10 @@ interface BulkActionBarProps {
 
 type BulkEditParameters = Record<string, unknown>
 type SelectableActor = { id: number; username?: string; name?: string }
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled selection state: ${String(value)}`)
+}
 
 async function bulkEdit(documentIds: number[], method: string, parameters: BulkEditParameters) {
   const res = await fetch("/api/bulk-edit", {
@@ -169,6 +180,93 @@ async function proxyPost(path: string, body: Record<string, unknown>) {
   return res.json().catch(() => null)
 }
 
+async function loadSelectionData(documentIds: number[]) {
+  const res = await fetch("/api/documents/selection-data", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ documents: documentIds }),
+  })
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => res.statusText)
+    throw new Error(`Selection data failed: ${err}`)
+  }
+
+  return normalizeSelectionData(await res.json().catch(() => null))
+}
+
+function buildTriStateDelta(
+  initialStateById: Record<number, TriState>,
+  nextStateById: Record<number, TriState>
+) {
+  const ids = new Set([
+    ...Object.keys(initialStateById).map(Number),
+    ...Object.keys(nextStateById).map(Number),
+  ])
+  const itemsToAdd: number[] = []
+  const itemsToRemove: number[] = []
+
+  for (const id of ids) {
+    const initialState = initialStateById[id] ?? "unselected"
+    const nextState = nextStateById[id] ?? "unselected"
+
+    if (nextState === "partial") {
+      continue
+    }
+
+    if (nextState === "selected" && initialState !== "selected") {
+      itemsToAdd.push(id)
+    }
+
+    if (nextState === "unselected" && initialState !== "unselected") {
+      itemsToRemove.push(id)
+    }
+  }
+
+  return {
+    itemsToAdd,
+    itemsToRemove,
+  }
+}
+
+function singleValueButtonLabel(
+  label: string,
+  state: SingleValueFieldState,
+  items: Array<{ id: number; name: string }>
+) {
+  switch (state.state) {
+    case "selected": {
+      const match = items.find((item) => item.id === state.value)
+      return match ? `${label}: ${match.name}` : label
+    }
+    case "partial":
+      return `${label}: Mixed`
+    case "unselected":
+      return label
+    default:
+      return assertNever(state.state)
+  }
+}
+
+function parseCustomFieldValue(
+  dataType: string,
+  value: string
+): boolean | number | string {
+  if (dataType === "boolean") {
+    return value === "true"
+  }
+
+  if (
+    dataType === "float" ||
+    dataType === "integer" ||
+    dataType === "monetary"
+  ) {
+    return Number(value)
+  }
+
+  return value
+}
+
 // Multi-select combobox for users/groups
 function MultiSelectCombobox({
   items,
@@ -245,9 +343,27 @@ export function BulkActionBar({
   const [showPermissions, setShowPermissions] = React.useState(false)
   const [showCustomFields, setShowCustomFields] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
+  const [selectionDataLoading, setSelectionDataLoading] = React.useState(false)
 
-  // Tag picker state
-  const [selectedTags, setSelectedTags] = React.useState<number[]>([])
+  const [initialTagStateById, setInitialTagStateById] = React.useState<
+    Record<number, TriState>
+  >({})
+  const [tagStateById, setTagStateById] = React.useState<Record<number, TriState>>({})
+  const [correspondentState, setCorrespondentState] =
+    React.useState<SingleValueFieldState>({
+      state: "unselected",
+      value: null,
+    })
+  const [documentTypeState, setDocumentTypeState] =
+    React.useState<SingleValueFieldState>({
+      state: "unselected",
+      value: null,
+    })
+  const [storagePathState, setStoragePathState] =
+    React.useState<SingleValueFieldState>({
+      state: "unselected",
+      value: null,
+    })
 
   // Permissions dialog state
   const [permOwner, setPermOwner] = React.useState<number | null>(null)
@@ -279,6 +395,59 @@ export function BulkActionBar({
     )
   }
 
+  React.useEffect(() => {
+    let cancelled = false
+
+    setInitialTagStateById({})
+    setTagStateById({})
+    setCorrespondentState({ state: "unselected", value: null })
+    setDocumentTypeState({ state: "unselected", value: null })
+    setStoragePathState({ state: "unselected", value: null })
+    setCfFieldId("")
+    setCfValue("")
+    setSelectionDataLoading(true)
+
+    void loadSelectionData(selectedIds)
+      .then((selectionData) => {
+        if (cancelled) {
+          return
+        }
+
+        setInitialTagStateById(buildToggleMap(selectionData.selected_tags, count))
+        setTagStateById(buildToggleMap(selectionData.selected_tags, count))
+        setCorrespondentState(
+          getSingleValueFieldState(selectionData.selected_correspondents, count)
+        )
+        setDocumentTypeState(
+          getSingleValueFieldState(selectionData.selected_document_types, count)
+        )
+        setStoragePathState(
+          getSingleValueFieldState(selectionData.selected_storage_paths, count)
+        )
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return
+        }
+
+        toast.error("Could not load selection details", {
+          description:
+            error instanceof Error ? error.message : "Unknown selection error",
+        })
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSelectionDataLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [count, selectedIds])
+
+  const actionsDisabled = busy || selectionDataLoading
+
   const run = async (method: string, parameters: BulkEditParameters, message: string) => {
     setBusy(true)
     try {
@@ -307,8 +476,23 @@ export function BulkActionBar({
   }
 
   const handleSetTags = async () => {
-    await run("set_tags", { tags: selectedTags }, `Tags set on ${count} documents`)
-    setSelectedTags([])
+    const { itemsToAdd, itemsToRemove } = buildTriStateDelta(
+      initialTagStateById,
+      tagStateById
+    )
+
+    if (itemsToAdd.length === 0 && itemsToRemove.length === 0) {
+      return
+    }
+
+    await run(
+      "modify_tags",
+      {
+        add_tags: itemsToAdd,
+        remove_tags: itemsToRemove,
+      },
+      `Tags updated on ${count} documents`
+    )
   }
 
   const handleDelete = async () => {
@@ -404,11 +588,25 @@ export function BulkActionBar({
 
   const handleSaveCustomField = async () => {
     if (!cfFieldId) return
+    const customFieldId = Number(cfFieldId)
+    const trimmedValue = cfValue.trim()
+
     setBusy(true)
     try {
-      await bulkEdit(selectedIds, "modify_custom_fields", {
-        custom_fields: [{ field: Number(cfFieldId), value: cfValue || null }],
-      })
+      await bulkEdit(selectedIds, "modify_custom_fields", trimmedValue
+        ? {
+            add_custom_fields: {
+              [customFieldId]: parseCustomFieldValue(
+                selectedField?.data_type ?? "text",
+                trimmedValue
+              ),
+            },
+            remove_custom_fields: [],
+          }
+        : {
+            add_custom_fields: {},
+            remove_custom_fields: [customFieldId],
+          })
       toast.success(`Custom field updated on ${count} documents`)
       setShowCustomFields(false)
       setCfFieldId("")
@@ -424,6 +622,25 @@ export function BulkActionBar({
   }
 
   const selectedField = customFields.find((cf) => String(cf.id) === cfFieldId)
+  const tagChanges = buildTriStateDelta(initialTagStateById, tagStateById)
+  const activeTagCount = Object.values(tagStateById).filter(
+    (state) => state !== "unselected"
+  ).length
+  const correspondentButtonText = singleValueButtonLabel(
+    "Correspondent",
+    correspondentState,
+    correspondents
+  )
+  const documentTypeButtonText = singleValueButtonLabel(
+    "Type",
+    documentTypeState,
+    documentTypes
+  )
+  const storagePathButtonText = singleValueButtonLabel(
+    "Storage Path",
+    storagePathState,
+    storagePaths
+  )
 
   return (
     <>
@@ -435,17 +652,22 @@ export function BulkActionBar({
         {/* Set Tags */}
         <CanChange type="document">
           <div className="flex items-center gap-1">
-            <HierarchicalTagPicker
+            <MixedSelectionPicker
               tags={tags}
-              selectedIds={selectedTags}
-              onSelectionChange={setSelectedTags}
+              stateById={tagStateById}
+              onStateByIdChange={setTagStateById}
               placeholder="Tags"
-              disabled={busy}
+              disabled={actionsDisabled}
               className="min-h-7 w-[180px] py-0 text-xs"
             />
-            {selectedTags.length > 0 ? (
-              <Button size="sm" className="h-7 text-xs" disabled={busy} onClick={handleSetTags}>
-                Apply ({selectedTags.length})
+            {tagChanges.itemsToAdd.length > 0 || tagChanges.itemsToRemove.length > 0 ? (
+              <Button
+                size="sm"
+                className="h-7 text-xs"
+                disabled={actionsDisabled}
+                onClick={handleSetTags}
+              >
+                Apply tags ({activeTagCount})
               </Button>
             ) : null}
           </div>
@@ -455,8 +677,8 @@ export function BulkActionBar({
         <CanChange type="document">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-7 text-xs" disabled={busy}>
-                <User className="mr-1 h-3 w-3" />Correspondent
+              <Button variant="outline" size="sm" className="h-7 text-xs" disabled={actionsDisabled}>
+                <User className="mr-1 h-3 w-3" />{correspondentButtonText}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="max-h-60 overflow-y-auto">
@@ -477,8 +699,8 @@ export function BulkActionBar({
         <CanChange type="document">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-7 text-xs" disabled={busy}>
-                <FileType className="mr-1 h-3 w-3" />Type
+              <Button variant="outline" size="sm" className="h-7 text-xs" disabled={actionsDisabled}>
+                <FileType className="mr-1 h-3 w-3" />{documentTypeButtonText}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="max-h-60 overflow-y-auto">
@@ -498,7 +720,7 @@ export function BulkActionBar({
         {/* More actions */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 text-xs" disabled={busy}>
+            <Button variant="outline" size="sm" className="h-7 text-xs" disabled={actionsDisabled}>
               More…
             </Button>
           </DropdownMenuTrigger>
@@ -506,7 +728,7 @@ export function BulkActionBar({
             <CanChange type="document">
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
-                  <FolderOpen className="mr-2 h-3.5 w-3.5" />Storage Path
+                  <FolderOpen className="mr-2 h-3.5 w-3.5" />{storagePathButtonText}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="max-h-60 overflow-y-auto">
                   <DropdownMenuItem onClick={() => handleSetStoragePath(null)}>
@@ -524,7 +746,7 @@ export function BulkActionBar({
 
             <CanChange type="document">
               {customFields.length > 0 && (
-                <DropdownMenuItem onClick={() => setShowCustomFields(true)} disabled={busy}>
+                <DropdownMenuItem onClick={() => setShowCustomFields(true)} disabled={actionsDisabled}>
                   <FormInput className="mr-2 h-3.5 w-3.5" />Custom Field…
                 </DropdownMenuItem>
               )}
@@ -532,7 +754,7 @@ export function BulkActionBar({
 
             <CanChange type="document">
               {usersList.length > 0 && (
-                <DropdownMenuItem onClick={() => setShowPermissions(true)} disabled={busy}>
+                <DropdownMenuItem onClick={() => setShowPermissions(true)} disabled={actionsDisabled}>
                   <ShieldCheck className="mr-2 h-3.5 w-3.5" />Permissions…
                 </DropdownMenuItem>
               )}
@@ -555,29 +777,29 @@ export function BulkActionBar({
 
             <CanChange type="document">
               {count >= 2 && (
-                <DropdownMenuItem onClick={() => setShowMerge(true)} disabled={busy}>
+                <DropdownMenuItem onClick={() => setShowMerge(true)} disabled={actionsDisabled}>
                   <Merge className="mr-2 h-3.5 w-3.5" />Merge…
                 </DropdownMenuItem>
               )}
             </CanChange>
 
-            <DropdownMenuItem onClick={() => setShowEmail(true)} disabled={busy}>
+            <DropdownMenuItem onClick={() => setShowEmail(true)} disabled={actionsDisabled}>
               <Mail className="mr-2 h-3.5 w-3.5" />Email documents…
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
 
-            <DropdownMenuItem onClick={handleDownload} disabled={busy}>
+            <DropdownMenuItem onClick={handleDownload} disabled={actionsDisabled}>
               <Download className="mr-2 h-3.5 w-3.5" />Download
             </DropdownMenuItem>
             <CanChange type="document">
-              <DropdownMenuItem onClick={handleRedoOcr} disabled={busy}>
+              <DropdownMenuItem onClick={handleRedoOcr} disabled={actionsDisabled}>
                 <RotateCcw className="mr-2 h-3.5 w-3.5" />Redo OCR
               </DropdownMenuItem>
             </CanChange>
             <DropdownMenuSeparator />
             <CanDelete type="document">
-              <DropdownMenuItem onClick={() => setShowDelete(true)} disabled={busy} className="text-destructive">
+              <DropdownMenuItem onClick={() => setShowDelete(true)} disabled={actionsDisabled} className="text-destructive">
                 <Trash2 className="mr-2 h-3.5 w-3.5" />Delete
               </DropdownMenuItem>
             </CanDelete>
@@ -629,7 +851,7 @@ export function BulkActionBar({
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleMerge} disabled={busy}>
+              <AlertDialogAction onClick={handleMerge} disabled={actionsDisabled}>
                 Merge
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -710,7 +932,7 @@ export function BulkActionBar({
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowPermissions(false)}>Cancel</Button>
-              <Button onClick={handleSavePermissions} disabled={busy}>
+              <Button onClick={handleSavePermissions} disabled={actionsDisabled}>
                 Apply Permissions
               </Button>
             </DialogFooter>
@@ -773,7 +995,7 @@ export function BulkActionBar({
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCustomFields(false)}>Cancel</Button>
-              <Button onClick={handleSaveCustomField} disabled={busy || !cfFieldId}>
+              <Button onClick={handleSaveCustomField} disabled={actionsDisabled || !cfFieldId}>
                 Apply
               </Button>
             </DialogFooter>

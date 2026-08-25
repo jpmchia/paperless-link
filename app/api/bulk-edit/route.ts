@@ -2,9 +2,9 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 import { NextResponse } from "next/server"
 import { paperlessJsonAccept } from "@/lib/paperless-transport"
+import { resolveSelectionDocumentIds } from "@/lib/server/document-selection-resolve"
 
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
-const DOCUMENT_ID_PAGE_SIZE = 500
 
 async function getToken() {
   const session = await getServerSession(authOptions)
@@ -21,47 +21,6 @@ function buildHeaders(token: string) {
   }
 }
 
-async function listFilteredDocumentIds(
-  token: string,
-  filters: Record<string, string>
-) {
-  const ids: number[] = []
-  let page = 1
-
-  while (true) {
-    const params = new URLSearchParams(filters)
-    params.set("page", String(page))
-    params.set("page_size", String(DOCUMENT_ID_PAGE_SIZE))
-    params.set("fields", "id")
-
-    const response = await fetch(`${baseUrl}api/documents/?${params.toString()}`, {
-      headers: buildHeaders(token),
-    })
-
-    if (!response.ok) {
-      throw new Error(await response.text().catch(() => response.statusText))
-    }
-
-    const data = await response.json() as {
-      next?: string | null
-      results?: Array<{ id?: number }>
-    }
-    const pageIds = (data.results ?? [])
-      .map((document) => document.id)
-      .filter((id): id is number => Number.isInteger(id))
-
-    ids.push(...pageIds)
-
-    if (!data.next) {
-      break
-    }
-
-    page += 1
-  }
-
-  return ids
-}
-
 export async function POST(req: Request) {
   const token = await getToken()
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -75,17 +34,11 @@ export async function POST(req: Request) {
 
   if (body.all === true && excludedDocumentIds.length > 0) {
     try {
-      const filters = body.filters && typeof body.filters === "object" && !Array.isArray(body.filters)
-        ? Object.fromEntries(
-            Object.entries(body.filters as Record<string, unknown>)
-              .filter(([, value]) => value != null)
-              .map(([key, value]) => [key, String(value)])
-          )
-        : {}
-      const excluded = new Set(excludedDocumentIds)
-      const documentIds = await listFilteredDocumentIds(token, filters)
-
-      body.documents = documentIds.filter((id) => !excluded.has(id))
+      body.documents = await resolveSelectionDocumentIds(token, {
+        all: true,
+        filters: body.filters,
+        excluded_document_ids: excludedDocumentIds,
+      })
       body.all = false
       delete body.filters
     } catch (error) {

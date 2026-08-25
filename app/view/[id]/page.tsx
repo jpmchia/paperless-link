@@ -18,6 +18,7 @@ import type { LookupMaps } from "@/app/documents/columns"
 import { DocumentsWorkspace } from "@/app/documents/documents-workspace"
 import { TopBar } from "@/app/documents/topbar"
 import type { FilterParams } from "@/lib/api"
+import { readUserPreferences } from "@/lib/user-preferences"
 
 type UiSettingsRecord = {
   settings?: {
@@ -66,6 +67,7 @@ export default async function SavedViewPage({
 
   const filters: FilterParams = filterParamsFromSavedView(view)
   if (sp.query) filters.query = sp.query as string
+  if (sp.title_content) filters.titleContentContains = sp.title_content as string
   if (sp.correspondent) filters.correspondent = Number(sp.correspondent)
   if (sp.document_type) filters.documentType = Number(sp.document_type)
   if (sp.storage_path) filters.storagePath = Number(sp.storage_path)
@@ -84,15 +86,18 @@ export default async function SavedViewPage({
   if (sp.more_like_id) filters.moreLikeId = Number(sp.more_like_id)
 
   const currentPage = Number(sp.page) || 1
-  const pageSize = Number(sp.page_size) || view.page_size || 25
+  const uiSettings = await getUiSettings<UiSettingsRecord>()
+  const userPreferences = readUserPreferences(uiSettings.settings)
+  const pageSize = Number(sp.page_size) || view.page_size || userPreferences.pageSize
 
-  const [documentsData, tagsList, correspondentsList, typesList, pathsList, savedViewsList, customFieldsList, usersList, uiSettings] =
+  const [documentsData, tagsList, correspondentsList, typesList, pathsList, savedViewsList, customFieldsList, usersList] =
     await Promise.all([
       getDocuments(currentPage, pageSize, filters) as Promise<{
         count?: number
         next?: string | null
         previous?: string | null
         results: AppDocument[]
+        selectionData?: WorkspaceProps["selectionData"]
       }>,
       getTags<TagOption>(),
       getCorrespondents<LookupItem>(),
@@ -101,7 +106,6 @@ export default async function SavedViewPage({
       getSavedViews<WorkspaceProps["savedViews"][number]>(),
       getCustomFields<CustomFieldOption>(),
       getUsers<UserOption>(),
-      getUiSettings<UiSettingsRecord>(),
     ])
 
   const pageCount = Math.ceil((documentsData.count || 0) / pageSize)
@@ -135,6 +139,7 @@ export default async function SavedViewPage({
         users={usersList}
         initialDisplayMode={uiSettings.settings?.document_list_display_mode ?? null}
         initialTableLayouts={uiSettings.settings?.document_table_layouts ?? null}
+        selectionData={documentsData.selectionData ?? null}
       />
     </AppShell>
   )

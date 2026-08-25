@@ -60,6 +60,34 @@ vi.mock("@/components/realtime-document-list-sync", () => ({
   RealtimeDocumentListSync: () => null,
 }))
 
+vi.mock("@/components/documents/mixed-selection-picker", () => ({
+  MixedSelectionPicker: ({
+    stateById,
+    onStateByIdChange,
+  }: {
+    stateById: Record<number, "selected" | "partial" | "unselected">
+    onStateByIdChange: (
+      next: Record<number, "selected" | "partial" | "unselected">
+    ) => void
+  }) => (
+    <div>
+      <div data-testid="mixed-tag-states">
+        {Object.values(stateById).filter((state) => state !== "unselected").length}
+      </div>
+      <button
+        type="button"
+        onClick={() =>
+          onStateByIdChange({
+            8: "selected",
+          })
+        }
+      >
+        Set alternate tags
+      </button>
+    </div>
+  ),
+}))
+
 vi.mock("@/app/documents/filter-panel", () => ({
   FilterPanel: ({ trailingControls }: { trailingControls?: ReactNode }) => (
     <div>
@@ -233,6 +261,16 @@ describe("bulk action bar", () => {
 
   beforeEach(() => {
     fetchMock.mockReset()
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        selected_correspondents: [],
+        selected_custom_fields: [],
+        selected_document_types: [],
+        selected_storage_paths: [],
+        selected_tags: [],
+      }),
+    })
     vi.stubGlobal("fetch", fetchMock)
   })
 
@@ -241,10 +279,21 @@ describe("bulk action bar", () => {
   })
 
   it("sends filtered bulk-edit payloads and uses the server-backed selected count in delete confirmation", async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({}),
-    })
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          selected_correspondents: [],
+          selected_custom_fields: [],
+          selected_document_types: [],
+          selected_storage_paths: [],
+          selected_tags: [],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      })
 
     const onComplete = vi.fn()
 
@@ -274,7 +323,17 @@ describe("bulk action bar", () => {
       expect(fetchMock).toHaveBeenCalled()
     })
 
-    const [url, options] = fetchMock.mock.calls[0]
+    const [selectionDataUrl, selectionDataOptions] = fetchMock.mock.calls[0]
+    expect(selectionDataUrl).toBe("/api/documents/selection-data")
+    expect(JSON.parse(String(selectionDataOptions?.body))).toEqual({
+      all: true,
+      filters: {
+        query: "invoice",
+      },
+      excluded_document_ids: [102],
+    })
+
+    const [url, options] = fetchMock.mock.calls[1]
     expect(url).toBe("/api/bulk-edit")
     expect(JSON.parse(String(options?.body))).toEqual({
       all: true,
@@ -288,7 +347,7 @@ describe("bulk action bar", () => {
     expect(onComplete).toHaveBeenCalled()
   })
 
-  it("shows an exclusion summary when all filtered documents are selected", () => {
+  it("shows an exclusion summary when all filtered documents are selected", async () => {
     render(
       <BulkActionBar
         selection={createAllFilteredDocumentSelection({ query: "invoice" }, [102, 103])}
@@ -307,5 +366,137 @@ describe("bulk action bar", () => {
     const badge = screen.getByText("2 selected")
     expect(badge).toBeInTheDocument()
     expect(within(badge.parentElement as HTMLElement).getByText("2 excluded")).toBeInTheDocument()
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled()
+    })
+  })
+
+  it("uses page selection data for all-filtered selections without exclusions", async () => {
+    render(
+      <BulkActionBar
+        selection={createAllFilteredDocumentSelection({ query: "invoice" })}
+        selectedCount={2}
+        totalResultsCount={2}
+        selectionData={{
+          selected_correspondents: [],
+          selected_custom_fields: [],
+          selected_document_types: [],
+          selected_storage_paths: [],
+          selected_tags: [{ id: 7, document_count: 2 }],
+        }}
+        onClearSelection={vi.fn()}
+        onComplete={vi.fn()}
+        onSelectAllFiltered={undefined}
+        tags={[{ id: 7, name: "Invoices", color: "blue" }]}
+        correspondents={[]}
+        documentTypes={[]}
+        storagePaths={[]}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId("mixed-tag-states")).toHaveTextContent("1")
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("loads selection data for explicit selections, resets state on selection changes, and sends tag deltas", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          selected_correspondents: [],
+          selected_custom_fields: [],
+          selected_document_types: [],
+          selected_storage_paths: [],
+          selected_tags: [{ id: 7, document_count: 2 }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          selected_correspondents: [],
+          selected_custom_fields: [],
+          selected_document_types: [],
+          selected_storage_paths: [],
+          selected_tags: [],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      })
+
+    const onComplete = vi.fn()
+    const { rerender } = render(
+      <BulkActionBar
+        selection={{ type: "explicit", documentIds: [101, 102] }}
+        selectedCount={2}
+        totalResultsCount={2}
+        onClearSelection={vi.fn()}
+        onComplete={onComplete}
+        onSelectAllFiltered={undefined}
+        tags={[
+          { id: 7, name: "Invoices", color: "blue" },
+          { id: 8, name: "Urgent", color: "red" },
+        ]}
+        correspondents={[]}
+        documentTypes={[]}
+        storagePaths={[]}
+      />
+    )
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(screen.getByTestId("mixed-tag-states")).toHaveTextContent("1")
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Set alternate tags" }))
+    fireEvent.click(screen.getByRole("button", { name: /Apply tags/ }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    const [selectionDataUrl, selectionDataOptions] = fetchMock.mock.calls[0]
+    expect(selectionDataUrl).toBe("/api/documents/selection-data")
+    expect(JSON.parse(String(selectionDataOptions?.body))).toEqual({
+      documents: [101, 102],
+    })
+
+    const [bulkEditUrl, bulkEditOptions] = fetchMock.mock.calls[1]
+    expect(bulkEditUrl).toBe("/api/bulk-edit")
+    expect(JSON.parse(String(bulkEditOptions?.body))).toEqual({
+      documents: [101, 102],
+      method: "modify_tags",
+      parameters: {
+        add_tags: [8],
+        remove_tags: [7],
+      },
+    })
+    expect(onComplete).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <BulkActionBar
+        selection={{ type: "explicit", documentIds: [103] }}
+        selectedCount={1}
+        totalResultsCount={1}
+        onClearSelection={vi.fn()}
+        onComplete={vi.fn()}
+        onSelectAllFiltered={undefined}
+        tags={[
+          { id: 7, name: "Invoices", color: "blue" },
+          { id: 8, name: "Urgent", color: "red" },
+        ]}
+        correspondents={[]}
+        documentTypes={[]}
+        storagePaths={[]}
+      />
+    )
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(screen.getByTestId("mixed-tag-states")).toHaveTextContent("0")
+    })
   })
 })

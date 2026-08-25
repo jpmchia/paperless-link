@@ -20,6 +20,7 @@ import {
   readRemoteOcrSettings,
   remoteOcrIsSelectable,
 } from "@/data/ui-settings"
+import { readUserPreferences } from "@/lib/user-preferences"
 import { DocumentsWorkspace } from "./documents-workspace"
 import type { LookupMaps } from "./columns"
 import { TopBar } from "./topbar"
@@ -77,6 +78,9 @@ export default async function DocumentsPage({
 
   // ---- Parse additional URL search params (overrides view defaults) ----
   if (params.query) initialFilters.query = params.query as string
+  if (params.title_content) {
+    initialFilters.titleContentContains = params.title_content as string
+  }
   if (params.correspondent) initialFilters.correspondent = Number(params.correspondent)
   if (params.document_type) initialFilters.documentType = Number(params.document_type)
   if (params.storage_path) initialFilters.storagePath = Number(params.storage_path)
@@ -95,16 +99,20 @@ export default async function DocumentsPage({
   if (params.more_like_id) initialFilters.moreLikeId = Number(params.more_like_id)
 
   const currentPage = Number(params.page) || 1
-  const pageSize = Number(params.page_size) || (activeView?.page_size ?? 25)
+  const uiSettings = await getUiSettings<UiSettingsRecord>()
+  const userPreferences = readUserPreferences(uiSettings.settings)
+  const pageSize =
+    Number(params.page_size) || (activeView?.page_size ?? userPreferences.pageSize)
 
   // ---- Parallel fetch everything ----
-  const [documentsData, tagsList, correspondentsList, typesList, pathsList, savedViewsList, customFieldsList, usersList, groupsList, profile, uiSettings] =
+  const [documentsData, tagsList, correspondentsList, typesList, pathsList, savedViewsList, customFieldsList, usersList, groupsList, profile] =
     await Promise.all([
       getDocuments(currentPage, pageSize, initialFilters) as Promise<{
         count?: number
         next?: string | null
         previous?: string | null
         results: AppDocument[]
+        selectionData?: WorkspaceProps["selectionData"]
       }>,
       getTags<TagOption>(),
       getCorrespondents<LookupItem>(),
@@ -115,7 +123,6 @@ export default async function DocumentsPage({
       getUsers<UserOption>(),
       getGroups<GroupOption>(),
       getProfile<{ id: number }>(),
-      getUiSettings<UiSettingsRecord>(),
     ])
 
   const currentUserId: number | null =
@@ -161,6 +168,7 @@ export default async function DocumentsPage({
         currentUserId={currentUserId}
         initialDisplayMode={uiSettings.settings?.document_list_display_mode ?? null}
         initialTableLayouts={uiSettings.settings?.document_table_layouts ?? null}
+        selectionData={documentsData.selectionData ?? null}
         remoteOcrSelectable={remoteOcrSelectable}
         paperlessBaseUrl={
           process.env.PAPERLESS_PUBLIC_URL?.trim() ||
