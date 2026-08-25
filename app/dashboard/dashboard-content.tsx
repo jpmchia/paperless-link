@@ -9,7 +9,6 @@ import {
   Folder,
   Inbox,
   Loader2,
-  Tags,
   Users,
 } from "lucide-react"
 import { OpenDocumentLink } from "@/components/open-document-link"
@@ -25,6 +24,7 @@ import {
   realtimeConnectionAtom,
 } from "@/lib/stores/realtime"
 import { UploadWidget } from "./upload-widget"
+import { getSavedViewIcon } from "@/data/saved-view-icons"
 
 interface DashboardEntity {
   id: number
@@ -42,6 +42,7 @@ interface DashboardDocument {
 interface DashboardSavedView {
   id: number
   name: string
+  icon?: string
   show_in_sidebar?: boolean
   show_on_dashboard?: boolean
 }
@@ -244,13 +245,15 @@ export function DashboardContent({
             <CardContent>
               {dashboardViews.length > 0 ? (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {dashboardViews.map((view) => (
+                  {dashboardViews.map((view) => {
+                    const ViewIcon = getSavedViewIcon(view.icon)
+                    return (
                     <Link
                       key={view.id}
                       href={`/view/${view.id}`}
                       className="group flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50"
                     >
-                      <Tags className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
+                      <ViewIcon className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium leading-none">
                           {view.name}
@@ -260,24 +263,28 @@ export function DashboardContent({
                         </p>
                       </div>
                     </Link>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : data.savedViews.length > 0 ? (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {data.savedViews.slice(0, 6).map((view) => (
+                  {data.savedViews.slice(0, 6).map((view) => {
+                    const ViewIcon = getSavedViewIcon(view.icon)
+                    return (
                     <Link
                       key={view.id}
                       href={`/view/${view.id}`}
                       className="group flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50"
                     >
-                      <Tags className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
+                      <ViewIcon className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium leading-none">
                           {view.name}
                         </p>
                       </div>
                     </Link>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
                 <p className="py-4 text-center text-sm text-muted-foreground">

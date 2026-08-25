@@ -39,8 +39,13 @@ import {
   type SavedViewEditorValue,
 } from "@/components/saved-views/saved-view-editor"
 import type { SavedViewRuleEditorLookups } from "@/components/saved-views/filter-rule-editor"
+import {
+  DEFAULT_SAVED_VIEW_ICON,
+  normalizeSavedViewIcon,
+} from "@/data/saved-view-icons"
 
 type ActiveSavedView = PermissionedObject & {
+  icon?: string | null
   filter_rules?: Array<{ rule_type?: number; value?: string | number | boolean | null }>
   id?: number
   name?: string
@@ -54,7 +59,7 @@ type ActiveSavedView = PermissionedObject & {
 }
 
 type LookupItem = { id: number; name: string }
-type TagLookupItem = LookupItem & { color?: string | number }
+type TagLookupItem = LookupItem & { color?: string | number; parent?: number | null }
 type SavedViewSummary = ActiveSavedView & { id: number; name: string }
 
 interface FilterPanelProps {
@@ -300,6 +305,7 @@ export function FilterPanel({
       return {
         id,
         name,
+        icon: DEFAULT_SAVED_VIEW_ICON,
         show_on_dashboard: false,
         show_in_sidebar: false,
         filter_rules: currentSavedViewState.filterRules,
@@ -324,6 +330,7 @@ export function FilterPanel({
       ...buildEditorValueFromCurrentState(activeViewName ?? "Saved view", activeViewId ?? undefined),
       show_on_dashboard: Boolean(activeView?.show_on_dashboard),
       show_in_sidebar: Boolean(activeView?.show_in_sidebar),
+      icon: normalizeSavedViewIcon(activeView?.icon),
     } satisfies SavedViewEditorValue
   }, [activeView, activeViewId, activeViewName, buildEditorValueFromCurrentState])
 
@@ -590,6 +597,7 @@ export function FilterPanel({
       if (editorIsNew) {
         const created = await createSavedView({
           name: editorValue.name.trim(),
+          icon: normalizeSavedViewIcon(editorValue.icon),
           filter_rules: editorValue.filter_rules,
           sort_field: editorValue.sort_field,
           sort_reverse: editorValue.sort_reverse,
@@ -626,6 +634,7 @@ export function FilterPanel({
 
       await patchSavedView(editorValue.id, {
         name: editorValue.name.trim(),
+        icon: normalizeSavedViewIcon(editorValue.icon),
         filter_rules: editorValue.filter_rules,
         sort_field: editorValue.sort_field,
         sort_reverse: editorValue.sort_reverse,

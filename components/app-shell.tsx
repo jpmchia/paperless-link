@@ -30,6 +30,8 @@ export interface AppShellProps {
   topbar?: React.ReactNode
   sidebar?: React.ReactNode
   mode?: "default" | "dataroom"
+  /** When `mode` is `dataroom`, pass the room slug so the agent rail scopes sessions correctly. */
+  dataroomSlug?: string
 }
 
 export interface TopBarProps {
@@ -39,6 +41,7 @@ export interface TopBarProps {
 interface SavedViewEntry {
   id: number
   name: string
+  icon?: string
   show_in_sidebar: boolean
 }
 
@@ -85,6 +88,7 @@ export async function AppShell({
   topbar,
   sidebar,
   mode = "default",
+  dataroomSlug,
 }: AppShellProps) {
   // Fetch saved views server-side so the sidebar can show sidebar-pinned views
   let savedViews: SavedViewEntry[] = []
@@ -158,7 +162,9 @@ export async function AppShell({
                 topbar={topbar}
                 sidebarTrigger={<SidebarTrigger />}
                 showGlobalControls={mode === "default"}
-                showAgentRailToggle={mode === "default"}
+                showAgentRailToggle
+                agentSurface={mode === "dataroom" ? "dataroom" : "main"}
+                dataroomSlug={dataroomSlug ?? null}
               >
                 {children}
               </AgentRailLayout>

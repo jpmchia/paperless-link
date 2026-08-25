@@ -50,12 +50,18 @@ import {
   type SavedViewRuleEditorLookups,
 } from "./filter-rule-editor"
 import { PermissionAssignmentEditor } from "@/components/permissions/permission-assignment-editor"
+import {
+  DEFAULT_SAVED_VIEW_ICON,
+  SAVED_VIEW_ICONS,
+  normalizeSavedViewIcon,
+} from "@/data/saved-view-icons"
 
 const PAGE_SIZES = [10, 25, 50, 100, 250]
 
 export type SavedViewEditorValue = {
   id?: number
   name: string
+  icon?: string
   show_on_dashboard: boolean
   show_in_sidebar: boolean
   sort_field: string
@@ -164,6 +170,31 @@ export function SavedViewEditor({
                   placeholder="Saved view name"
                   autoFocus
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Icon</Label>
+                <Select
+                  value={normalizeSavedViewIcon(current.icon)}
+                  onValueChange={(icon) => update({ icon })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={DEFAULT_SAVED_VIEW_ICON} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {SAVED_VIEW_ICONS.map((option) => {
+                      const Icon = option.icon
+                      return (
+                        <SelectItem key={option.id} value={option.id}>
+                          <span className="flex items-center gap-2">
+                            <Icon className="h-4 w-4" />
+                            {option.label}
+                          </span>
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">

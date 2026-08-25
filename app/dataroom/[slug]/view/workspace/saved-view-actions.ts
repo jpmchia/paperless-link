@@ -24,6 +24,7 @@ async function getToken() {
 }
 
 type SavedViewMutation = {
+  icon?: string
   filter_rules?: SavedViewRule[]
   sort_field?: string
   sort_reverse?: boolean
@@ -90,6 +91,7 @@ export async function patchSavedView(id: number, data: SavedViewMutation) {
 
 export async function createSavedView(data: {
   name: string
+  icon?: string
   filter_rules: SavedViewRule[]
   sort_field?: string
   sort_reverse?: boolean

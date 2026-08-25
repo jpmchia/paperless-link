@@ -54,10 +54,16 @@ import {
   summarizePermissionAssignment,
   toSetPermissions,
 } from "@/lib/permission-assignments"
+import {
+  DEFAULT_SAVED_VIEW_ICON,
+  getSavedViewIcon,
+  normalizeSavedViewIcon,
+} from "@/data/saved-view-icons"
 
 type SavedView = {
   id: number
   name: string
+  icon?: string
   owner?: number | null
   permissions?: PermissionedObject["permissions"]
   user_can_change?: boolean
@@ -71,7 +77,7 @@ type SavedView = {
   display_fields: string[] | null
 }
 
-type LookupOption = { id: number; name: string }
+type LookupOption = { id: number; name: string; parent?: number | null }
 type UserOption = { id: number; username?: string; first_name?: string; last_name?: string }
 type CustomFieldOption = { id: number; name: string }
 type GroupOption = { id: number; name: string }
@@ -87,6 +93,7 @@ const SORT_FIELD_LABELS: Record<string, string> = {
 
 const emptyView = (): SavedViewEditorValue => ({
   name: "",
+  icon: DEFAULT_SAVED_VIEW_ICON,
   show_on_dashboard: false,
   show_in_sidebar: false,
   sort_field: "created",
@@ -104,6 +111,7 @@ function toEditorValue(view: SavedView): SavedViewEditorValue {
   return {
     id: view.id,
     name: view.name,
+    icon: normalizeSavedViewIcon(view.icon),
     show_on_dashboard: view.show_on_dashboard,
     show_in_sidebar: view.show_in_sidebar,
     sort_field: view.sort_field ?? "created",
@@ -177,6 +185,7 @@ export function SavedViewsTable({
       if (isNew) {
         const created = await createSavedView({
           name: editing.name,
+          icon: normalizeSavedViewIcon(editing.icon),
           filter_rules: editing.filter_rules,
           sort_field: editing.sort_field ?? "created",
           sort_reverse: editing.sort_reverse ?? true,
@@ -213,6 +222,7 @@ export function SavedViewsTable({
 
       await patchSavedView(editing.id!, {
         name: editing.name,
+        icon: normalizeSavedViewIcon(editing.icon),
         show_on_dashboard: editing.show_on_dashboard,
         show_in_sidebar: editing.show_in_sidebar,
         page_size: editing.page_size ?? undefined,
@@ -270,6 +280,7 @@ export function SavedViewsTable({
   const duplicateView = async (source: SavedViewEditorValue) => {
     const duplicated = await createSavedView({
       name: `${source.name} Copy`,
+      icon: normalizeSavedViewIcon(source.icon),
       filter_rules: source.filter_rules,
       sort_field: source.sort_field,
       sort_reverse: source.sort_reverse,
@@ -380,13 +391,16 @@ export function SavedViewsTable({
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((view) => (
+              filtered.map((view) => {
+                const ViewIcon = getSavedViewIcon(view.icon)
+                return (
                 <TableRow key={view.id}>
                   <TableCell className="font-medium">
                     <Link
                       href={`/view/${view.id}`}
                       className="hover:text-primary flex items-center gap-1.5 group"
                     >
+                      <ViewIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                       {view.name}
                       <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-50 transition-opacity" />
                     </Link>
@@ -462,7 +476,8 @@ export function SavedViewsTable({
                     </div>
                   </TableCell>
                 </TableRow>
-              ))
+                )
+              })
             )}
           </TableBody>
         </Table>

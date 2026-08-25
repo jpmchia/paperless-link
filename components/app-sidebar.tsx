@@ -92,10 +92,12 @@ import {
 } from "@/lib/stores/tasks"
 import { updateUiSettings } from "@/app/actions/ui-settings"
 import type { CurrentUserPermissions } from "@/lib/permissions"
+import { getSavedViewIcon } from "@/data/saved-view-icons"
 
 interface SavedViewEntry {
   id: number
   name: string
+  icon?: string
   show_in_sidebar: boolean
 }
 
@@ -118,6 +120,16 @@ interface NavItem {
   permissionType?: PermissionType
   title: string
   url: string
+}
+
+function SavedViewIcon({
+  icon,
+  className,
+}: {
+  icon?: string
+  className?: string
+}) {
+  return React.createElement(getSavedViewIcon(icon), { className })
 }
 
 const navMain: NavItem[] = [
@@ -196,7 +208,7 @@ function SortableViewItem({
         </button>
         <SidebarMenuButton asChild isActive={isActive} className="flex-1 min-w-0">
           <Link href={`/view/${view.id}`}>
-            <LayoutList className="h-4 w-4 shrink-0" />
+            <SavedViewIcon icon={view.icon} className="h-4 w-4 shrink-0" />
             <span className="truncate">{view.name}</span>
           </Link>
         </SidebarMenuButton>
@@ -235,11 +247,13 @@ export function AppSidebar({
 
   const syncPendingTasks = React.useCallback(async () => {
     try {
-      const data = await getJson<
-        SidebarTaskSummary[] | { results?: SidebarTaskSummary[] }
-      >("/api/tasks")
-      const tasks = Array.isArray(data) ? data : data.results ?? []
-      setPendingTaskCount(countPendingTasks(tasks))
+      const data = await getJson<{ count?: number; results?: SidebarTaskSummary[] }>(
+        "/api/tasks/active"
+      )
+      const tasks = data.results ?? []
+      setPendingTaskCount(
+        typeof data.count === "number" ? data.count : countPendingTasks(tasks)
+      )
     } catch {
       // Silently ignore shell task-count sync failures.
     }
@@ -479,6 +493,7 @@ export function AppSidebar({
                         const isActive =
                           pathname === `/view/${view.id}` ||
                           pathnameValue.includes(`view/${view.id}`)
+                        const ViewIcon = getSavedViewIcon(view.icon)
                         return (
                           <SidebarMenuItem key={view.id}>
                             <SidebarMenuButton
@@ -487,7 +502,7 @@ export function AppSidebar({
                               className="min-w-0"
                             >
                               <Link href={`/view/${view.id}`}>
-                                <LayoutList className="h-4 w-4 shrink-0" />
+                                <ViewIcon className="h-4 w-4 shrink-0" />
                                 <span className="truncate">{view.name}</span>
                               </Link>
                             </SidebarMenuButton>
