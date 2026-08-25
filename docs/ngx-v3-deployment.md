@@ -40,3 +40,15 @@ SSO handlers:
 - `GET /api/auth/paperless-sso/session`
 
 Logout clears the Link session only; it does not revoke the Paperless DRF token.
+
+## Advanced AI settings
+
+Paperless-Link exposes the embedding endpoint and chunk size, LLM context size,
+output language, and request timeout from the Paperless-ngx v3 configuration
+API. Chunk size, context size, and timeout must be positive whole numbers.
+
+After changing the embedding backend, model, endpoint, or chunk size, restart
+the Paperless-ngx webserver and task workers, then reindex the document corpus
+so existing embeddings use the new configuration. Changes to the context size,
+output language, or request timeout require a webserver and worker restart but
+do not require reindexing.

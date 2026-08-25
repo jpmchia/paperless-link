@@ -44,6 +44,19 @@ function parseJsonEditorValue(value: string) {
 }
 
 function getFieldError(option: ConfigOption, value: unknown) {
+  if (
+    option.type === configOptionTypes.number &&
+    value != null &&
+    option.min != null &&
+    (
+      typeof value !== "number" ||
+      !Number.isInteger(value) ||
+      value < option.min
+    )
+  ) {
+    return `Enter a whole number of at least ${option.min}`
+  }
+
   if (option.type !== configOptionTypes.json) {
     return null
   }
@@ -317,16 +330,21 @@ export function SettingsForm({
                       ) : null}
 
                       {option.type === configOptionTypes.number ? (
-                        <Input
-                          type="number"
-                          className="h-9 text-sm"
-                          disabled={!canEdit}
-                          value={typeof value === "number" ? String(value) : ""}
-                          onChange={(event) =>
-                            setValue(option.key, event.target.value === "" ? null : Number(event.target.value))
-                          }
-                          placeholder="Use default"
-                        />
+                        <>
+                          <Input
+                            type="number"
+                            min={option.min}
+                            step={option.min != null ? 1 : undefined}
+                            className="h-9 text-sm"
+                            disabled={!canEdit}
+                            value={typeof value === "number" ? String(value) : ""}
+                            onChange={(event) =>
+                              setValue(option.key, event.target.value === "" ? null : Number(event.target.value))
+                            }
+                            placeholder="Use default"
+                          />
+                          {error ? <p className="text-xs text-destructive">{error}</p> : null}
+                        </>
                       ) : null}
 
                       {option.type === configOptionTypes.boolean ? (

@@ -81,6 +81,7 @@ export interface ConfigOption {
   config_key?: string
   category: string
   note?: string
+  min?: number
 }
 
 function mapToItems<T extends Record<string, string>>(enumObj: T): Array<{ id: string; name: string }> {
@@ -344,6 +345,21 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.AI,
   },
   {
+    key: 'llm_embedding_endpoint',
+    title: 'LLM Embedding Endpoint',
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_ENDPOINT',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'llm_embedding_chunk_size',
+    title: 'LLM Embedding Chunk Size',
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_CHUNK_SIZE',
+    category: ConfigCategory.AI,
+    min: 1,
+  },
+  {
     key: 'llm_backend',
     title: 'LLM Backend',
     type: ConfigOptionType.Select,
@@ -371,6 +387,29 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     type: ConfigOptionType.String,
     config_key: 'PAPERLESS_AI_LLM_ENDPOINT',
     category: ConfigCategory.AI,
+  },
+  {
+    key: 'llm_context_size',
+    title: 'LLM Context Size',
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_AI_LLM_CONTEXT_SIZE',
+    category: ConfigCategory.AI,
+    min: 1,
+  },
+  {
+    key: 'llm_output_language',
+    title: 'LLM Output Language',
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_AI_LLM_OUTPUT_LANGUAGE',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'llm_request_timeout',
+    title: 'LLM Request Timeout',
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_AI_LLM_REQUEST_TIMEOUT',
+    category: ConfigCategory.AI,
+    min: 1,
   },
 ]
 
@@ -409,8 +448,13 @@ export interface PaperlessConfig extends ObjectWithId {
   ai_enabled: boolean
   llm_embedding_backend: string
   llm_embedding_model: string
+  llm_embedding_endpoint: string
+  llm_embedding_chunk_size: number
   llm_backend: string
   llm_model: string
   llm_api_key: string
   llm_endpoint: string
+  llm_context_size: number
+  llm_output_language: string
+  llm_request_timeout: number
 }

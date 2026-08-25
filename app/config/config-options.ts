@@ -33,6 +33,7 @@ export interface ConfigOption {
   configKey: string
   note?: string
   choices?: ConfigChoice[]
+  min?: number
 }
 
 function choices(values: Record<string, string>): ConfigChoice[] {
@@ -370,6 +371,21 @@ export const configOptions: ConfigOption[] = [
     configKey: "PAPERLESS_AI_LLM_EMBEDDING_MODEL",
   },
   {
+    key: "llm_embedding_endpoint",
+    title: "LLM Embedding Endpoint",
+    type: configOptionTypes.string,
+    category: configCategories.ai,
+    configKey: "PAPERLESS_AI_LLM_EMBEDDING_ENDPOINT",
+  },
+  {
+    key: "llm_embedding_chunk_size",
+    title: "LLM Embedding Chunk Size",
+    type: configOptionTypes.number,
+    category: configCategories.ai,
+    configKey: "PAPERLESS_AI_LLM_EMBEDDING_CHUNK_SIZE",
+    min: 1,
+  },
+  {
     key: "llm_backend",
     title: "LLM Backend",
     type: configOptionTypes.select,
@@ -397,5 +413,28 @@ export const configOptions: ConfigOption[] = [
     type: configOptionTypes.string,
     category: configCategories.ai,
     configKey: "PAPERLESS_AI_LLM_ENDPOINT",
+  },
+  {
+    key: "llm_context_size",
+    title: "LLM Context Size",
+    type: configOptionTypes.number,
+    category: configCategories.ai,
+    configKey: "PAPERLESS_AI_LLM_CONTEXT_SIZE",
+    min: 1,
+  },
+  {
+    key: "llm_output_language",
+    title: "LLM Output Language",
+    type: configOptionTypes.string,
+    category: configCategories.ai,
+    configKey: "PAPERLESS_AI_LLM_OUTPUT_LANGUAGE",
+  },
+  {
+    key: "llm_request_timeout",
+    title: "LLM Request Timeout",
+    type: configOptionTypes.number,
+    category: configCategories.ai,
+    configKey: "PAPERLESS_AI_LLM_REQUEST_TIMEOUT",
+    min: 1,
   },
 ]

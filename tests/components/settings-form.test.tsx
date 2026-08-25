@@ -254,4 +254,72 @@ describe("SettingsForm", () => {
       )
     })
   })
+
+  it("edits advanced AI settings and constrains numeric values to positive integers", async () => {
+    updateConfigMock.mockResolvedValue({
+      id: 1,
+      llm_context_size: 16384,
+      llm_embedding_chunk_size: 2048,
+      llm_embedding_endpoint: "https://embeddings.example.test",
+      llm_output_language: "de",
+      llm_request_timeout: 90,
+    })
+
+    const { container } = render(
+      <SettingsForm
+        initialConfig={{
+          id: 1,
+          llm_context_size: 8192,
+          llm_embedding_chunk_size: 1024,
+          llm_embedding_endpoint: "https://old-embeddings.example.test",
+          llm_output_language: "en",
+          llm_request_timeout: 60,
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "AI Settings" }))
+
+    expect(screen.getByText("LLM Embedding Endpoint")).toBeInTheDocument()
+    expect(screen.getByText("LLM Embedding Chunk Size")).toBeInTheDocument()
+    expect(screen.getByText("LLM Context Size")).toBeInTheDocument()
+    expect(screen.getByText("LLM Output Language")).toBeInTheDocument()
+    expect(screen.getByText("LLM Request Timeout")).toBeInTheDocument()
+
+    const numericInputs = Array.from(
+      container.querySelectorAll<HTMLInputElement>('input[type="number"]')
+    )
+    expect(numericInputs).toHaveLength(3)
+    expect(numericInputs.every((input) => input.min === "1" && input.step === "1")).toBe(true)
+
+    fireEvent.change(screen.getByDisplayValue("https://old-embeddings.example.test"), {
+      target: { value: "https://embeddings.example.test" },
+    })
+    fireEvent.change(screen.getByDisplayValue("1024"), {
+      target: { value: "2048" },
+    })
+    fireEvent.change(screen.getByDisplayValue("8192"), {
+      target: { value: "16384" },
+    })
+    fireEvent.change(screen.getByDisplayValue("en"), {
+      target: { value: "de" },
+    })
+    fireEvent.change(screen.getByDisplayValue("60"), {
+      target: { value: "90" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: /Save configuration/i }))
+
+    await waitFor(() => {
+      expect(updateConfigMock).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          llm_context_size: 16384,
+          llm_embedding_chunk_size: 2048,
+          llm_embedding_endpoint: "https://embeddings.example.test",
+          llm_output_language: "de",
+          llm_request_timeout: 90,
+        })
+      )
+    })
+  })
 })
