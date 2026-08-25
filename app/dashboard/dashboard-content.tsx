@@ -25,6 +25,8 @@ import {
 } from "@/lib/stores/realtime"
 import { UploadWidget } from "./upload-widget"
 import { getSavedViewIcon } from "@/data/saved-view-icons"
+import { useUserPreferences } from "@/components/user-preferences-provider"
+import { formatUserPreferenceDate } from "@/lib/user-preferences"
 
 interface DashboardEntity {
   id: number
@@ -58,20 +60,6 @@ export interface DashboardData {
   recentDocuments: DashboardDocument[]
   savedViews: DashboardSavedView[]
   statistics: DashboardStatistics
-}
-
-function formatDocumentDate(value?: string | null) {
-  if (!value) return ""
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ""
-
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "UTC",
-  })
 }
 
 function buildNameMap(items: DashboardEntity[]) {
@@ -116,6 +104,7 @@ export function DashboardContent({
 }) {
   const latestRealtimeEvent = useAtomValue(latestRealtimeEventAtom)
   const realtimeConnection = useAtomValue(realtimeConnectionAtom)
+  const preferences = useUserPreferences()
   const [data, setData] = React.useState(initialData)
   const [refreshing, setRefreshing] = React.useState(false)
   const handledEventRef = React.useRef<string | null>(null)
@@ -320,7 +309,9 @@ export function DashboardContent({
                         {doc.title}
                       </p>
                       <span className="whitespace-nowrap text-xs text-muted-foreground">
-                        {formatDocumentDate(doc.created)}
+                        {formatUserPreferenceDate(doc.created, preferences, {
+                          timeZone: "UTC",
+                        })}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">

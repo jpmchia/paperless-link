@@ -111,6 +111,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   appTitle?: string | null
   initialPermissions?: CurrentUserPermissions
   savedViews?: SavedViewEntry[]
+  slimSidebar?: boolean
 }
 
 interface NavItem {
@@ -222,6 +223,7 @@ export function AppSidebar({
   appTitle,
   initialPermissions,
   savedViews = [],
+  slimSidebar = false,
   ...props
 }: AppSidebarProps) {
   const pathname = usePathname()
@@ -375,7 +377,11 @@ export function AppSidebar({
   }
 
   return (
-    <Sidebar variant="inset" {...props}>
+    <Sidebar
+      variant="inset"
+      collapsible={slimSidebar ? "icon" : "offcanvas"}
+      {...props}
+    >
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>

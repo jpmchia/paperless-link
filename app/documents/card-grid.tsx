@@ -42,6 +42,8 @@ import {
   isDocumentSelected,
   type DocumentSelection,
 } from "@/lib/document-selection"
+import { useUserPreferences } from "@/components/user-preferences-provider"
+import { formatUserPreferenceDate } from "@/lib/user-preferences"
 
 type OverlayItem =
   | {
@@ -74,20 +76,6 @@ interface CardGridProps {
   showSearchHits?: boolean
 }
 
-function formatDocumentDate(value?: string | null) {
-  if (!value) return ""
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ""
-
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "UTC",
-  })
-}
-
 function getOwnerLabel(
   ownerId: number | null | undefined,
   lookup: LookupMaps
@@ -115,7 +103,8 @@ function getCustomFieldText(document: Document, fieldId: number, lookup: LookupM
 function buildOverlayFields(
   document: Document,
   lookup: LookupMaps,
-  displayFields: string[]
+  displayFields: string[],
+  dateFormatPreferences: ReturnType<typeof useUserPreferences>
 ): OverlayItem[] {
   const tags = (document.tags || [])
     .map((tagId: number) => lookup.tags[tagId])
@@ -150,15 +139,27 @@ function buildOverlayFields(
         return name ? [{ key: field, kind: "meta", value: name, icon: FolderArchive }] : []
       }
       case DISPLAY_FIELD_CREATED: {
-        const value = formatDocumentDate(document.created)
+        const value = formatUserPreferenceDate(
+          document.created,
+          dateFormatPreferences,
+          { timeZone: "UTC" }
+        )
         return value ? [{ key: field, kind: "meta", value, icon: CalendarDays }] : []
       }
       case DISPLAY_FIELD_ADDED: {
-        const value = formatDocumentDate(document.added)
+        const value = formatUserPreferenceDate(
+          document.added,
+          dateFormatPreferences,
+          { timeZone: "UTC" }
+        )
         return value ? [{ key: field, kind: "meta", value, icon: CalendarDays }] : []
       }
       case DISPLAY_FIELD_MODIFIED: {
-        const value = formatDocumentDate(document.modified)
+        const value = formatUserPreferenceDate(
+          document.modified,
+          dateFormatPreferences,
+          { timeZone: "UTC" }
+        )
         return value ? [{ key: field, kind: "meta", value, icon: CalendarDays }] : []
       }
       case DISPLAY_FIELD_ASN:
@@ -218,6 +219,8 @@ export function CardGrid({
   onSelectionChange,
   showSearchHits = false,
 }: CardGridProps) {
+  const preferences = useUserPreferences()
+
   if (data.length === 0) {
     return (
       <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
@@ -236,7 +239,12 @@ export function CardGrid({
       }}
     >
       {data.map((doc) => {
-        const overlayFields = buildOverlayFields(doc, lookup, displayFields)
+        const overlayFields = buildOverlayFields(
+          doc,
+          lookup,
+          displayFields,
+          preferences
+        )
         const selected = isDocumentSelected(selection, doc.id)
 
         const toggleSelect = (nextChecked: boolean) => {
@@ -315,7 +323,10 @@ export function CardGrid({
                 <img
                   src={`/api/proxy/documents/${doc.id}/thumb`}
                   alt={doc.title}
-                  className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+                  className={
+                    "h-full w-full object-cover transition-transform group-hover:scale-[1.02]" +
+                    (preferences.darkModeThumbInverted ? " dark:invert" : "")
+                  }
                   loading="lazy"
                 />
 

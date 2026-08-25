@@ -4,6 +4,7 @@ import { AgentRailLayout } from "@/components/agent-rail-layout"
 import { ConfirmationDialogProvider } from "@/components/confirmation-dialog-provider"
 import { NotificationPreferencesProvider } from "@/components/notifications/preferences-provider"
 import { PermissionsProvider } from "@/components/permissions/provider"
+import { UserPreferencesProvider } from "@/components/user-preferences-provider"
 import {
   SidebarInset,
   SidebarProvider,
@@ -19,10 +20,13 @@ import {
 } from "@/lib/permissions"
 import {
   defaultNotificationPreferences,
-  mapNotificationPreferences,
 } from "@/lib/notifications"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
+import {
+  readUserPreferences,
+  type UserPreferences,
+} from "@/lib/user-preferences"
 
 export interface AppShellProps {
   children: React.ReactNode
@@ -82,6 +86,24 @@ function serializeThemeVariables(variables: Record<string, string>) {
   return `:root { ${cssBody} }`
 }
 
+function buildThemeOverrideVariables(
+  baseVariables: Record<string, string>,
+  preferences: UserPreferences
+) {
+  if (!preferences.themeColor.trim()) {
+    return baseVariables
+  }
+
+  return {
+    ...baseVariables,
+    "--accent": preferences.themeColor,
+    "--brand": preferences.themeColor,
+    "--primary": preferences.themeColor,
+    "--ring": preferences.themeColor,
+    "--sidebar-primary": preferences.themeColor,
+  }
+}
+
 export async function AppShell({
   children,
   initialPermissions,
@@ -96,6 +118,7 @@ export async function AppShell({
   let notificationPreferences = defaultNotificationPreferences
   let appTitle: string | null = null
   let appLogo: string | null = null
+  let userPreferences = readUserPreferences()
   let themeVariables: Record<string, string> = {}
   try {
     const session = await getServerSession(authOptions)
@@ -113,17 +136,18 @@ export async function AppShell({
           ? uiSettingsValues.app_logo
           : null
       )
-      const themePresetId =
-        typeof uiSettingsValues.theme_preset_id === "string"
-          ? uiSettingsValues.theme_preset_id
-          : ""
+      userPreferences = readUserPreferences(uiSettingsValues)
+      const themePresetId = userPreferences.themePresetId ?? ""
       if (themePresetId) {
         const themePreset = await getThemePresetById(themePresetId).catch(() => null)
-        themeVariables = themePreset?.variables ?? {}
+        themeVariables = buildThemeOverrideVariables(
+          themePreset?.variables ?? {},
+          userPreferences
+        )
+      } else {
+        themeVariables = buildThemeOverrideVariables({}, userPreferences)
       }
-      notificationPreferences = mapNotificationPreferences(
-        uiSettingsValues
-      )
+      notificationPreferences = userPreferences.notifications
 
       if (!initialPermissions) {
         resolvedPermissions = mapPermissionBootstrapPayload(
@@ -137,41 +161,45 @@ export async function AppShell({
 
   return (
     <PermissionsProvider initialPermissions={resolvedPermissions}>
-      <NotificationPreferencesProvider
-        initialPreferences={notificationPreferences}
-      >
-        <ConfirmationDialogProvider>
-          {Object.keys(themeVariables).length > 0 ? (
-            <style>{serializeThemeVariables(themeVariables)}</style>
-          ) : null}
-          <SidebarProvider
-            className="h-full"
-            style={themeVariables as CSSProperties}
-          >
-            {sidebar ?? (
-              <AppSidebar
-                appLogo={appLogo}
-                appTitle={appTitle}
-                initialPermissions={resolvedPermissions}
-                savedViews={savedViews}
-              />
-            )}
-            <SidebarInset className="h-full bg-sidebar border-none shadow-none!">
-              <AgentRailLayout
-                savedViews={savedViews}
-                topbar={topbar}
-                sidebarTrigger={<SidebarTrigger />}
-                showGlobalControls={mode === "default"}
-                showAgentRailToggle
-                agentSurface={mode === "dataroom" ? "dataroom" : "main"}
-                dataroomSlug={dataroomSlug ?? null}
-              >
-                {children}
-              </AgentRailLayout>
-            </SidebarInset>
-          </SidebarProvider>
-        </ConfirmationDialogProvider>
-      </NotificationPreferencesProvider>
+      <UserPreferencesProvider value={userPreferences}>
+        <NotificationPreferencesProvider
+          initialPreferences={notificationPreferences}
+        >
+          <ConfirmationDialogProvider>
+            {Object.keys(themeVariables).length > 0 ? (
+              <style>{serializeThemeVariables(themeVariables)}</style>
+            ) : null}
+            <SidebarProvider
+              className="h-full"
+              defaultOpen={!userPreferences.slimSidebar}
+              style={themeVariables as CSSProperties}
+            >
+              {sidebar ?? (
+                <AppSidebar
+                  appLogo={appLogo}
+                  appTitle={appTitle}
+                  initialPermissions={resolvedPermissions}
+                  savedViews={savedViews}
+                  slimSidebar={userPreferences.slimSidebar}
+                />
+              )}
+              <SidebarInset className="h-full bg-sidebar border-none shadow-none!">
+                <AgentRailLayout
+                  savedViews={savedViews}
+                  topbar={topbar}
+                  sidebarTrigger={<SidebarTrigger />}
+                  showGlobalControls={mode === "default"}
+                  showAgentRailToggle
+                  agentSurface={mode === "dataroom" ? "dataroom" : "main"}
+                  dataroomSlug={dataroomSlug ?? null}
+                >
+                  {children}
+                </AgentRailLayout>
+              </SidebarInset>
+            </SidebarProvider>
+          </ConfirmationDialogProvider>
+        </NotificationPreferencesProvider>
+      </UserPreferencesProvider>
     </PermissionsProvider>
   )
 }

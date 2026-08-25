@@ -24,6 +24,26 @@ describe("notifications", () => {
     })
   })
 
+  it("maps nested NGX notification settings", () => {
+    expect(
+      mapNotificationPreferences({
+        notifications: {
+          consumer_failed: false,
+          consumer_new_documents: false,
+          consumer_success: false,
+          consumer_suppress_on_dashboard: false,
+        },
+        notifications_document_updated: true,
+      })
+    ).toEqual({
+      consumerFailed: false,
+      consumerNewDocument: false,
+      consumerSuccess: false,
+      documentUpdated: true,
+      suppressOnDashboard: false,
+    })
+  })
+
   it("builds actionable success notifications for consumed documents", () => {
     const dispatch = getRealtimeNotificationDispatch(
       {

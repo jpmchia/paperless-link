@@ -9,6 +9,31 @@ import { paperlessJsonAccept } from "@/lib/paperless-transport"
 const baseUrl = process.env.PAPERLESS_API_URL || "http://localhost:8000/"
 const configuredToken = process.env.PAPERLESS_API_TOKEN?.trim()
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function mergeUiSettings(
+  current: Record<string, unknown>,
+  patch: Record<string, unknown>
+): Record<string, unknown> {
+  const merged = { ...current }
+
+  for (const [key, value] of Object.entries(patch)) {
+    if (isRecord(value) && isRecord(merged[key])) {
+      merged[key] = mergeUiSettings(
+        merged[key] as Record<string, unknown>,
+        value
+      )
+      continue
+    }
+
+    merged[key] = value
+  }
+
+  return merged
+}
+
 async function writeUiSettings(settings: Record<string, unknown>) {
   const session = (await getServerSession(authOptions)) as {
     accessToken?: string
@@ -45,10 +70,10 @@ export async function updateUiSettings(
   patch: Record<string, unknown>
 ): Promise<UiSettingsRecord> {
   const current = (await getPaperlessApi("ui_settings/")) as UiSettingsRecord
-  const merged = {
-    ...((current?.settings as Record<string, unknown> | undefined) ?? {}),
-    ...patch,
-  }
+  const merged = mergeUiSettings(
+    ((current?.settings as Record<string, unknown> | undefined) ?? {}),
+    patch
+  )
 
   return await writeUiSettings(merged)
 }

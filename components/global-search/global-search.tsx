@@ -34,6 +34,8 @@ import {
 import { useOpenDocumentNavigation } from "@/hooks/use-open-document-navigation"
 import { getJson, withQuery } from "@/lib/paperless-client"
 import { usePermissions } from "@/hooks/use-permissions"
+import { useUserPreferences } from "@/components/user-preferences-provider"
+import { GlobalSearchType } from "@/data/ui-settings"
 
 interface SavedViewEntry {
   id: number
@@ -145,6 +147,7 @@ export function GlobalSearch({
   const navigateToDocument = useOpenDocumentNavigation()
   const pathname = usePathname()
   const { can, canManageConfig } = usePermissions()
+  const preferences = useUserPreferences()
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
   const [searchResults, setSearchResults] = React.useState<GlobalSearchResponse>({})
@@ -195,6 +198,7 @@ export function GlobalSearch({
 
     getJson<GlobalSearchResponse>(
       withQuery("/api/proxy/search/", {
+        db_only: preferences.searchDbOnly ? true : null,
         query: deferredQuery,
       })
     )
@@ -217,7 +221,7 @@ export function GlobalSearch({
     return () => {
       cancelled = true
     }
-  }, [canViewDocuments, deferredQuery])
+  }, [canViewDocuments, deferredQuery, preferences.searchDbOnly])
 
   const documents = Array.isArray(searchResults?.documents) ? searchResults.documents : []
   const liveSavedViews = Array.isArray(searchResults?.saved_views)
@@ -302,9 +306,20 @@ export function GlobalSearch({
 
   const handleFilteredDocumentsNavigate = React.useCallback(
     (queryString: string) => {
-      handleNavigate(withQuery("/documents", { query: queryString }))
+      handleNavigate(
+        withQuery("/documents", {
+          query:
+            preferences.searchFullType === GlobalSearchType.ADVANCED
+              ? queryString
+              : null,
+          title_content:
+            preferences.searchFullType === GlobalSearchType.TITLE_CONTENT
+              ? queryString
+              : null,
+        })
+      )
     },
-    [handleNavigate]
+    [handleNavigate, preferences.searchFullType]
   )
 
   const hasLiveSearchResults =

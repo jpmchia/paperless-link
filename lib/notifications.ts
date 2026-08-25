@@ -1,51 +1,20 @@
 import type { RealtimeEvent } from "@/lib/realtime/events"
 import type { UiNotification } from "@/lib/stores/notifications"
+import {
+  defaultNotificationPreferences,
+  readUserPreferences,
+  type UserNotificationPreferences,
+} from "@/lib/user-preferences"
 
 export type NotificationLevel = "info" | "success" | "error"
 
-export interface NotificationPreferences {
-  consumerFailed: boolean
-  consumerNewDocument: boolean
-  consumerSuccess: boolean
-  documentUpdated: boolean
-  suppressOnDashboard: boolean
-}
-
-export const defaultNotificationPreferences: NotificationPreferences = {
-  consumerFailed: true,
-  consumerNewDocument: true,
-  consumerSuccess: true,
-  documentUpdated: false,
-  suppressOnDashboard: true,
-}
+export type NotificationPreferences = UserNotificationPreferences
+export { defaultNotificationPreferences }
 
 export function mapNotificationPreferences(
   settings?: Record<string, unknown> | null
 ): NotificationPreferences {
-  return {
-    consumerFailed:
-      typeof settings?.notifications_consumer_failed === "boolean"
-        ? settings.notifications_consumer_failed
-        : true,
-    consumerNewDocument:
-      typeof settings?.notifications_consumer_new_document === "boolean"
-        ? settings.notifications_consumer_new_document
-        : true,
-    consumerSuccess:
-      typeof settings?.notifications_consumer_success === "boolean"
-        ? settings.notifications_consumer_success
-        : typeof settings?.notifications_document_added === "boolean"
-          ? settings.notifications_document_added
-          : true,
-    documentUpdated:
-      typeof settings?.notifications_document_updated === "boolean"
-        ? settings.notifications_document_updated
-        : false,
-    suppressOnDashboard:
-      typeof settings?.notifications_consumer_suppress_on_dashboard === "boolean"
-        ? settings.notifications_consumer_suppress_on_dashboard
-        : true,
-  }
+  return readUserPreferences(settings).notifications
 }
 
 export interface RealtimeNotificationDispatch {
