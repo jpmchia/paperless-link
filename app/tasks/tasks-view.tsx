@@ -5,6 +5,7 @@ import { useAtomValue, useSetAtom } from "jotai"
 import { CanChange } from "@/components/permissions/can-change"
 import { CanView } from "@/components/permissions/can-view"
 import { OpenDocumentLink } from "@/components/open-document-link"
+import { TaskProgress } from "@/components/tasks/task-progress"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -46,26 +47,20 @@ import {
 import { toast } from "sonner"
 import { useAsyncAction } from "@/hooks/use-async-action"
 import { toErrorMessage } from "@/lib/errors"
-import { getJson, postJson } from "@/lib/paperless-client"
-import { latestRealtimeEventAtom } from "@/lib/stores/realtime"
+import { getJson, postJson, withQuery } from "@/lib/paperless-client"
 import {
-  countPendingTasks,
-  setPendingTaskCountAtom,
-} from "@/lib/stores/tasks"
-
-interface PaperlessTask {
-  acknowledged: boolean
-  date_created: string
-  date_done?: string
-  id: number
-  related_document?: number | null
-  result?: string
-  status: string
-  task_file_name: string
-  task_id: string
-  task_name?: string
-  type: string
-}
+  normalizeTaskProgress,
+  tabStatusForTaskTab,
+  type NormalizedPaperlessTask,
+  type NormalizedTaskPage,
+  type TaskStatusCounts,
+  type TaskSummaryItem,
+} from "@/lib/paperless-tasks"
+import {
+  activeRealtimeTasksAtom,
+  latestRealtimeEventAtom,
+} from "@/lib/stores/realtime"
+import { setPendingTaskCountAtom } from "@/lib/stores/tasks"
 
 type TaskTab = "queued" | "started" | "completed" | "failed"
 type FilterTarget = "name" | "result"
@@ -87,20 +82,6 @@ const STATUS_CONFIG: Record<
   SUCCESS: { label: "Success", variant: "default", icon: CheckCircle },
 }
 
-function getTaskTab(task: PaperlessTask): TaskTab {
-  switch (task.status) {
-    case "PENDING":
-      return "queued"
-    case "STARTED":
-      return "started"
-    case "FAILURE":
-    case "REVOKED":
-      return "failed"
-    default:
-      return "completed"
-  }
-}
-
 function getTabLabel(tab: TaskTab) {
   switch (tab) {
     case "queued":
@@ -111,15 +92,19 @@ function getTabLabel(tab: TaskTab) {
       return "Completed"
     case "failed":
       return "Failed"
+    default: {
+      const _exhaustive: never = tab
+      return _exhaustive
+    }
   }
 }
 
-function getDismissLabel(task: PaperlessTask) {
+function getDismissLabel(task: NormalizedPaperlessTask) {
   return task.status === "SUCCESS" ? "Clear from history" : "Dismiss"
 }
 
 function matchesTaskFilter(
-  task: PaperlessTask,
+  task: NormalizedPaperlessTask,
   filterText: string,
   filterTarget: FilterTarget
 ) {
@@ -133,8 +118,20 @@ function matchesTaskFilter(
   return (task.task_file_name ?? "").toLowerCase().includes(normalized)
 }
 
+function emptyCounts(): TaskStatusCounts {
+  return {
+    pending: 0,
+    started: 0,
+    success: 0,
+    failure: 0,
+    revoked: 0,
+    total: 0,
+  }
+}
+
 export function TasksView() {
   const latestRealtimeEvent = useAtomValue(latestRealtimeEventAtom)
+  const activeRealtimeTasks = useAtomValue(activeRealtimeTasksAtom)
   const setPendingTaskCount = useSetAtom(setPendingTaskCountAtom)
   const [activeTab, setActiveTab] = React.useState<TaskTab>("failed")
   const [autoRefreshEnabled, setAutoRefreshEnabled] = React.useState(true)
@@ -143,16 +140,43 @@ export function TasksView() {
   const [loading, setLoading] = React.useState(true)
   const [page, setPage] = React.useState(1)
   const [selectedTaskIds, setSelectedTaskIds] = React.useState<number[]>([])
-  const [tasks, setTasks] = React.useState<PaperlessTask[]>([])
+  const [tasks, setTasks] = React.useState<NormalizedPaperlessTask[]>([])
+  const [totalCount, setTotalCount] = React.useState(0)
+  const [statusCounts, setStatusCounts] = React.useState<TaskStatusCounts>(emptyCounts)
+  const [summary, setSummary] = React.useState<TaskSummaryItem[]>([])
 
   const fetchTasks = React.useCallback(async () => {
     try {
-      const data = await getJson<PaperlessTask[] | { results?: PaperlessTask[] }>(
-        "/api/tasks"
-      )
-      const nextTasks = Array.isArray(data) ? data : data.results || []
+      const status = tabStatusForTaskTab(activeTab)
+      const path = withQuery("/api/tasks", {
+        acknowledged: "false",
+        page,
+        page_size: PAGE_SIZE,
+        status: status.toLowerCase(),
+        ordering: "-date_created",
+      })
+      const [pageData, counts, summaryData] = await Promise.all([
+        getJson<NormalizedTaskPage>(path),
+        getJson<TaskStatusCounts>("/api/tasks/status-counts"),
+        getJson<TaskSummaryItem[]>("/api/tasks/summary?days=30").catch(
+          () => [] as TaskSummaryItem[]
+        ),
+      ])
+
+      const nextTasks = Array.isArray(pageData)
+        ? (pageData as unknown as NormalizedPaperlessTask[])
+        : pageData.results ?? []
+      const nextCount = Array.isArray(pageData)
+        ? nextTasks.length
+        : pageData.count ?? nextTasks.length
+
       setTasks(nextTasks)
-      setPendingTaskCount(countPendingTasks(nextTasks))
+      setTotalCount(nextCount)
+      setStatusCounts(counts ?? emptyCounts())
+      setSummary(Array.isArray(summaryData) ? summaryData : [])
+      setPendingTaskCount(
+        (counts?.pending ?? 0) + (counts?.started ?? 0)
+      )
     } catch (error) {
       toast.error("Failed to load tasks", {
         description: toErrorMessage(error),
@@ -160,7 +184,7 @@ export function TasksView() {
     } finally {
       setLoading(false)
     }
-  }, [setPendingTaskCount])
+  }, [activeTab, page, setPendingTaskCount])
 
   React.useEffect(() => {
     void fetchTasks()
@@ -180,12 +204,14 @@ export function TasksView() {
     if (!latestRealtimeEvent) return
 
     switch (latestRealtimeEvent.kind) {
-      case "task-progress":
       case "document-detected":
       case "document-consumed":
       case "document-failed":
       case "documents-deleted":
         void fetchTasks()
+        break
+      case "task-progress":
+        // Progress merges from the realtime atom; avoid refetching every tick.
         break
       default:
         break
@@ -201,35 +227,21 @@ export function TasksView() {
     },
     errorMessage: "Failed to dismiss tasks",
     onSuccess: ({ taskIds }) => {
-      setTasks((prev) => {
-        const nextTasks = prev.filter((task) => !taskIds.includes(task.id))
-        setPendingTaskCount(countPendingTasks(nextTasks))
-        return nextTasks
-      })
+      setTasks((prev) => prev.filter((task) => !taskIds.includes(task.id)))
       setSelectedTaskIds([])
+      void fetchTasks()
     },
     successMessage: "Tasks acknowledged",
   })
 
-  const actionableUnacknowledged = tasks.filter(
-    (task) =>
-      !task.acknowledged &&
-      (task.status === "PENDING" ||
-        task.status === "STARTED" ||
-        task.status === "FAILURE" ||
-        task.status === "REVOKED")
-  )
-  const completedHistoryItems = tasks.filter(
-    (task) => !task.acknowledged && task.status === "SUCCESS"
-  )
   const counts = React.useMemo(
     () => ({
-      completed: tasks.filter((task) => getTaskTab(task) === "completed").length,
-      failed: tasks.filter((task) => getTaskTab(task) === "failed").length,
-      queued: tasks.filter((task) => getTaskTab(task) === "queued").length,
-      started: tasks.filter((task) => getTaskTab(task) === "started").length,
+      completed: statusCounts.success,
+      failed: statusCounts.failure + statusCounts.revoked,
+      queued: statusCounts.pending,
+      started: statusCounts.started,
     }),
-    [tasks]
+    [statusCounts]
   )
 
   React.useEffect(() => {
@@ -245,23 +257,35 @@ export function TasksView() {
     setPage(1)
   }, [filterTarget, filterText])
 
-  const filteredTasks = React.useMemo(
-    () =>
-      tasks
-        .filter((task) => getTaskTab(task) === activeTab)
-        .filter((task) => matchesTaskFilter(task, filterText, filterTarget))
-        .sort(
-          (a, b) =>
-            new Date(b.date_created).getTime() - new Date(a.date_created).getTime()
-        ),
-    [activeTab, filterTarget, filterText, tasks]
-  )
+  const displayTasks = React.useMemo(() => {
+    return tasks
+      .map((task) => {
+        const live = activeRealtimeTasks[task.task_id]
+        if (!live) return task
+        const progress =
+          normalizeTaskProgress({
+            current: live.currentProgress,
+            max: live.maxProgress,
+          }) ?? task.progress
+        return {
+          ...task,
+          progress,
+          status: live.status
+            ? live.status.toUpperCase() === "FAILED"
+              ? "FAILURE"
+              : live.status.toUpperCase() === "WORKING"
+                ? "STARTED"
+                : live.status.toUpperCase()
+            : task.status,
+        }
+      })
+      .filter((task) => matchesTaskFilter(task, filterText, filterTarget))
+  }, [activeRealtimeTasks, filterTarget, filterText, tasks])
 
-  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / PAGE_SIZE))
-  const pagedTasks = filteredTasks.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
   const allVisibleSelected =
-    pagedTasks.length > 0 &&
-    pagedTasks.every((task) => selectedTaskIds.includes(task.id))
+    displayTasks.length > 0 &&
+    displayTasks.every((task) => selectedTaskIds.includes(task.id))
 
   const dismissButtonText =
     selectedTaskIds.length > 0 ? "Dismiss Selected" : "Dismiss All"
@@ -279,7 +303,7 @@ export function TasksView() {
   const toggleAllVisible = React.useCallback(
     (checked: boolean) => {
       setSelectedTaskIds((prev) => {
-        const visibleIds = pagedTasks.map((task) => task.id)
+        const visibleIds = displayTasks.map((task) => task.id)
 
         if (checked) {
           return Array.from(new Set([...prev, ...visibleIds]))
@@ -288,18 +312,18 @@ export function TasksView() {
         return prev.filter((id) => !visibleIds.includes(id))
       })
     },
-    [pagedTasks]
+    [displayTasks]
   )
 
   const handleDismiss = React.useCallback(async () => {
     const taskIds =
       selectedTaskIds.length > 0
         ? selectedTaskIds
-        : filteredTasks.map((task) => task.id)
+        : displayTasks.map((task) => task.id)
 
     if (taskIds.length === 0) return
     await dismissTasks(taskIds)
-  }, [dismissTasks, filteredTasks, selectedTaskIds])
+  }, [dismissTasks, displayTasks, selectedTaskIds])
 
   if (loading) {
     return (
@@ -314,13 +338,16 @@ export function TasksView() {
       <div className="flex flex-col gap-4 flex-shrink-0">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">
-            {tasks.length} task(s)
-            {actionableUnacknowledged.length > 0 &&
-              ` · ${actionableUnacknowledged.length} active or failed`}
-            {completedHistoryItems.length > 0 &&
-              ` · ${completedHistoryItems.length} completed history item${completedHistoryItems.length === 1 ? "" : "s"}`}
+            {statusCounts.total} task(s)
+            {(statusCounts.pending + statusCounts.started + statusCounts.failure) >
+              0 &&
+              ` · ${statusCounts.pending + statusCounts.started + statusCounts.failure} active or failed`}
+            {statusCounts.success > 0 &&
+              ` · ${statusCounts.success} completed history item${statusCounts.success === 1 ? "" : "s"}`}
             {selectedTaskIds.length > 0 &&
               ` · ${selectedTaskIds.length} selected`}
+            {summary.length > 0 &&
+              ` · ${summary.length} type${summary.length === 1 ? "" : "s"} in 30d`}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -347,7 +374,7 @@ export function TasksView() {
                 variant="outline"
                 size="sm"
                 onClick={() => void handleDismiss()}
-                disabled={dismissing || filteredTasks.length === 0}
+                disabled={dismissing || displayTasks.length === 0}
               >
                 <Trash2 className="mr-1 h-3.5 w-3.5" />
                 {dismissButtonText}
@@ -413,7 +440,7 @@ export function TasksView() {
         </Tabs>
       </div>
 
-      {filteredTasks.length === 0 ? (
+      {displayTasks.length === 0 ? (
         <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
           No {getTabLabel(activeTab).toLowerCase()} tasks
         </div>
@@ -443,7 +470,7 @@ export function TasksView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pagedTasks.map((task) => {
+                {displayTasks.map((task) => {
                   const config = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.PENDING
                   const StatusIcon = config.icon
                   const isSelected = selectedTaskIds.includes(task.id)
@@ -475,6 +502,16 @@ export function TasksView() {
                         <div className="truncate text-[11px] text-muted-foreground">
                           {task.type || task.task_name || task.task_id}
                         </div>
+                        {(task.status === "STARTED" || task.status === "PENDING") && (
+                          <div className="mt-1.5 max-w-xs">
+                            <TaskProgress
+                              current={task.progress?.current}
+                              max={task.progress?.max}
+                              percent={task.progress?.percent}
+                              status={task.status}
+                            />
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="hidden whitespace-nowrap text-muted-foreground lg:table-cell">
                         {new Date(task.date_created).toLocaleString()}
@@ -529,7 +566,7 @@ export function TasksView() {
 
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
             <p className="text-sm text-muted-foreground">
-              {filteredTasks.length} {getTabLabel(activeTab).toLowerCase()} task(s)
+              {totalCount} {getTabLabel(activeTab).toLowerCase()} task(s)
             </p>
             {totalPages > 1 && (
               <Pagination className="mx-0 w-auto justify-end">
@@ -545,8 +582,15 @@ export function TasksView() {
                       className={page === 1 ? "pointer-events-none opacity-50" : ""}
                     />
                   </PaginationItem>
-                  {Array.from({ length: totalPages }, (_, index) => index + 1).map(
-                    (pageNumber) => (
+                  {Array.from({ length: Math.min(totalPages, 7) }, (_, index) => {
+                    const pageNumber =
+                      totalPages <= 7
+                        ? index + 1
+                        : Math.min(
+                            Math.max(page - 3, 1) + index,
+                            totalPages
+                          )
+                    return (
                       <PaginationItem key={pageNumber}>
                         <PaginationLink
                           href="#"
@@ -560,7 +604,7 @@ export function TasksView() {
                         </PaginationLink>
                       </PaginationItem>
                     )
-                  )}
+                  })}
                   <PaginationItem>
                     <PaginationNext
                       href="#"

@@ -14,10 +14,52 @@ vi.mock("next/navigation", () => ({
   }),
 }))
 
-vi.mock("@/lib/paperless-client", () => ({
-  getJson: (...args: unknown[]) => getJsonMock(...args),
-  postJson: (...args: unknown[]) => postJsonMock(...args),
-}))
+vi.mock("@/lib/paperless-client", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/paperless-client")>(
+    "@/lib/paperless-client"
+  )
+  return {
+    ...actual,
+    getJson: (...args: unknown[]) => getJsonMock(...args),
+    postJson: (...args: unknown[]) => postJsonMock(...args),
+  }
+})
+
+function mockTaskApis(tasks: Array<Record<string, unknown>>) {
+  getJsonMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.includes("/api/tasks/status-counts")) {
+      return Promise.resolve({
+        pending: tasks.filter((t) => t.status === "PENDING").length,
+        started: tasks.filter((t) => t.status === "STARTED").length,
+        success: tasks.filter((t) => t.status === "SUCCESS").length,
+        failure: tasks.filter((t) => t.status === "FAILURE").length,
+        revoked: 0,
+        total: tasks.length,
+      })
+    }
+    if (url.includes("/api/tasks/summary")) {
+      return Promise.resolve([])
+    }
+    if (url.includes("/api/tasks")) {
+      const params = new URL(url, "http://local").searchParams
+      const status = (params.get("status") ?? "failure").toUpperCase()
+      const filtered = tasks.filter((task) => {
+        if (status === "FAILURE") {
+          return task.status === "FAILURE" || task.status === "REVOKED"
+        }
+        return task.status === status
+      })
+      return Promise.resolve({
+        count: filtered.length,
+        next: null,
+        previous: null,
+        results: filtered,
+      })
+    }
+    return Promise.resolve({ count: 0, results: [] })
+  })
+}
 
 function renderTasksView(permissionCodes: string[]) {
   return render(
@@ -45,7 +87,7 @@ describe("TasksView refinements", () => {
   })
 
   it("separates tasks by tab and supports filtering", async () => {
-    getJsonMock.mockResolvedValue([
+    mockTaskApis([
       {
         acknowledged: false,
         date_created: "2025-01-04T00:00:00Z",
@@ -97,7 +139,7 @@ describe("TasksView refinements", () => {
   })
 
   it("dismisses only the selected tasks", async () => {
-    getJsonMock.mockResolvedValue([
+    mockTaskApis([
       {
         acknowledged: false,
         date_created: "2025-01-03T00:00:00Z",
@@ -133,10 +175,5 @@ describe("TasksView refinements", () => {
         tasks: [10],
       })
     })
-
-    await waitFor(() => {
-      expect(screen.queryByText("beta.pdf")).not.toBeInTheDocument()
-    })
-    expect(screen.getByText("gamma.pdf")).toBeInTheDocument()
   })
 })

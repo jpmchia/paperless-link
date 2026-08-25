@@ -1,42 +1,37 @@
 import { NextResponse } from "next/server"
 import {
-  getPaperlessApiVersion,
-  getPaperlessBaseUrl,
-  paperlessJsonAccept,
-  resolvePaperlessAccessToken,
-} from "@/lib/paperless-transport"
-import {
-  mapTaskNameFilterToTaskType,
-  normalizePaperlessTasksPayload,
-} from "@/lib/paperless-tasks"
+  fetchPaperlessTasksUpstream,
+  getPaperlessApiVersionForTasks,
+} from "@/lib/paperless-task-routes"
+import { normalizePaperlessTaskPage } from "@/lib/paperless-tasks"
 
 export async function GET(req: Request) {
-  const token = await resolvePaperlessAccessToken()
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
   const url = new URL(req.url)
-  const apiVersion = getPaperlessApiVersion()
-  let params = new URLSearchParams(url.search)
+  const params = new URLSearchParams(url.search)
 
   if (!params.has("acknowledged")) {
     params.set("acknowledged", "false")
   }
 
-  params = mapTaskNameFilterToTaskType(params, apiVersion)
+  const page = Math.max(1, Number(params.get("page") || "1") || 1)
+  const pageSize = Math.max(1, Number(params.get("page_size") || "25") || 25)
+  if (!params.has("page")) params.set("page", String(page))
+  if (!params.has("page_size")) params.set("page_size", String(pageSize))
 
-  const query = params.toString()
-  const res = await fetch(
-    `${getPaperlessBaseUrl()}api/tasks/${query ? `?${query}` : ""}`,
-    {
-      headers: {
-        Authorization: `Token ${token}`,
-        Accept: paperlessJsonAccept(apiVersion),
-      },
-      cache: "no-store",
-    }
-  )
-  if (!res.ok) return NextResponse.json({ error: "Failed" }, { status: res.status })
+  const res = await fetchPaperlessTasksUpstream("tasks/", params)
+  if (res.status === 401) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  if (!res.ok) {
+    return NextResponse.json({ error: "Failed" }, { status: res.status })
+  }
+
   const data = await res.json()
-  const normalized = normalizePaperlessTasksPayload(data)
+  const apiVersion = getPaperlessApiVersionForTasks()
+  const normalized =
+    apiVersion >= 10
+      ? normalizePaperlessTaskPage(data)
+      : normalizePaperlessTaskPage(data, { page, pageSize })
+
   return NextResponse.json(normalized)
 }
