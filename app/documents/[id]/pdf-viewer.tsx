@@ -9,7 +9,17 @@ import {
   ZoomMode,
   type PluginRegistry,
 } from "@embedpdf/react-pdf-viewer"
+import {
+  SearchPlugin,
+  type SearchCapability,
+  type SearchDocumentState,
+} from "@embedpdf/plugin-search"
+import {
+  FullscreenPlugin,
+  type FullscreenCapability,
+} from "@embedpdf/plugin-fullscreen"
 import { useAtomValue, useSetAtom } from "jotai"
+import { PdfViewerToolbar } from "@/components/documents/pdf-viewer-toolbar"
 import {
   activeVersionIdAtom,
   pdfViewerPageCountAtom,
@@ -41,6 +51,10 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
   const activeVersionId = useAtomValue(activeVersionIdAtom)
   const setActiveVersionId = useSetAtom(activeVersionIdAtom)
   const viewerRef = React.useRef<PDFViewerRef>(null)
+  const searchCapabilityRef = React.useRef<Readonly<SearchCapability> | null>(null)
+  const fullscreenCapabilityRef =
+    React.useRef<Readonly<FullscreenCapability> | null>(null)
+  const pluginUnsubscribersRef = React.useRef<Array<() => void>>([])
   const densityObserverRef = React.useRef<MutationObserver | null>(null)
   const setPdfPageCount = useSetAtom(pdfViewerPageCountAtom)
   const setPdfPassword = useSetAtom(pdfViewerPasswordAtom)
@@ -48,6 +62,13 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
   const setPdfViewerRegistry = useSetAtom(pdfViewerRegistryAtom)
   const initTimeoutRef = React.useRef<number | null>(null)
   const [useNativeFallback, setUseNativeFallback] = React.useState(false)
+  const [searchOpen, setSearchOpen] = React.useState(false)
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const [searchState, setSearchState] = React.useState<Pick<
+    SearchDocumentState,
+    "activeResultIndex" | "total"
+  >>({ activeResultIndex: -1, total: 0 })
+  const [isFullscreen, setIsFullscreen] = React.useState(false)
   const isEdgeBrowser = React.useMemo(() => {
     if (typeof navigator === "undefined") return false
     return /Edg\//.test(navigator.userAgent)
@@ -61,6 +82,32 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
     const query = params.toString()
     return `/api/proxy/documents/${documentId}/preview${query ? `?${query}` : ""}`
   }, [activeVersionId, documentId])
+
+  const clearSearch = React.useCallback(() => {
+    searchCapabilityRef.current?.stopSearch()
+    setSearchQuery("")
+    setSearchState({ activeResultIndex: -1, total: 0 })
+  }, [])
+
+  const closeSearch = React.useCallback(() => {
+    clearSearch()
+    setSearchOpen(false)
+  }, [clearSearch])
+
+  const updateSearchQuery = React.useCallback((query: string) => {
+    setSearchQuery(query)
+    const search = searchCapabilityRef.current
+    if (!search) return
+    const normalized = query.trim()
+    if (!normalized) {
+      search.stopSearch()
+      search.startSearch()
+      setSearchState({ activeResultIndex: -1, total: 0 })
+      return
+    }
+    search.startSearch()
+    search.searchAllPages(normalized)
+  }, [])
 
   const viewerTheme = React.useMemo(() => ({
     preference: "system" as const,
@@ -299,6 +346,7 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
 
   React.useEffect(() => {
     setUseNativeFallback(false)
+    closeSearch()
     setPdfPageCount(totalPages)
     setPdfPassword("")
     setPdfRequiresPassword(false)
@@ -324,12 +372,21 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
       setPdfViewerRegistry(null)
     }
   }, [
+    closeSearch,
     setPdfPageCount,
     setPdfPassword,
     setPdfRequiresPassword,
     setPdfViewerRegistry,
+    sourceUrl,
     totalPages,
   ])
+
+  React.useEffect(() => {
+    return () => {
+      pluginUnsubscribersRef.current.forEach((unsubscribe) => unsubscribe())
+      pluginUnsubscribersRef.current = []
+    }
+  }, [])
 
   const syncPageCount = React.useCallback(
     (registry: PluginRegistry) => {
@@ -366,7 +423,7 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
   }, [sourceUrl, syncPageCount])
 
   return (
-    <div className="h-full w-full overflow-hidden bg-background">
+    <div className="flex h-full w-full flex-col overflow-hidden bg-background">
       {useNativeFallback ? (
         <iframe
           src={sourceUrl}
@@ -374,9 +431,31 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
           className="h-full w-full border-0"
         />
       ) : (
+        <>
+        <PdfViewerToolbar
+          searchOpen={searchOpen}
+          query={searchQuery}
+          currentResult={
+            searchState.total > 0 ? searchState.activeResultIndex + 1 : 0
+          }
+          totalResults={searchState.total}
+          fullscreenActive={isFullscreen}
+          onOpenSearch={() => {
+            setSearchOpen(true)
+            searchCapabilityRef.current?.startSearch()
+          }}
+          onCloseSearch={closeSearch}
+          onQueryChange={updateSearchQuery}
+          onNext={() => searchCapabilityRef.current?.nextResult()}
+          onPrevious={() => searchCapabilityRef.current?.previousResult()}
+          onClear={clearSearch}
+          onFullscreen={() =>
+            fullscreenCapabilityRef.current?.toggleFullscreen()
+          }
+        />
         <PDFViewer
           ref={viewerRef}
-          className="h-full w-full"
+          className="min-h-0 w-full flex-1"
           config={{
             src: sourceUrl,
             tabBar: "never",
@@ -414,8 +493,36 @@ export function PdfViewer({ documentId, totalPages = 1 }: PdfViewerProps) {
             }
             setPdfViewerRegistry(registry)
             syncPageCount(registry)
+
+            pluginUnsubscribersRef.current.forEach((unsubscribe) => unsubscribe())
+            const search = registry.getPlugin<SearchPlugin>(SearchPlugin.id)?.provides()
+            const fullscreen = registry
+              .getPlugin<FullscreenPlugin>(FullscreenPlugin.id)
+              ?.provides()
+            searchCapabilityRef.current = search ?? null
+            fullscreenCapabilityRef.current = fullscreen ?? null
+            pluginUnsubscribersRef.current = [
+              ...(search
+                ? [
+                    search.onStateChange((event) => {
+                      setSearchState({
+                        activeResultIndex: event.state.activeResultIndex,
+                        total: event.state.total,
+                      })
+                    }),
+                  ]
+                : []),
+              ...(fullscreen
+                ? [
+                    fullscreen.onStateChange((state) => {
+                      setIsFullscreen(state.isFullscreen)
+                    }),
+                  ]
+                : []),
+            ]
           }}
         />
+        </>
       )}
     </div>
   )
