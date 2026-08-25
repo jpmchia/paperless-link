@@ -25,6 +25,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { getJson, postJson } from "@/lib/paperless-client"
+import { TaskProgress } from "@/components/tasks/task-progress"
 import {
   activeRealtimeTasksAtom,
   latestRealtimeEventAtom,
@@ -391,16 +392,6 @@ export function SystemStatusView({
           ) : (
             <div className="space-y-3">
               {activeTaskList.slice(0, 5).map((task) => {
-                const percent =
-                  task.currentProgress != null &&
-                  task.maxProgress != null &&
-                  task.maxProgress > 0
-                    ? Math.min(
-                        100,
-                        Math.round((task.currentProgress / task.maxProgress) * 100)
-                      )
-                    : null
-
                 return (
                   <Card key={task.taskId} size="sm" className="bg-muted/30 shadow-none">
                     <CardContent>
@@ -413,11 +404,14 @@ export function SystemStatusView({
                       <p className="mt-1 text-xs text-muted-foreground">
                         {task.message || "Processing document"}
                       </p>
-                      {percent != null && (
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          Progress: {percent}%
-                        </p>
-                      )}
+                      <div className="mt-2">
+                        <TaskProgress
+                          current={task.currentProgress}
+                          max={task.maxProgress}
+                          status={task.status}
+                          label={`${task.filename || task.taskId} progress`}
+                        />
+                      </div>
                     </CardContent>
                   </Card>
                 )
