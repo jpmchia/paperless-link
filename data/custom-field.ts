@@ -10,7 +10,7 @@ export enum CustomFieldDataType {
   Monetary = 'monetary',
   DocumentLink = 'documentlink',
   Select = 'select',
-  LongText = 'longtext',
+  LongText = 'long_text',
 }
 
 export const DATA_TYPE_LABELS = [

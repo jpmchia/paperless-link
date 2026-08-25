@@ -11,6 +11,7 @@ import {
   Dialog as DraggableDialog,
   DialogBody as DraggableDialogBody,
   DialogContent as DraggableDialogContent,
+  DialogDescription as DraggableDialogDescription,
   DialogFooter as DraggableDialogFooter,
   DialogHeader as DraggableDialogHeader,
   DialogTitle as DraggableDialogTitle,
@@ -50,6 +51,7 @@ const DATA_TYPES = [
   { id: "monetary", label: "Monetary" },
   { id: "document_link", label: "Document Link" },
   { id: "select", label: "Select" },
+  { id: "long_text", label: "Long text" },
 ]
 
 const PAGE_SIZE = 25
@@ -332,6 +334,9 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
           <DraggableDialogContent initialWidth={560} maxWidth={720}>
             <DraggableDialogHeader>
               <DraggableDialogTitle>Create Custom Field</DraggableDialogTitle>
+              <DraggableDialogDescription>
+                Choose a name and the Paperless data type for this field.
+              </DraggableDialogDescription>
             </DraggableDialogHeader>
             <DraggableDialogBody>
               <div className="grid gap-4">
