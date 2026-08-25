@@ -41,7 +41,9 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { BulkDownloadDialog } from "@/components/documents/bulk-download-dialog"
 import { downloadDataroomDocuments, printDataroomDocuments } from "@/lib/dataroom-public-client"
+import { createExplicitDocumentSelection } from "@/lib/document-selection"
 import { EmailDocumentsDialog } from "@/components/documents/email-documents-dialog"
 import { MixedSelectionPicker } from "@/components/documents/mixed-selection-picker"
 import {
@@ -88,22 +90,6 @@ async function bulkEdit(documentIds: number[], method: string, parameters: BulkE
     throw new Error(`Bulk edit failed: ${err}`)
   }
   return res.json()
-}
-
-async function bulkDownload(documentIds: number[]) {
-  const res = await fetch("/api/bulk-download", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ documents: documentIds, content: "both" }),
-  })
-  if (!res.ok) throw new Error("Download failed")
-  const blob = await res.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = `documents-${Date.now()}.zip`
-  a.click()
-  URL.revokeObjectURL(url)
 }
 
 function DataroomReadOnlyBulkBar({
@@ -156,6 +142,9 @@ function DataroomReadOnlyBulkBar({
         <Download className="mr-1 h-3 w-3" />
         Download
       </Button>
+      <span className="text-xs text-muted-foreground">
+        Archive and filename options are only available in authenticated workspaces.
+      </span>
       <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handlePrint}>
         <Printer className="mr-1 h-3 w-3" />
         Print
@@ -339,6 +328,7 @@ export function BulkActionBar({
 }: BulkActionBarProps) {
   const [showDelete, setShowDelete] = React.useState(false)
   const [showMerge, setShowMerge] = React.useState(false)
+  const [showDownload, setShowDownload] = React.useState(false)
   const [showEmail, setShowEmail] = React.useState(false)
   const [showPermissions, setShowPermissions] = React.useState(false)
   const [showCustomFields, setShowCustomFields] = React.useState(false)
@@ -381,6 +371,10 @@ export function BulkActionBar({
   const [mergeDeleteOriginals, setMergeDeleteOriginals] = React.useState(false)
 
   const count = selectedIds.length
+  const downloadSelection = React.useMemo(
+    () => createExplicitDocumentSelection(selectedIds),
+    [selectedIds]
+  )
   if (count === 0) return null
 
   if (readOnly && dataroomSlug) {
@@ -512,17 +506,7 @@ export function BulkActionBar({
   }
 
   const handleDownload = async () => {
-    setBusy(true)
-    try {
-      await bulkDownload(selectedIds)
-      toast.success("Download started")
-    } catch (error) {
-      toast.error("Download failed", {
-        description: error instanceof Error ? error.message : "Unknown error",
-      })
-    } finally {
-      setBusy(false)
-    }
+    setShowDownload(true)
   }
 
   const handleRedoOcr = async () => {
@@ -869,6 +853,13 @@ export function BulkActionBar({
             : `${count} selected documents`
         }
         hasArchiveVersion
+      />
+
+      <BulkDownloadDialog
+        open={showDownload}
+        onOpenChange={setShowDownload}
+        selection={downloadSelection}
+        selectedCount={count}
       />
 
       {/* Permissions dialog */}

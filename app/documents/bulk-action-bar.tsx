@@ -47,6 +47,7 @@ import {
   type DocumentSelection,
 } from "@/lib/document-selection"
 import { ShareLinkBundleCreateDialog } from "@/components/share-links/share-link-bundles-panel"
+import { BulkDownloadDialog } from "@/components/documents/bulk-download-dialog"
 import { MergeAsVersionsDialog } from "@/components/documents/merge-as-versions-dialog"
 import { EmailDocumentsDialog } from "@/components/documents/email-documents-dialog"
 import { MixedSelectionPicker } from "@/components/documents/mixed-selection-picker"
@@ -109,22 +110,6 @@ async function bulkEdit(
     throw new Error(`Bulk edit failed: ${err}`)
   }
   return res.json()
-}
-
-async function bulkDownload(documentIds: number[]) {
-  const res = await fetch("/api/bulk-download", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ documents: documentIds, content: "both" }),
-  })
-  if (!res.ok) throw new Error("Download failed")
-  const blob = await res.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = `documents-${Date.now()}.zip`
-  a.click()
-  URL.revokeObjectURL(url)
 }
 
 async function proxyPost(path: string, body: Record<string, unknown>) {
@@ -311,6 +296,7 @@ export function BulkActionBar({
   const [showMerge, setShowMerge] = React.useState(false)
   const [showMergeAsVersions, setShowMergeAsVersions] = React.useState(false)
   const [showBundle, setShowBundle] = React.useState(false)
+  const [showDownload, setShowDownload] = React.useState(false)
   const [showEmail, setShowEmail] = React.useState(false)
   const [showPermissions, setShowPermissions] = React.useState(false)
   const [showCustomFields, setShowCustomFields] = React.useState(false)
@@ -522,18 +508,7 @@ export function BulkActionBar({
   }
 
   const handleDownload = async () => {
-    if (!supportsExplicitOnlyActions) return
-    setBusy(true)
-    try {
-      await bulkDownload(explicitDocumentIds)
-      toast.success("Download started")
-    } catch (error) {
-      toast.error("Download failed", {
-        description: error instanceof Error ? error.message : "Unknown error",
-      })
-    } finally {
-      setBusy(false)
-    }
+    setShowDownload(true)
   }
 
   const handleRedoOcr = async (remoteOcr = false) => {
@@ -841,7 +816,7 @@ export function BulkActionBar({
 
             <DropdownMenuSeparator />
 
-            <DropdownMenuItem onClick={handleDownload} disabled={actionsDisabled || !supportsExplicitOnlyActions}>
+            <DropdownMenuItem onClick={handleDownload} disabled={actionsDisabled}>
               <Download className="mr-2 h-3.5 w-3.5" />Download
             </DropdownMenuItem>
             <CanChange type="document">
@@ -939,6 +914,13 @@ export function BulkActionBar({
         onOpenChange={setShowBundle}
         documentIds={explicitDocumentIds}
         paperlessBaseUrl={paperlessBaseUrl}
+      />
+
+      <BulkDownloadDialog
+        open={showDownload}
+        onOpenChange={setShowDownload}
+        selection={selection}
+        selectedCount={count}
       />
 
       <EmailDocumentsDialog
