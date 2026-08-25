@@ -15,37 +15,41 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams("page=1&page_size=25"),
 }))
 
+function renderWorkspace() {
+  return render(
+    <JotaiProvider>
+      <ConfirmationDialogProvider>
+        <DocumentsWorkspace
+          correspondents={[]}
+          currentFilters={{}}
+          currentPage={1}
+          currentPageSize={25}
+          customFields={[]}
+          data={[]}
+          documentTypes={[]}
+          lookup={{
+            correspondents: {},
+            customFields: {},
+            documentTypes: {},
+            storagePaths: {},
+            tags: {},
+            users: {},
+          }}
+          pageCount={3}
+          savedViews={[]}
+          storagePaths={[]}
+          tags={[]}
+          totalCount={0}
+          users={[]}
+        />
+      </ConfirmationDialogProvider>
+    </JotaiProvider>
+  )
+}
+
 describe("DocumentsWorkspace hotkeys", () => {
   it("focuses the search input with /", () => {
-    render(
-      <JotaiProvider>
-        <ConfirmationDialogProvider>
-          <DocumentsWorkspace
-            correspondents={[]}
-            currentFilters={{}}
-            currentPage={1}
-            currentPageSize={25}
-            customFields={[]}
-            data={[]}
-            documentTypes={[]}
-            lookup={{
-              correspondents: {},
-              customFields: {},
-              documentTypes: {},
-              storagePaths: {},
-              tags: {},
-              users: {},
-            }}
-            pageCount={1}
-            savedViews={[]}
-            storagePaths={[]}
-            tags={[]}
-            totalCount={0}
-            users={[]}
-          />
-        </ConfirmationDialogProvider>
-      </JotaiProvider>
-    )
+    renderWorkspace()
 
     fireEvent.keyDown(window, { key: "/" })
 
@@ -54,36 +58,7 @@ describe("DocumentsWorkspace hotkeys", () => {
 
   it("navigates to the next page with Alt+ArrowRight", () => {
     pushMock.mockReset()
-
-    render(
-      <JotaiProvider>
-        <ConfirmationDialogProvider>
-          <DocumentsWorkspace
-            correspondents={[]}
-            currentFilters={{}}
-            currentPage={1}
-            currentPageSize={25}
-            customFields={[]}
-            data={[]}
-            documentTypes={[]}
-            lookup={{
-              correspondents: {},
-              customFields: {},
-              documentTypes: {},
-              storagePaths: {},
-              tags: {},
-              users: {},
-            }}
-            pageCount={3}
-            savedViews={[]}
-            storagePaths={[]}
-            tags={[]}
-            totalCount={0}
-            users={[]}
-          />
-        </ConfirmationDialogProvider>
-      </JotaiProvider>
-    )
+    renderWorkspace()
 
     fireEvent.keyDown(window, {
       altKey: true,
@@ -91,5 +66,17 @@ describe("DocumentsWorkspace hotkeys", () => {
     })
 
     expect(pushMock).toHaveBeenCalledWith("?page=2&page_size=25")
+  })
+
+  it("ignores the search shortcut while typing in editable elements", () => {
+    renderWorkspace()
+
+    const searchInput = screen.getByPlaceholderText("Search documents…")
+    searchInput.focus()
+    fireEvent.change(searchInput, { target: { value: "invoice" } })
+    fireEvent.keyDown(searchInput, { key: "/", code: "Slash" })
+
+    expect(searchInput).toHaveValue("invoice")
+    expect(searchInput).toHaveFocus()
   })
 })

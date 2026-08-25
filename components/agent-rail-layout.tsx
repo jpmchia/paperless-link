@@ -3,6 +3,7 @@
 import * as React from "react"
 import { PanelRightOpen, PanelRightClose } from "lucide-react"
 import { GlobalSearch } from "@/components/global-search/global-search"
+import { HelpMenu } from "@/components/help/help-menu"
 import { LinkIQConnectionStatus } from "@/components/link-iq-connection-status"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import { ShellStatus } from "@/components/shell-status"
@@ -20,7 +21,12 @@ type AgentRailLayoutProps = {
   children: React.ReactNode
   savedViews: SavedViewEntry[]
   showGlobalControls?: boolean
+  initialTourComplete?: boolean
   showAgentRailToggle?: boolean
+  /** Reserved for agent-rail session scoping (unused until agent rail lands). */
+  agentSurface?: "main" | "dataroom"
+  /** Reserved for dataroom-scoped agent sessions (unused until agent rail lands). */
+  dataroomSlug?: string | null
 }
 
 export function AgentRailLayout({
@@ -29,15 +35,22 @@ export function AgentRailLayout({
   children,
   savedViews,
   showGlobalControls = true,
+  initialTourComplete = true,
   showAgentRailToggle = true,
 }: AgentRailLayoutProps) {
   const [isRailOpen, setIsRailOpen] = React.useState(false)
   const sidebarTriggerNodes = React.useMemo(
     () => React.Children.toArray(sidebarTrigger),
-    [sidebarTrigger],
+    [sidebarTrigger]
   )
-  const topbarNodes = React.useMemo(() => React.Children.toArray(topbar), [topbar])
-  const contentNodes = React.useMemo(() => React.Children.toArray(children), [children])
+  const topbarNodes = React.useMemo(
+    () => React.Children.toArray(topbar),
+    [topbar]
+  )
+  const contentNodes = React.useMemo(
+    () => React.Children.toArray(children),
+    [children]
+  )
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
@@ -49,6 +62,7 @@ export function AgentRailLayout({
             {showGlobalControls ? (
               <div className="flex items-center gap-4">
                 <GlobalSearch savedViews={savedViews} />
+                <HelpMenu initialTourComplete={initialTourComplete} />
                 <LinkIQConnectionStatus />
                 <ShellStatus />
                 <NotificationCenter />
@@ -59,7 +73,11 @@ export function AgentRailLayout({
                     aria-label="Toggle agent rail"
                     onClick={() => setIsRailOpen((previous) => !previous)}
                   >
-                    {isRailOpen ? <PanelRightClose className="size-4" /> : <PanelRightOpen className="size-4" />}
+                    {isRailOpen ? (
+                      <PanelRightClose className="size-4" />
+                    ) : (
+                      <PanelRightOpen className="size-4" />
+                    )}
                   </Button>
                 ) : null}
               </div>
@@ -80,7 +98,8 @@ export function AgentRailLayout({
             <div className="rounded-md border border-sidebar-border/60 bg-sidebar-accent/30 p-3">
               <p className="text-sm font-medium">AI Agent</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Agent interface renders here. This rail is available only on authenticated AppShell screens.
+                Agent interface renders here. This rail is available only on
+                authenticated AppShell screens.
               </p>
             </div>
           </div>

@@ -7,7 +7,11 @@ import { updateUiSettings } from "@/app/actions/ui-settings"
 import type { FilterParams } from "@/lib/api"
 import { toast } from "sonner"
 import { RealtimeDocumentListSync } from "@/components/realtime-document-list-sync"
-import { DEFAULT_DISPLAY_FIELDS, type Document, type LookupMaps } from "./columns"
+import {
+  DEFAULT_DISPLAY_FIELDS,
+  type Document,
+  type LookupMaps,
+} from "./columns"
 import { FilterPanel } from "./filter-panel"
 import { DataTable, DataTableHeaderBar } from "./data-table"
 import { ColumnsPicker } from "./columns-picker"
@@ -26,11 +30,41 @@ import {
   createExplicitDocumentSelection,
   getDocumentSelectionCount,
 } from "@/lib/document-selection"
+import {
+  getKeyboardShortcut,
+  isEditableElement,
+  matchesShortcutEvent,
+} from "@/lib/keyboard-shortcuts"
 import { serializeDocumentFilters } from "@/lib/api"
 import type { SelectionData } from "@/lib/bulk-selection-data"
 
+const focusSearchShortcut = getKeyboardShortcut("documents.focus-search")
+const tableDisplayModeShortcut = getKeyboardShortcut(
+  "documents.display-mode.table"
+)
+const smallCardsDisplayModeShortcut = getKeyboardShortcut(
+  "documents.display-mode.small-cards"
+)
+const largeCardsDisplayModeShortcut = getKeyboardShortcut(
+  "documents.display-mode.large-cards"
+)
+const columnsShortcut = getKeyboardShortcut("documents.columns")
+const filtersShortcut = getKeyboardShortcut("documents.filters")
+const savedViewsShortcut = getKeyboardShortcut("documents.saved-views")
+const previousPageShortcut = getKeyboardShortcut("documents.page.previous")
+const nextPageShortcut = getKeyboardShortcut("documents.page.next")
+const previousPreviewShortcut = getKeyboardShortcut(
+  "documents.preview.previous"
+)
+const nextPreviewShortcut = getKeyboardShortcut("documents.preview.next")
+
 type LookupItem = { id: number; name: string }
-type UserOption = { id: number; username?: string; first_name?: string; last_name?: string }
+type UserOption = {
+  id: number
+  username?: string
+  first_name?: string
+  last_name?: string
+}
 type TagOption = { id: number; name: string; color: string | number }
 type CustomFieldOption = { id: number; name: string }
 type DocumentTableLayout = {
@@ -44,7 +78,9 @@ type DocumentTableLayoutSettings = {
   views?: Record<string, DocumentTableLayout>
 }
 
-function comparableLayout(layout: DocumentTableLayout | null | undefined): DocumentTableLayout {
+function comparableLayout(
+  layout: DocumentTableLayout | null | undefined
+): DocumentTableLayout {
   return {
     columnSizing: layout?.columnSizing ?? {},
     smallCardSize: layout?.smallCardSize ?? 190,
@@ -54,8 +90,14 @@ function comparableLayout(layout: DocumentTableLayout | null | undefined): Docum
 
 const DOCUMENT_TABLE_LAYOUTS_STORAGE_KEY = "paperless-document-table-layouts"
 
-function layoutsEqual(left: DocumentTableLayout | null | undefined, right: DocumentTableLayout | null | undefined) {
-  return JSON.stringify(comparableLayout(left)) === JSON.stringify(comparableLayout(right))
+function layoutsEqual(
+  left: DocumentTableLayout | null | undefined,
+  right: DocumentTableLayout | null | undefined
+) {
+  return (
+    JSON.stringify(comparableLayout(left)) ===
+    JSON.stringify(comparableLayout(right))
+  )
 }
 
 function readStoredTableLayouts(): DocumentTableLayoutSettings | null {
@@ -137,9 +179,8 @@ export function DocumentsWorkspace({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [hasMounted, setHasMounted] = React.useState(false)
-  const [tableLayouts, setTableLayouts] = React.useState<DocumentTableLayoutSettings>(
-    initialTableLayouts ?? {}
-  )
+  const [tableLayouts, setTableLayouts] =
+    React.useState<DocumentTableLayoutSettings>(initialTableLayouts ?? {})
 
   React.useEffect(() => {
     setHasMounted(true)
@@ -165,8 +206,8 @@ export function DocumentsWorkspace({
   const activeViewLayout = React.useMemo<DocumentTableLayout | null>(
     () =>
       activeView?.id != null
-        ? tableLayouts.views?.[String(activeView.id)] ?? null
-        : tableLayouts.global ?? null,
+        ? (tableLayouts.views?.[String(activeView.id)] ?? null)
+        : (tableLayouts.global ?? null),
     [activeView?.id, tableLayouts]
   )
   const activeViewDisplayFields = activeView?.display_fields
@@ -182,8 +223,9 @@ export function DocumentsWorkspace({
         ? activeViewLayout.displayFields
         : DEFAULT_DISPLAY_FIELDS
   )
-  const [displayMode, setDisplayMode] = React.useState<DocumentDisplayMode>(() =>
-    resolveDocumentDisplayMode(activeView?.display_mode, initialDisplayMode)
+  const [displayMode, setDisplayMode] = React.useState<DocumentDisplayMode>(
+    () =>
+      resolveDocumentDisplayMode(activeView?.display_mode, initialDisplayMode)
   )
   const [columnSizing, setColumnSizing] = React.useState<ColumnSizingState>(
     activeViewLayout?.columnSizing ?? {}
@@ -198,7 +240,9 @@ export function DocumentsWorkspace({
     id: number
     title?: string
   } | null>(null)
-  const [selection, setSelection] = React.useState(() => createExplicitDocumentSelection())
+  const [selection, setSelection] = React.useState(() =>
+    createExplicitDocumentSelection()
+  )
   const filterSnapshotKey = React.useMemo(
     () => JSON.stringify(serializeDocumentFilters(currentFilters)),
     [currentFilters]
@@ -222,7 +266,12 @@ export function DocumentsWorkspace({
     } else {
       setDisplayFields(DEFAULT_DISPLAY_FIELDS)
     }
-  }, [activeView?.id, activeViewDisplayFields, activeViewDisplayFieldsKey, activeViewLayout])
+  }, [
+    activeView?.id,
+    activeViewDisplayFields,
+    activeViewDisplayFieldsKey,
+    activeViewLayout,
+  ])
 
   React.useEffect(() => {
     setColumnSizing(activeViewLayout?.columnSizing ?? {})
@@ -234,7 +283,9 @@ export function DocumentsWorkspace({
   }, [activeView?.id, activeViewLayout])
 
   React.useEffect(() => {
-    setDisplayMode(resolveDocumentDisplayMode(activeView?.display_mode, initialDisplayMode))
+    setDisplayMode(
+      resolveDocumentDisplayMode(activeView?.display_mode, initialDisplayMode)
+    )
   }, [activeView?.id, activeView?.display_mode, initialDisplayMode])
 
   React.useEffect(() => {
@@ -268,7 +319,14 @@ export function DocumentsWorkspace({
     }, 250)
 
     return () => window.clearTimeout(timeout)
-  }, [activeView?.id, displayMode, displayFields, columnSizing, smallCardSize, largeCardSize])
+  }, [
+    activeView?.id,
+    displayMode,
+    displayFields,
+    columnSizing,
+    smallCardSize,
+    largeCardSize,
+  ])
 
   const cardSize = displayMode === "largeCards" ? largeCardSize : smallCardSize
   const currentActiveViewLayout = React.useMemo<DocumentTableLayout>(
@@ -280,7 +338,9 @@ export function DocumentsWorkspace({
     [columnSizing, smallCardSize, largeCardSize]
   )
   const activeViewLayoutDirty = React.useMemo(
-    () => Boolean(activeView?.id) && !layoutsEqual(activeViewLayout, currentActiveViewLayout),
+    () =>
+      Boolean(activeView?.id) &&
+      !layoutsEqual(activeViewLayout, currentActiveViewLayout),
     [activeView?.id, activeViewLayout, currentActiveViewLayout]
   )
   const previewDocuments = React.useMemo(
@@ -299,7 +359,10 @@ export function DocumentsWorkspace({
         return
       }
 
-      if (displayMode === DEFAULT_DOCUMENT_DISPLAY_MODE || displayMode === "smallCards") {
+      if (
+        displayMode === DEFAULT_DOCUMENT_DISPLAY_MODE ||
+        displayMode === "smallCards"
+      ) {
         setSmallCardSize(value)
       }
     },
@@ -336,18 +399,6 @@ export function DocumentsWorkspace({
   )
 
   React.useEffect(() => {
-    const isEditableTarget = (target: EventTarget | null) => {
-      if (!(target instanceof HTMLElement)) return false
-
-      const tagName = target.tagName
-      return (
-        target.isContentEditable ||
-        tagName === "INPUT" ||
-        tagName === "TEXTAREA" ||
-        tagName === "SELECT"
-      )
-    }
-
     const clickHotkeyTarget = (selector: string) => {
       const target = document.querySelector<HTMLElement>(selector)
       target?.click()
@@ -361,7 +412,7 @@ export function DocumentsWorkspace({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (previewDocument) {
-        if (event.key === "ArrowLeft") {
+        if (matchesShortcutEvent(event, previousPreviewShortcut.keyChord)) {
           const currentIndex = previewDocuments.findIndex(
             (document) => document.id === previewDocument.id
           )
@@ -372,7 +423,7 @@ export function DocumentsWorkspace({
           return
         }
 
-        if (event.key === "ArrowRight") {
+        if (matchesShortcutEvent(event, nextPreviewShortcut.keyChord)) {
           const currentIndex = previewDocuments.findIndex(
             (document) => document.id === previewDocument.id
           )
@@ -384,53 +435,56 @@ export function DocumentsWorkspace({
         }
       }
 
-      if (isEditableTarget(event.target)) return
+      if (isEditableElement(event.target)) return
 
-      if (event.key === "/") {
+      if (matchesShortcutEvent(event, focusSearchShortcut.keyChord)) {
         event.preventDefault()
         document
-          .querySelector<HTMLInputElement>('[data-documents-hotkey="search-input"]')
+          .querySelector<HTMLInputElement>(
+            '[data-documents-hotkey="search-input"]'
+          )
           ?.focus()
         return
       }
 
-      if (!event.altKey) return
-
-      switch (event.key) {
-        case "1":
+      switch (true) {
+        case matchesShortcutEvent(event, tableDisplayModeShortcut.keyChord):
           event.preventDefault()
           setDisplayMode("table")
           return
-        case "2":
+        case matchesShortcutEvent(
+          event,
+          smallCardsDisplayModeShortcut.keyChord
+        ):
           event.preventDefault()
           setDisplayMode("smallCards")
           return
-        case "3":
+        case matchesShortcutEvent(
+          event,
+          largeCardsDisplayModeShortcut.keyChord
+        ):
           event.preventDefault()
           setDisplayMode("largeCards")
           return
-        case "c":
-        case "C":
+        case matchesShortcutEvent(event, columnsShortcut.keyChord):
           event.preventDefault()
           clickHotkeyTarget('[data-documents-hotkey="columns-trigger"]')
           return
-        case "f":
-        case "F":
+        case matchesShortcutEvent(event, filtersShortcut.keyChord):
           event.preventDefault()
           clickHotkeyTarget('[data-documents-hotkey="dates-trigger"]')
           return
-        case "v":
-        case "V":
+        case matchesShortcutEvent(event, savedViewsShortcut.keyChord):
           event.preventDefault()
           clickHotkeyTarget('[data-documents-hotkey="views-trigger"]')
           return
-        case "ArrowLeft":
+        case matchesShortcutEvent(event, previousPageShortcut.keyChord):
           if (currentPage > 1) {
             event.preventDefault()
             navigatePage(currentPage - 1)
           }
           return
-        case "ArrowRight":
+        case matchesShortcutEvent(event, nextPageShortcut.keyChord):
           if (currentPage < pageCount) {
             event.preventDefault()
             navigatePage(currentPage + 1)
@@ -443,7 +497,14 @@ export function DocumentsWorkspace({
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [currentPage, pageCount, previewDocument, previewDocuments, router, searchParams])
+  }, [
+    currentPage,
+    pageCount,
+    previewDocument,
+    previewDocuments,
+    router,
+    searchParams,
+  ])
 
   if (!hasMounted) {
     return <div className="flex h-full flex-col gap-4 p-4" />
@@ -486,7 +547,7 @@ export function DocumentsWorkspace({
         onCreateViewExtras={async (createdViewId) => {
           await persistViewLayout(createdViewId)
         }}
-        trailingControls={(
+        trailingControls={
           <>
             <DisplayModePicker
               displayMode={displayMode}
@@ -498,7 +559,7 @@ export function DocumentsWorkspace({
               onDisplayFieldsChange={setDisplayFields}
             />
           </>
-        )}
+        }
         currentDisplayMode={displayMode}
         currentDisplayFields={displayFields}
         currentPageSize={currentPageSize}
@@ -510,7 +571,9 @@ export function DocumentsWorkspace({
           totalResultsCount={totalCount}
           selectionData={selectionData}
           remoteOcrSelectable={remoteOcrSelectable}
-          onClearSelection={() => setSelection(createExplicitDocumentSelection())}
+          onClearSelection={() =>
+            setSelection(createExplicitDocumentSelection())
+          }
           onComplete={() => {
             setSelection(createExplicitDocumentSelection())
             router.refresh()
@@ -518,13 +581,35 @@ export function DocumentsWorkspace({
           onSelectAllFiltered={() => {
             setSelection(createAllFilteredDocumentSelection(currentFilters))
           }}
-          tags={Object.values(lookup.tags ?? {}).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color }))}
-          correspondents={Object.values(lookup.correspondents ?? {}).map((correspondent) => ({ id: correspondent.id, name: correspondent.name }))}
-          documentTypes={Object.values(lookup.documentTypes ?? {}).map((documentType) => ({ id: documentType.id, name: documentType.name }))}
-          storagePaths={Object.values(lookup.storagePaths ?? {}).map((storagePath) => ({ id: storagePath.id, name: storagePath.name }))}
-          customFields={Object.values(lookup.customFields ?? {}).map((customField) => ({ id: customField.id, name: customField.name, data_type: customField.data_type }))}
+          tags={Object.values(lookup.tags ?? {}).map((tag) => ({
+            id: tag.id,
+            name: tag.name,
+            color: tag.color,
+          }))}
+          correspondents={Object.values(lookup.correspondents ?? {}).map(
+            (correspondent) => ({
+              id: correspondent.id,
+              name: correspondent.name,
+            })
+          )}
+          documentTypes={Object.values(lookup.documentTypes ?? {}).map(
+            (documentType) => ({ id: documentType.id, name: documentType.name })
+          )}
+          storagePaths={Object.values(lookup.storagePaths ?? {}).map(
+            (storagePath) => ({ id: storagePath.id, name: storagePath.name })
+          )}
+          customFields={Object.values(lookup.customFields ?? {}).map(
+            (customField) => ({
+              id: customField.id,
+              name: customField.name,
+              data_type: customField.data_type,
+            })
+          )}
           usersList={users
-            .filter((user): user is { id: number; username: string } => typeof user.username === "string")
+            .filter(
+              (user): user is { id: number; username: string } =>
+                typeof user.username === "string"
+            )
             .map((user) => ({ id: user.id, username: user.username }))}
           groupsList={groupsList}
           documentTitles={data.map((doc) => ({

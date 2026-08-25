@@ -10,6 +10,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+import { SETTINGS_KEYS } from "@/data/ui-settings"
 import { getSavedViews, getUiSettings } from "@/lib/api"
 import { getThemePresetById } from "@/lib/theme-presets"
 import {
@@ -18,9 +19,7 @@ import {
   mapPermissionBootstrapPayload,
   type PermissionBootstrapPayload,
 } from "@/lib/permissions"
-import {
-  defaultNotificationPreferences,
-} from "@/lib/notifications"
+import { defaultNotificationPreferences } from "@/lib/notifications"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/auth"
 import {
@@ -75,15 +74,24 @@ function resolvePaperlessAssetUrl(value: string | null) {
 
 function serializeThemeVariables(variables: Record<string, string>) {
   const entries = Object.entries(variables).filter(
-    ([key, value]) => key.startsWith("--") && typeof value === "string" && value.length > 0
+    ([key, value]) =>
+      key.startsWith("--") && typeof value === "string" && value.length > 0
   )
   if (entries.length === 0) return ""
 
   const cssBody = entries
-    .map(([key, value]) => `${key}: ${value.replace(/<\/style/gi, "<\\\\/style")};`)
+    .map(
+      ([key, value]) => `${key}: ${value.replace(/<\/style/gi, "<\\\\/style")};`
+    )
     .join(" ")
 
   return `:root { ${cssBody} }`
+}
+
+function readBooleanSetting(value: unknown) {
+  if (typeof value === "boolean") return value
+  if (typeof value === "string") return value === "true"
+  return false
 }
 
 function buildThemeOverrideVariables(
@@ -118,13 +126,16 @@ export async function AppShell({
   let notificationPreferences = defaultNotificationPreferences
   let appTitle: string | null = null
   let appLogo: string | null = null
+  let initialTourComplete = false
   let userPreferences = readUserPreferences()
   let themeVariables: Record<string, string> = {}
   try {
     const session = await getServerSession(authOptions)
     if (session) {
       savedViews = await getSavedViews<SavedViewEntry>()
-      const uiSettings = await getUiSettings<UiSettingsPayload>().catch(() => null)
+      const uiSettings = await getUiSettings<UiSettingsPayload>().catch(
+        () => null
+      )
       const uiSettingsValues =
         (uiSettings?.settings as Record<string, unknown> | undefined) ?? {}
       appTitle =
@@ -136,10 +147,15 @@ export async function AppShell({
           ? uiSettingsValues.app_logo
           : null
       )
+      initialTourComplete = readBooleanSetting(
+        uiSettingsValues[SETTINGS_KEYS.TOUR_COMPLETE]
+      )
       userPreferences = readUserPreferences(uiSettingsValues)
       const themePresetId = userPreferences.themePresetId ?? ""
       if (themePresetId) {
-        const themePreset = await getThemePresetById(themePresetId).catch(() => null)
+        const themePreset = await getThemePresetById(themePresetId).catch(
+          () => null
+        )
         themeVariables = buildThemeOverrideVariables(
           themePreset?.variables ?? {},
           userPreferences
@@ -189,6 +205,7 @@ export async function AppShell({
                   topbar={topbar}
                   sidebarTrigger={<SidebarTrigger />}
                   showGlobalControls={mode === "default"}
+                  initialTourComplete={initialTourComplete}
                   showAgentRailToggle
                   agentSurface={mode === "dataroom" ? "dataroom" : "main"}
                   dataroomSlug={dataroomSlug ?? null}
