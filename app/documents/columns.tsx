@@ -2,6 +2,7 @@ import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
 import { ArrowUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { SearchHitSnippet } from "@/components/documents/search-hit-snippet"
 import { tagPillStyle } from "@/lib/tag-colors"
 
 export type Document = {
@@ -21,6 +22,7 @@ export type Document = {
   num_notes?: number | null
   page_count?: number | null
   is_shared_by_requester?: boolean
+  __search_hit__?: unknown
 }
 
 export interface LookupMaps {
@@ -120,7 +122,8 @@ export function getCustomFieldDisplayValue(
 
 export function makeColumns(
   lookup: LookupMaps,
-  displayFields: string[] = DEFAULT_DISPLAY_FIELDS
+  displayFields: string[] = DEFAULT_DISPLAY_FIELDS,
+  showSearchHits = false
 ): ColumnDef<Document>[] {
   const show = (field: string) =>
     displayFields.length === 0 ||
@@ -179,8 +182,13 @@ export function makeColumns(
         </Button>
       ),
       cell: ({ row }) => (
-        <div className="font-medium truncate" title={row.getValue("title")}>
-          {row.getValue("title")}
+        <div>
+          <div className="font-medium truncate" title={row.getValue("title")}>
+            {row.getValue("title")}
+          </div>
+          {showSearchHits ? (
+            <SearchHitSnippet hit={row.original.__search_hit__} />
+          ) : null}
         </div>
       ),
     })

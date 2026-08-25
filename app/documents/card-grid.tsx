@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { OpenDocumentLink } from "@/components/open-document-link"
+import { SearchHitSnippet } from "@/components/documents/search-hit-snippet"
 import { Checkbox } from "@/components/ui/checkbox"
 import { tagPillStyle } from "@/lib/tag-colors"
 import {
@@ -70,6 +71,7 @@ interface CardGridProps {
   enableSelection?: boolean
   selection: DocumentSelection
   onSelectionChange: (selection: DocumentSelection) => void
+  showSearchHits?: boolean
 }
 
 function formatDocumentDate(value?: string | null) {
@@ -214,6 +216,7 @@ export function CardGrid({
   enableSelection = false,
   selection,
   onSelectionChange,
+  showSearchHits = false,
 }: CardGridProps) {
   if (data.length === 0) {
     return (
@@ -323,16 +326,23 @@ export function CardGrid({
                     {overlayFields.map((field) => {
                       if (field.kind === "title") {
                         return (
-                          <p
+                          <div
                             key={field.key}
-                            className={
-                              "basis-full font-medium leading-snug text-white drop-shadow-sm " +
-                              (isLarge ? "line-clamp-3 text-base" : "line-clamp-2 text-sm")
-                            }
-                            title={field.value}
+                            className="basis-full"
                           >
-                            {field.value}
-                          </p>
+                            <p
+                              className={
+                                "font-medium leading-snug text-white drop-shadow-sm " +
+                                (isLarge ? "line-clamp-3 text-base" : "line-clamp-2 text-sm")
+                              }
+                              title={field.value}
+                            >
+                              {field.value}
+                            </p>
+                            {showSearchHits ? (
+                              <SearchHitSnippet hit={doc.__search_hit__} />
+                            ) : null}
+                          </div>
                         )
                       }
 

@@ -67,6 +67,7 @@ interface DataTableProps {
   onPreviewDocument?: (document: { id: number; title?: string }) => void
   selection: DocumentSelection
   onSelectionChange: (selection: DocumentSelection) => void
+  showSearchHits?: boolean
 }
 
 const PAGE_SIZES = [10, 25, 50, 100]
@@ -201,6 +202,7 @@ export function DataTable({
   onPreviewDocument,
   selection,
   onSelectionChange,
+  showSearchHits = false,
 }: DataTableProps) {
   const navigateToDocument = useOpenDocumentNavigation()
   const setDocList = useSetAtom(documentListState)
@@ -338,7 +340,11 @@ export function DataTable({
         </button>
       ),
     }
-    return [...selectColumn, ...makeColumns(lookup, displayFields), previewColumn]
+    return [
+      ...selectColumn,
+      ...makeColumns(lookup, displayFields, showSearchHits),
+      previewColumn,
+    ]
   }, [
     allPageSelected,
     displayFields,
@@ -347,6 +353,7 @@ export function DataTable({
     lookup,
     onPreviewDocument,
     selection,
+    showSearchHits,
     somePageSelected,
   ])
 
