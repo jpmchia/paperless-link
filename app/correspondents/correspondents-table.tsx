@@ -90,10 +90,12 @@ const emptyCorrespondent = (): Partial<Correspondent> => ({
 
 export function CorrespondentsTable({
   initialCorrespondents,
+  initialEditCorrespondentId,
   onItemsChange,
   onSelectCorrespondent,
   selectLabel = "Use",
 }: {
+  initialEditCorrespondentId?: number | null
   initialCorrespondents: Correspondent[]
   onItemsChange?: (items: Correspondent[]) => void
   onSelectCorrespondent?: (correspondent: Correspondent) => void
@@ -108,6 +110,7 @@ export function CorrespondentsTable({
   const [saving, setSaving] = React.useState(false)
   const [selectedIds, setSelectedIds] = React.useState<number[]>([])
   const [page, setPage] = React.useState(1)
+  const handledInitialEditIdRef = React.useRef<number | null>(null)
 
   React.useEffect(() => {
     setItems(initialCorrespondents)
@@ -129,6 +132,27 @@ export function CorrespondentsTable({
   React.useEffect(() => {
     setPage(1)
   }, [search])
+
+  React.useEffect(() => {
+    if (initialEditCorrespondentId == null) {
+      handledInitialEditIdRef.current = null
+      return
+    }
+
+    if (handledInitialEditIdRef.current === initialEditCorrespondentId) {
+      return
+    }
+
+    const item = items.find(
+      (correspondent) => correspondent.id === initialEditCorrespondentId
+    )
+    if (!item) {
+      return
+    }
+
+    handledInitialEditIdRef.current = initialEditCorrespondentId
+    openEdit(item)
+  }, [initialEditCorrespondentId, items])
 
   const openCreate = () => {
     setIsNew(true)

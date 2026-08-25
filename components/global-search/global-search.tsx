@@ -31,11 +31,22 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command"
+import { GlobalSearchResultRow } from "@/components/global-search/global-search-result"
+import { useSidebarManagementDialog } from "@/components/sidebar-management-dialog"
 import { useOpenDocumentNavigation } from "@/hooks/use-open-document-navigation"
 import { getJson, withQuery } from "@/lib/paperless-client"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useUserPreferences } from "@/components/user-preferences-provider"
 import { GlobalSearchType } from "@/data/ui-settings"
+import {
+  buildDocumentDownloadUrl,
+  buildDocumentsHrefFromFilters,
+  buildFiltersForSearchResult,
+  getGlobalSearchResultActions,
+  type GlobalSearchActionId,
+  type GlobalSearchResult,
+  type GlobalSearchResultKind,
+} from "@/lib/global-search-actions"
 
 interface SavedViewEntry {
   id: number
@@ -138,6 +149,90 @@ function matchesQuery(value: string, query: string) {
   return value.toLowerCase().includes(query.toLowerCase())
 }
 
+function assertNever(value: never): never {
+  throw new Error(`Unhandled global search kind: ${String(value)}`)
+}
+
+function getGlobalSearchIcon(kind: GlobalSearchResultKind) {
+  switch (kind) {
+    case "document":
+      return Files
+    case "savedView":
+      return FolderOpen
+    case "correspondent":
+      return UserRound
+    case "documentType":
+      return FileCog
+    case "storagePath":
+      return FolderOpen
+    case "tag":
+      return Tags
+    case "user":
+    case "group":
+      return Users
+    case "mailAccount":
+    case "mailRule":
+      return Mail
+    case "customField":
+      return SquareStack
+    case "workflow":
+      return GitBranch
+    default:
+      return assertNever(kind)
+  }
+}
+
+function getManagementDialogKind(kind: GlobalSearchResultKind) {
+  switch (kind) {
+    case "correspondent":
+      return "correspondents" as const
+    case "documentType":
+      return "documentTypes" as const
+    case "storagePath":
+      return "storagePaths" as const
+    case "tag":
+      return "tags" as const
+    case "document":
+    case "savedView":
+    case "user":
+    case "group":
+    case "mailAccount":
+    case "mailRule":
+    case "customField":
+    case "workflow":
+      return null
+    default:
+      return assertNever(kind)
+  }
+}
+
+function getManagementHref(kind: Exclude<GlobalSearchResultKind, "document">) {
+  switch (kind) {
+    case "savedView":
+      return "/savedviews"
+    case "correspondent":
+      return "/correspondents"
+    case "documentType":
+      return "/document-types"
+    case "storagePath":
+      return "/storage-paths"
+    case "tag":
+      return "/tags"
+    case "user":
+    case "group":
+      return "/users"
+    case "mailAccount":
+    case "mailRule":
+      return "/mail"
+    case "customField":
+      return "/custom-fields"
+    case "workflow":
+      return "/workflows"
+    default:
+      return assertNever(kind)
+  }
+}
+
 export function GlobalSearch({
   savedViews,
 }: {
@@ -147,11 +242,13 @@ export function GlobalSearch({
   const navigateToDocument = useOpenDocumentNavigation()
   const pathname = usePathname()
   const { can, canManageConfig } = usePermissions()
+  const { openManagementDialog } = useSidebarManagementDialog()
   const preferences = useUserPreferences()
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
   const [searchResults, setSearchResults] = React.useState<GlobalSearchResponse>({})
   const [loadingDocuments, setLoadingDocuments] = React.useState(false)
+  const [searchRefreshKey, setSearchRefreshKey] = React.useState(0)
   const [shortcutLabel, setShortcutLabel] = React.useState("Ctrl+K")
   const deferredQuery = useDeferredValue(query.trim())
   const canViewDocuments = can("view", "document")
@@ -221,7 +318,7 @@ export function GlobalSearch({
     return () => {
       cancelled = true
     }
-  }, [canViewDocuments, deferredQuery, preferences.searchDbOnly])
+  }, [canViewDocuments, deferredQuery, preferences.searchDbOnly, searchRefreshKey])
 
   const documents = Array.isArray(searchResults?.documents) ? searchResults.documents : []
   const liveSavedViews = Array.isArray(searchResults?.saved_views)
@@ -322,19 +419,273 @@ export function GlobalSearch({
     [handleNavigate, preferences.searchFullType]
   )
 
+  const refreshSearchResults = React.useCallback(() => {
+    if (!deferredQuery || !canViewDocuments) {
+      return
+    }
+
+    setSearchRefreshKey((current) => current + 1)
+  }, [canViewDocuments, deferredQuery])
+
+  const handleResultAction = React.useCallback(
+    (actionId: GlobalSearchActionId, result: GlobalSearchResult) => {
+      switch (actionId) {
+        case "open":
+          switch (result.kind) {
+            case "document":
+              setOpen(false)
+              navigateToDocument({
+                documentId: result.id,
+                title: result.title || `Document ${result.id}`,
+              })
+              return
+            case "savedView":
+              handleNavigate(`/view/${result.id}`)
+              return
+            default:
+              handleNavigate(getManagementHref(result.kind))
+              return
+          }
+        case "openInNewWindow":
+          if (result.kind !== "document") {
+            return
+          }
+          window.open(`/documents/${result.id}`, "_blank", "noopener,noreferrer")
+          return
+        case "download":
+          if (result.kind !== "document") {
+            return
+          }
+          window.open(
+            buildDocumentDownloadUrl(result.id),
+            "_blank",
+            "noopener,noreferrer"
+          )
+          return
+        case "filterDocuments":
+          if (
+            result.kind === "correspondent" ||
+            result.kind === "documentType" ||
+            result.kind === "storagePath" ||
+            result.kind === "tag"
+          ) {
+            handleNavigate(
+              buildDocumentsHrefFromFilters(buildFiltersForSearchResult(result))
+            )
+          }
+          return
+        case "edit":
+        case "manage":
+          if (result.kind === "document") {
+            return
+          }
+
+          if (result.kind === "savedView") {
+            handleNavigate(getManagementHref(result.kind))
+            return
+          }
+
+          const dialogKind = getManagementDialogKind(result.kind)
+          if (dialogKind) {
+            openManagementDialog(dialogKind, {
+              initialItemId: result.id,
+              onItemsChange: refreshSearchResults,
+            })
+            return
+          }
+
+          handleNavigate(getManagementHref(result.kind))
+          return
+        default:
+          assertNever(actionId)
+      }
+    },
+    [
+      handleNavigate,
+      navigateToDocument,
+      openManagementDialog,
+      refreshSearchResults,
+    ]
+  )
+
+  const permissionSnapshot = React.useMemo(
+    () => ({
+      can,
+      canManageConfig,
+    }),
+    [can, canManageConfig]
+  )
+
+  const renderResultRow = React.useCallback(
+    (result: GlobalSearchResult) => {
+      const actions = getGlobalSearchResultActions(result, permissionSnapshot)
+      if (!actions.primary) {
+        return null
+      }
+
+      const Icon = getGlobalSearchIcon(result.kind)
+      const label =
+        result.kind === "document" ? result.title : result.name
+
+      return (
+        <GlobalSearchResultRow
+          key={`${result.kind}-${result.id}`}
+          value={`${result.kind}-${result.id}-${label}`}
+          result={result}
+          icon={<Icon className="size-4" />}
+          primaryAction={actions.primary}
+          secondaryAction={actions.secondary}
+          alternateAction={actions.alternate}
+          onAction={handleResultAction}
+        />
+      )
+    },
+    [handleResultAction, permissionSnapshot]
+  )
+
+  const liveResultGroups = React.useMemo(
+    () => [
+      {
+        heading: "Saved Views",
+        results: liveSavedViews.map(
+          (item): GlobalSearchResult => ({
+            id: item.id,
+            kind: "savedView",
+            name: item.name,
+          })
+        ),
+      },
+      {
+        heading: "Correspondents",
+        results: correspondents.map(
+          (item): GlobalSearchResult => ({
+            id: item.id,
+            kind: "correspondent",
+            name: item.name,
+          })
+        ),
+      },
+      {
+        heading: "Document Types",
+        results: documentTypes.map(
+          (item): GlobalSearchResult => ({
+            id: item.id,
+            kind: "documentType",
+            name: item.name,
+          })
+        ),
+      },
+      {
+        heading: "Storage Paths",
+        results: storagePaths.map(
+          (item): GlobalSearchResult => ({
+            id: item.id,
+            kind: "storagePath",
+            name: item.name,
+          })
+        ),
+      },
+      {
+        heading: "Tags",
+        results: tags.map(
+          (item): GlobalSearchResult => ({
+            id: item.id,
+            kind: "tag",
+            name: item.name,
+          })
+        ),
+      },
+      {
+        heading: "Workflows",
+        results: workflows.map(
+          (item): GlobalSearchResult => ({
+            id: item.id,
+            kind: "workflow",
+            name: item.name,
+          })
+        ),
+      },
+      {
+        heading: "Mail Accounts",
+        results: mailAccounts.map(
+          (item): GlobalSearchResult => ({
+            id: item.id,
+            kind: "mailAccount",
+            name: item.name,
+          })
+        ),
+      },
+      {
+        heading: "Mail Rules",
+        results: mailRules.map(
+          (item): GlobalSearchResult => ({
+            id: item.id,
+            kind: "mailRule",
+            name: item.name,
+          })
+        ),
+      },
+      {
+        heading: "Custom Fields",
+        results: customFields.map(
+          (item): GlobalSearchResult => ({
+            id: item.id,
+            kind: "customField",
+            name: item.name,
+          })
+        ),
+      },
+      {
+        heading: "Users",
+        results: users.map(
+          (item): GlobalSearchResult => ({
+            id: item.id,
+            kind: "user",
+            name: item.name,
+          })
+        ),
+      },
+      {
+        heading: "Groups",
+        results: groups.map(
+          (item): GlobalSearchResult => ({
+            id: item.id,
+            kind: "group",
+            name: item.name,
+          })
+        ),
+      },
+    ],
+    [
+      correspondents,
+      customFields,
+      documentTypes,
+      groups,
+      liveSavedViews,
+      mailAccounts,
+      mailRules,
+      storagePaths,
+      tags,
+      users,
+      workflows,
+    ]
+  )
+
+  const displayedLiveGroups = React.useMemo(
+    () =>
+      liveResultGroups
+        .map((group) => ({
+          ...group,
+          rows: group.results
+            .map((result) => renderResultRow(result))
+            .filter((row): row is React.ReactElement => row !== null),
+        }))
+        .filter((group) => group.rows.length > 0),
+    [liveResultGroups, renderResultRow]
+  )
+
   const hasLiveSearchResults =
-    documents.length > 0 ||
-    liveSavedViews.length > 0 ||
-    correspondents.length > 0 ||
-    documentTypes.length > 0 ||
-    storagePaths.length > 0 ||
-    tags.length > 0 ||
-    users.length > 0 ||
-    groups.length > 0 ||
-    mailAccounts.length > 0 ||
-    mailRules.length > 0 ||
-    customFields.length > 0 ||
-    workflows.length > 0
+    documents.length > 0 || displayedLiveGroups.length > 0
 
   return (
     <>
@@ -421,22 +772,15 @@ export function GlobalSearch({
                 <CommandGroup heading="Documents">
                   {deferredQuery ? (
                     <>
-                      {documents.map((document) => (
-                        <CommandItem
-                          key={document.id}
-                          value={`document-${document.id}-${document.title}`}
-                          onSelect={() =>
-                            navigateToDocument({
-                              documentId: document.id,
-                              title: document.title || `Document ${document.id}`,
-                            })
-                          }
-                        >
-                          <Files className="size-4" />
-                          <span>{document.title || `Document ${document.id}`}</span>
-                          <CommandShortcut>Open</CommandShortcut>
-                        </CommandItem>
-                      ))}
+                      {documents
+                        .map((document) =>
+                          renderResultRow({
+                            id: document.id,
+                            kind: "document",
+                            title: document.title || `Document ${document.id}`,
+                          })
+                        )
+                        .filter((row): row is React.ReactElement => row !== null)}
                       <CommandItem
                         value={`search-all-${deferredQuery}`}
                         onSelect={() => handleFilteredDocumentsNavigate(deferredQuery)}
@@ -460,220 +804,13 @@ export function GlobalSearch({
               </>
             )}
 
-            {deferredQuery && liveSavedViews.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Saved Views">
-                  {liveSavedViews.map((view) => (
-                    <CommandItem
-                      key={view.id}
-                      value={`live-view-${view.id}-${view.name}`}
-                      onSelect={() => handleNavigate(`/view/${view.id}`)}
-                    >
-                      <FolderOpen className="size-4" />
-                      <span>{view.name}</span>
-                      <CommandShortcut>Saved view</CommandShortcut>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-
-            {deferredQuery && correspondents.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Correspondents">
-                  {correspondents.map((item) => (
-                    <CommandItem
-                      key={item.id}
-                      value={`correspondent-${item.id}-${item.name}`}
-                      onSelect={() =>
-                        handleFilteredDocumentsNavigate(`correspondent:${item.id}`)
-                      }
-                    >
-                      <UserRound className="size-4" />
-                      <span>{item.name}</span>
-                      <CommandShortcut>Filter docs</CommandShortcut>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-
-            {deferredQuery && documentTypes.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Document Types">
-                  {documentTypes.map((item) => (
-                    <CommandItem
-                      key={item.id}
-                      value={`document-type-${item.id}-${item.name}`}
-                      onSelect={() =>
-                        handleFilteredDocumentsNavigate(`document_type:${item.id}`)
-                      }
-                    >
-                      <FileCog className="size-4" />
-                      <span>{item.name}</span>
-                      <CommandShortcut>Filter docs</CommandShortcut>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-
-            {deferredQuery && storagePaths.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Storage Paths">
-                  {storagePaths.map((item) => (
-                    <CommandItem
-                      key={item.id}
-                      value={`storage-path-${item.id}-${item.name}`}
-                      onSelect={() =>
-                        handleFilteredDocumentsNavigate(`storage_path:${item.id}`)
-                      }
-                    >
-                      <FolderOpen className="size-4" />
-                      <span>{item.name}</span>
-                      <CommandShortcut>Filter docs</CommandShortcut>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-
-            {deferredQuery && tags.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Tags">
-                  {tags.map((item) => (
-                    <CommandItem
-                      key={item.id}
-                      value={`tag-${item.id}-${item.name}`}
-                      onSelect={() => handleFilteredDocumentsNavigate(`tag:${item.id}`)}
-                    >
-                      <Tags className="size-4" />
-                      <span>{item.name}</span>
-                      <CommandShortcut>Filter docs</CommandShortcut>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-
-            {deferredQuery && workflows.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Workflows">
-                  {workflows.map((item) => (
-                    <CommandItem
-                      key={item.id}
-                      value={`workflow-${item.id}-${item.name}`}
-                      onSelect={() => handleNavigate(`/workflows`)}
-                    >
-                      <GitBranch className="size-4" />
-                      <span>{item.name}</span>
-                      <CommandShortcut>Manage</CommandShortcut>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-
-            {deferredQuery && mailAccounts.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Mail Accounts">
-                  {mailAccounts.map((item) => (
-                    <CommandItem
-                      key={item.id}
-                      value={`mail-account-${item.id}-${item.name}`}
-                      onSelect={() => handleNavigate("/mail")}
-                    >
-                      <Mail className="size-4" />
-                      <span>{item.name}</span>
-                      <CommandShortcut>Manage</CommandShortcut>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-
-            {deferredQuery && mailRules.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Mail Rules">
-                  {mailRules.map((item) => (
-                    <CommandItem
-                      key={item.id}
-                      value={`mail-rule-${item.id}-${item.name}`}
-                      onSelect={() => handleNavigate("/mail")}
-                    >
-                      <Mail className="size-4" />
-                      <span>{item.name}</span>
-                      <CommandShortcut>Manage</CommandShortcut>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-
-            {deferredQuery && customFields.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Custom Fields">
-                  {customFields.map((item) => (
-                    <CommandItem
-                      key={item.id}
-                      value={`custom-field-${item.id}-${item.name}`}
-                      onSelect={() => handleNavigate("/custom-fields")}
-                    >
-                      <SquareStack className="size-4" />
-                      <span>{item.name}</span>
-                      <CommandShortcut>Manage</CommandShortcut>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-
-            {deferredQuery && users.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Users">
-                  {users.map((item) => (
-                    <CommandItem
-                      key={item.id}
-                      value={`user-${item.id}-${item.name}`}
-                      onSelect={() => handleNavigate("/users")}
-                    >
-                      <Users className="size-4" />
-                      <span>{item.name}</span>
-                      <CommandShortcut>Manage</CommandShortcut>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-
-            {deferredQuery && groups.length > 0 && (
-              <>
-                <CommandSeparator />
-                <CommandGroup heading="Groups">
-                  {groups.map((item) => (
-                    <CommandItem
-                      key={item.id}
-                      value={`group-${item.id}-${item.name}`}
-                      onSelect={() => handleNavigate("/users")}
-                    >
-                      <Users className="size-4" />
-                      <span>{item.name}</span>
-                      <CommandShortcut>Manage</CommandShortcut>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
+            {deferredQuery &&
+              displayedLiveGroups.map((group) => (
+                <React.Fragment key={group.heading}>
+                  <CommandSeparator />
+                  <CommandGroup heading={group.heading}>{group.rows}</CommandGroup>
+                </React.Fragment>
+              ))}
 
             {deferredQuery && !loadingDocuments && !hasLiveSearchResults && navigationItems.length === 0 && (
               <div className="px-3 py-2 text-xs text-muted-foreground">

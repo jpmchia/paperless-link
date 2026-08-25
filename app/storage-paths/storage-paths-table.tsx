@@ -68,7 +68,15 @@ const emptyItem = (): Partial<StoragePath> => ({
   is_insensitive: false,
 })
 
-export function StoragePathsTable({ initialItems }: { initialItems: StoragePath[] }) {
+export function StoragePathsTable({
+  initialEditItemId,
+  initialItems,
+  onItemsChange,
+}: {
+  initialEditItemId?: number | null
+  initialItems: StoragePath[]
+  onItemsChange?: (items: StoragePath[]) => void
+}) {
   const { can } = usePermissions()
   const [items, setItems] = React.useState<StoragePath[]>(initialItems)
   const [search, setSearch] = React.useState("")
@@ -77,6 +85,7 @@ export function StoragePathsTable({ initialItems }: { initialItems: StoragePath[
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<number[]>([])
   const [page, setPage] = React.useState(1)
+  const handledInitialEditIdRef = React.useRef<number | null>(null)
 
   const filtered = items.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase()) || c.path.toLowerCase().includes(search.toLowerCase())
@@ -90,6 +99,33 @@ export function StoragePathsTable({ initialItems }: { initialItems: StoragePath[
   React.useEffect(() => {
     setPage(1)
   }, [search])
+
+  React.useEffect(() => {
+    setItems(initialItems)
+  }, [initialItems])
+
+  React.useEffect(() => {
+    onItemsChange?.(items)
+  }, [items, onItemsChange])
+
+  React.useEffect(() => {
+    if (initialEditItemId == null) {
+      handledInitialEditIdRef.current = null
+      return
+    }
+
+    if (handledInitialEditIdRef.current === initialEditItemId) {
+      return
+    }
+
+    const item = items.find((storagePath) => storagePath.id === initialEditItemId)
+    if (!item) {
+      return
+    }
+
+    handledInitialEditIdRef.current = initialEditItemId
+    openEdit(item)
+  }, [initialEditItemId, items])
 
   const { pending: saving, run: saveStoragePath } = useAsyncAction({
     action: async () => {

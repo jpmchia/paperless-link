@@ -336,16 +336,16 @@ export async function getUiSettings<T extends object = Record<string, unknown>>(
   }
 }
 
-export async function getDocuments(
+export async function getDocuments<T = unknown>(
   page: number = 1,
   pageSize: number = 25,
   filters: FilterParams = {}
-): Promise<DocumentResults<unknown>> {
+): Promise<DocumentResults<T>> {
   try {
     const qs = buildDocumentQueryString(page, pageSize, filters, {
       includeSelectionData: true,
     })
-    const data = await getPaperlessApi<PaginatedResults<unknown> & {
+    const data = await getPaperlessApi<PaginatedResults<T> & {
       selection_data?: SelectionData | null
     }>(`documents/?${qs}`)
     return {

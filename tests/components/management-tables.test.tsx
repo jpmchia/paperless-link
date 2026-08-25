@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { CorrespondentsTable } from "@/app/correspondents/correspondents-table"
+import { StoragePathsTable } from "@/app/storage-paths/storage-paths-table"
 import { TagsTable } from "@/app/tags/tags-table"
 import { JotaiProvider } from "@/components/jotai-provider"
 import { PermissionsProvider } from "@/components/permissions/provider"
@@ -180,5 +181,48 @@ describe("Management table refinements", () => {
       expect(screen.queryByText("Ampere")).not.toBeInTheDocument()
       expect(screen.queryByText("Companies House")).not.toBeInTheDocument()
     })
+  })
+
+  it("opens the requested tag editor when an initial edit id is provided", async () => {
+    renderWithPermissions(
+      <TagsTable
+        initialTags={[
+          {
+            color: "#a6cee3",
+            id: 1,
+            is_inbox_tag: false,
+            is_insensitive: false,
+            match: "",
+            matching_algorithm: 6,
+            name: "Alpha",
+          },
+        ]}
+        initialEditTagId={1}
+      />,
+      ["view_tag", "change_tag"]
+    )
+
+    expect(await screen.findByDisplayValue("Alpha")).toBeInTheDocument()
+  })
+
+  it("opens the requested storage path editor when an initial edit id is provided", async () => {
+    renderWithPermissions(
+      <StoragePathsTable
+        initialItems={[
+          {
+            id: 7,
+            is_insensitive: false,
+            match: "",
+            matching_algorithm: 6,
+            name: "Archive",
+            path: "/archive/{created_year}",
+          },
+        ]}
+        initialEditItemId={7}
+      />,
+      ["view_storagepath", "change_storagepath"]
+    )
+
+    expect(await screen.findByDisplayValue("Archive")).toBeInTheDocument()
   })
 })

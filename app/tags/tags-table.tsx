@@ -99,10 +99,12 @@ const emptyTag = (): Partial<Tag> => ({
 
 export function TagsTable({
   initialTags,
+  initialEditTagId,
   onItemsChange,
   onSelectTag,
   selectLabel = "Use",
 }: {
+  initialEditTagId?: number | null
   initialTags: Tag[]
   onItemsChange?: (items: Tag[]) => void
   onSelectTag?: (tag: Tag) => void
@@ -119,6 +121,7 @@ export function TagsTable({
   const [expandedIds, setExpandedIds] = React.useState<Set<number>>(
     () => new Set(initialTags.filter((tag) => initialTags.some((child) => child.parent === tag.id)).map((tag) => tag.id))
   )
+  const handledInitialEditIdRef = React.useRef<number | null>(null)
 
   const flattenedTags = React.useMemo(() => flattenTagHierarchy(tags), [tags])
   const parentIds = React.useMemo(
@@ -155,6 +158,25 @@ export function TagsTable({
   React.useEffect(() => {
     setPage(1)
   }, [search])
+
+  React.useEffect(() => {
+    if (initialEditTagId == null) {
+      handledInitialEditIdRef.current = null
+      return
+    }
+
+    if (handledInitialEditIdRef.current === initialEditTagId) {
+      return
+    }
+
+    const tag = tags.find((item) => item.id === initialEditTagId)
+    if (!tag) {
+      return
+    }
+
+    handledInitialEditIdRef.current = initialEditTagId
+    openEdit(tag)
+  }, [initialEditTagId, tags])
 
   const { pending: saving, run: saveTag } = useAsyncAction({
     action: async () => {

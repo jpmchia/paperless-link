@@ -72,11 +72,13 @@ const emptyItem = (): Partial<DocumentType> => ({
 })
 
 export function DocumentTypesTable({
+  initialEditItemId,
   initialItems,
   onItemsChange,
   onSelectDocumentType,
   selectLabel = "Use",
 }: {
+  initialEditItemId?: number | null
   initialItems: DocumentType[]
   onItemsChange?: (items: DocumentType[]) => void
   onSelectDocumentType?: (item: DocumentType) => void
@@ -90,6 +92,7 @@ export function DocumentTypesTable({
   const [deleteId, setDeleteId] = React.useState<number | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<number[]>([])
   const [page, setPage] = React.useState(1)
+  const handledInitialEditIdRef = React.useRef<number | null>(null)
 
   React.useEffect(() => {
     setItems(initialItems)
@@ -111,6 +114,25 @@ export function DocumentTypesTable({
   React.useEffect(() => {
     setPage(1)
   }, [search])
+
+  React.useEffect(() => {
+    if (initialEditItemId == null) {
+      handledInitialEditIdRef.current = null
+      return
+    }
+
+    if (handledInitialEditIdRef.current === initialEditItemId) {
+      return
+    }
+
+    const item = items.find((documentType) => documentType.id === initialEditItemId)
+    if (!item) {
+      return
+    }
+
+    handledInitialEditIdRef.current = initialEditItemId
+    openEdit(item)
+  }, [initialEditItemId, items])
 
   const { pending: saving, run: saveDocumentType } = useAsyncAction({
     action: async () => {

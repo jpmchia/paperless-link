@@ -4,6 +4,7 @@ import { AgentRailLayout } from "@/components/agent-rail-layout"
 import { ConfirmationDialogProvider } from "@/components/confirmation-dialog-provider"
 import { NotificationPreferencesProvider } from "@/components/notifications/preferences-provider"
 import { PermissionsProvider } from "@/components/permissions/provider"
+import { SidebarManagementDialogProvider } from "@/components/sidebar-management-dialog"
 import { UserPreferencesProvider } from "@/components/user-preferences-provider"
 import {
   SidebarInset,
@@ -186,39 +187,41 @@ export async function AppShell({
           initialPreferences={notificationPreferences}
         >
           <ConfirmationDialogProvider>
-            {Object.keys(themeVariables).length > 0 ? (
-              <style>{serializeThemeVariables(themeVariables)}</style>
-            ) : null}
-            <SidebarProvider
-              className="h-full"
-              defaultOpen={!userPreferences.slimSidebar}
-              style={themeVariables as CSSProperties}
-            >
-              {sidebar ?? (
-                <AppSidebar
-                  appLogo={appLogo}
-                  appTitle={appTitle}
-                  initialPermissions={resolvedPermissions}
-                  savedViews={savedViews}
-                  savedViewSortOrder={sidebarViewSortOrder}
-                  slimSidebar={userPreferences.slimSidebar}
-                />
-              )}
-              <SidebarInset className="h-full bg-sidebar border-none shadow-none!">
-                <AgentRailLayout
-                  savedViews={savedViews}
-                  topbar={topbar}
-                  sidebarTrigger={<SidebarTrigger />}
-                  showGlobalControls={mode === "default"}
-                  initialTourComplete={initialTourComplete}
-                  showAgentRailToggle
-                  agentSurface={mode === "dataroom" ? "dataroom" : "main"}
-                  dataroomSlug={dataroomSlug ?? null}
-                >
-                  {children}
-                </AgentRailLayout>
-              </SidebarInset>
-            </SidebarProvider>
+            <SidebarManagementDialogProvider>
+              {Object.keys(themeVariables).length > 0 ? (
+                <style>{serializeThemeVariables(themeVariables)}</style>
+              ) : null}
+              <SidebarProvider
+                className="h-full"
+                defaultOpen={!userPreferences.slimSidebar}
+                style={themeVariables as CSSProperties}
+              >
+                {sidebar ?? (
+                  <AppSidebar
+                    appLogo={appLogo}
+                    appTitle={appTitle}
+                    initialPermissions={resolvedPermissions}
+                    savedViews={savedViews}
+                    savedViewSortOrder={sidebarViewSortOrder}
+                    slimSidebar={userPreferences.slimSidebar}
+                  />
+                )}
+                <SidebarInset className="h-full bg-sidebar border-none shadow-none!">
+                  <AgentRailLayout
+                    savedViews={savedViews}
+                    topbar={topbar}
+                    sidebarTrigger={<SidebarTrigger />}
+                    showGlobalControls={mode === "default"}
+                    initialTourComplete={initialTourComplete}
+                    showAgentRailToggle
+                    agentSurface={mode === "dataroom" ? "dataroom" : "main"}
+                    dataroomSlug={dataroomSlug ?? null}
+                  >
+                    {children}
+                  </AgentRailLayout>
+                </SidebarInset>
+              </SidebarProvider>
+            </SidebarManagementDialogProvider>
           </ConfirmationDialogProvider>
         </NotificationPreferencesProvider>
       </UserPreferencesProvider>

@@ -72,7 +72,13 @@ function createSelectOptionId() {
   return Math.random().toString(36).slice(2, 18)
 }
 
-export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[] }) {
+export function CustomFieldsTable({
+  initialItems,
+  onItemsChange,
+}: {
+  initialItems: CustomField[]
+  onItemsChange?: (items: CustomField[]) => void
+}) {
   const [items, setItems] = React.useState<CustomField[]>(initialItems)
   const [search, setSearch] = React.useState("")
   const [creating, setCreating] = React.useState(false)
@@ -98,6 +104,14 @@ export function CustomFieldsTable({ initialItems }: { initialItems: CustomField[
   React.useEffect(() => {
     setPage(1)
   }, [search])
+
+  React.useEffect(() => {
+    setItems(initialItems)
+  }, [initialItems])
+
+  React.useEffect(() => {
+    onItemsChange?.(items)
+  }, [items, onItemsChange])
 
   const { pending: saving, run: createField } = useAsyncAction({
     action: async () => {

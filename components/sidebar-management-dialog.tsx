@@ -8,11 +8,13 @@ import { TagsTable } from "@/app/tags/tags-table"
 import { CorrespondentsTable } from "@/app/correspondents/correspondents-table"
 import { DocumentTypesTable } from "@/app/document-types/document-types-table"
 import { CustomFieldsTable } from "@/app/custom-fields/custom-fields-table"
+import { StoragePathsTable } from "@/app/storage-paths/storage-paths-table"
 
 export type SidebarManagementDialogKind =
   | "tags"
   | "correspondents"
   | "documentTypes"
+  | "storagePaths"
   | "customFields"
 
 interface PaginatedResults<T> {
@@ -24,18 +26,16 @@ type CorrespondentItem =
   React.ComponentProps<typeof CorrespondentsTable>["initialCorrespondents"][number]
 type DocumentTypeItem =
   React.ComponentProps<typeof DocumentTypesTable>["initialItems"][number]
+type StoragePathItem =
+  React.ComponentProps<typeof StoragePathsTable>["initialItems"][number]
 type CustomFieldItem =
   React.ComponentProps<typeof CustomFieldsTable>["initialItems"][number]
-
-interface SidebarManagementDialogProps {
-  kind: SidebarManagementDialogKind | null
-  onOpenChange: (open: boolean) => void
-}
 
 interface SidebarManagementDialogData {
   correspondents: CorrespondentItem[]
   customFields: CustomFieldItem[]
   documentTypes: DocumentTypeItem[]
+  storagePaths: StoragePathItem[]
   tags: TagItem[]
 }
 
@@ -43,6 +43,7 @@ const EMPTY_DATA: SidebarManagementDialogData = {
   correspondents: [],
   customFields: [],
   documentTypes: [],
+  storagePaths: [],
   tags: [],
 }
 
@@ -61,6 +62,10 @@ const DIALOG_META: Record<
   documentTypes: {
     endpoint: withQuery("/api/management/lookups", { kind: "document-types" }),
     title: "Document Types",
+  },
+  storagePaths: {
+    endpoint: withQuery("/api/management/lookups", { kind: "storage-paths" }),
+    title: "Storage Paths",
   },
   tags: {
     endpoint: withQuery("/api/management/lookups", { kind: "tags" }),
@@ -82,6 +87,7 @@ function normalizeDialogItems<T>(payload: unknown, kind: SidebarManagementDialog
     tags: ["tags"],
     correspondents: ["correspondents"],
     documentTypes: ["document_types", "documentTypes"],
+    storagePaths: ["storage_paths", "storagePaths"],
     customFields: ["custom_fields", "customFields"],
   }
   for (const key of kindKeys[kind]) {
@@ -91,13 +97,43 @@ function normalizeDialogItems<T>(payload: unknown, kind: SidebarManagementDialog
   return []
 }
 
-export function SidebarManagementDialog({
+interface SidebarManagementDialogState {
+  initialItemId: number | null
+  kind: SidebarManagementDialogKind | null
+  onItemsChange?: (() => void) | undefined
+}
+
+interface SidebarManagementDialogContextValue {
+  activeDialogKind: SidebarManagementDialogKind | null
+  closeManagementDialog: () => void
+  openManagementDialog: (
+    kind: SidebarManagementDialogKind,
+    options?: {
+      initialItemId?: number | null
+      onItemsChange?: () => void
+    }
+  ) => void
+}
+
+const SidebarManagementDialogContext =
+  React.createContext<SidebarManagementDialogContextValue | null>(null)
+
+function SidebarManagementDialog({
+  initialItemId,
   kind,
+  onItemsChange,
   onOpenChange,
-}: SidebarManagementDialogProps) {
+}: SidebarManagementDialogState & {
+  onOpenChange: (open: boolean) => void
+}) {
   const [data, setData] = React.useState<SidebarManagementDialogData>(EMPTY_DATA)
   const [error, setError] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(false)
+  const didMountRef = React.useRef(false)
+
+  React.useEffect(() => {
+    didMountRef.current = false
+  }, [initialItemId, kind])
 
   React.useEffect(() => {
     if (!kind) return
@@ -114,13 +150,21 @@ export function SidebarManagementDialog({
         }_t=${Date.now()}`
         const response = await getJson<
           PaginatedResults<
-            TagItem | CorrespondentItem | DocumentTypeItem | CustomFieldItem
+            | TagItem
+            | CorrespondentItem
+            | DocumentTypeItem
+            | StoragePathItem
+            | CustomFieldItem
           >
         >(endpoint, { cache: "no-store" })
         if (cancelled) return
 
         const items = normalizeDialogItems<
-          TagItem | CorrespondentItem | DocumentTypeItem | CustomFieldItem
+          | TagItem
+          | CorrespondentItem
+          | DocumentTypeItem
+          | StoragePathItem
+          | CustomFieldItem
         >(response, currentKind)
         setData((current) => ({
           ...current,
@@ -175,17 +219,57 @@ export function SidebarManagementDialog({
       )
     }
 
+    const notifyItemsChange = () => {
+      if (!didMountRef.current) {
+        didMountRef.current = true
+        return
+      }
+
+      onItemsChange?.()
+    }
+
     switch (kind) {
       case "tags":
-        return <TagsTable initialTags={data.tags} />
+        return (
+          <TagsTable
+            initialTags={data.tags}
+            initialEditTagId={initialItemId}
+            onItemsChange={notifyItemsChange}
+          />
+        )
       case "correspondents":
-        return <CorrespondentsTable initialCorrespondents={data.correspondents} />
+        return (
+          <CorrespondentsTable
+            initialCorrespondents={data.correspondents}
+            initialEditCorrespondentId={initialItemId}
+            onItemsChange={notifyItemsChange}
+          />
+        )
       case "documentTypes":
-        return <DocumentTypesTable initialItems={data.documentTypes} />
+        return (
+          <DocumentTypesTable
+            initialEditItemId={initialItemId}
+            initialItems={data.documentTypes}
+            onItemsChange={notifyItemsChange}
+          />
+        )
+      case "storagePaths":
+        return (
+          <StoragePathsTable
+            initialEditItemId={initialItemId}
+            initialItems={data.storagePaths}
+            onItemsChange={notifyItemsChange}
+          />
+        )
       case "customFields":
-        return <CustomFieldsTable initialItems={data.customFields} />
+        return (
+          <CustomFieldsTable
+            initialItems={data.customFields}
+            onItemsChange={notifyItemsChange}
+          />
+        )
       default:
-        return null
+        return assertNever(kind)
     }
   }
 
@@ -204,3 +288,74 @@ export function SidebarManagementDialog({
     </DraggableDialog>
   )
 }
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled sidebar management dialog kind: ${String(value)}`)
+}
+
+export function SidebarManagementDialogProvider({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const [state, setState] = React.useState<SidebarManagementDialogState>({
+    initialItemId: null,
+    kind: null,
+  })
+
+  const closeManagementDialog = React.useCallback(() => {
+    setState({
+      initialItemId: null,
+      kind: null,
+    })
+  }, [])
+
+  const openManagementDialog = React.useCallback<
+    SidebarManagementDialogContextValue["openManagementDialog"]
+  >((kind, options = {}) => {
+    setState({
+      initialItemId: options.initialItemId ?? null,
+      kind,
+      onItemsChange: options.onItemsChange,
+    })
+  }, [])
+
+  const value = React.useMemo<SidebarManagementDialogContextValue>(
+    () => ({
+      activeDialogKind: state.kind,
+      closeManagementDialog,
+      openManagementDialog,
+    }),
+    [closeManagementDialog, openManagementDialog, state.kind]
+  )
+
+  return (
+    <SidebarManagementDialogContext.Provider value={value}>
+      {children}
+      <SidebarManagementDialog
+        initialItemId={state.initialItemId}
+        kind={state.kind}
+        onItemsChange={state.onItemsChange}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeManagementDialog()
+          }
+        }}
+      />
+    </SidebarManagementDialogContext.Provider>
+  )
+}
+
+export function useSidebarManagementDialog() {
+  const context = React.useContext(SidebarManagementDialogContext)
+
+  if (!context) {
+    throw new Error(
+      "useSidebarManagementDialog must be used within SidebarManagementDialogProvider"
+    )
+  }
+
+  return context
+}
+
+export { SidebarManagementDialog }
